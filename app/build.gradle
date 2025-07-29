@@ -1,0 +1,94 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace 'com.smart.android.ad_app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.smart.android.ad_app"
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+
+        hikeen {
+            storeFile file("HikeenKeystore.jks")
+            storePassword '123456'
+            keyAlias 'zeasn'
+            keyPassword '123456'
+        }
+
+        h713 {
+            storeFile file("h713.jks")
+            storePassword "123456"
+            keyAlias "h713"
+            keyPassword "123456"
+        }
+
+        x88 {
+            storeFile file("platform_x88.keystore")
+            storePassword "platform"
+            keyAlias "platform"
+            keyPassword "platform"
+        }
+
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+
+    flavorDimensions.add("ad")
+
+    productFlavors {
+        hq001 {
+            applicationId "com.hqota.launcher.hq"
+            minSdk 21
+            versionCode 1   // 2025-7-29发布版本号：1
+            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.x88
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+    }
+
+}
+
+dependencies {
+
+    implementation libs.androidx.core.ktx
+    implementation files('libs/lib_autorun.aar')
+    api 'com.squareup.okhttp3:okhttp:4.12.0'
+    api 'com.google.code.gson:gson:2.12.1'
+    api "androidx.lifecycle:lifecycle-runtime-ktx:2.6.2"
+    api "androidx.work:work-runtime-ktx:2.9.0"
+}

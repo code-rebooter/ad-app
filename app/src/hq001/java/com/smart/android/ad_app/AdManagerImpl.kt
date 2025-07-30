@@ -15,7 +15,7 @@ object AdManagerImpl : IAdManager {
         Initialization.init(appContext)
     }
 
-    override fun showAd(flRoot: View) {
+    override fun showAd(flRoot: View, adComplete: () -> Unit) {
         //展示广告
         println("hq001的广告展示")
 
@@ -27,15 +27,15 @@ object AdManagerImpl : IAdManager {
                 }
 
                 override fun onAdFinished() {
-                    flRoot.visibility = View.GONE
+                    adComplete.invoke()
                 }
 
                 override fun onAdError() {
-                    flRoot.visibility = View.GONE
+                    adComplete.invoke()
                 }
 
                 override fun onContainerSizeError() {
-                    flRoot.visibility = View.GONE
+                    adComplete.invoke()
                 }
             })
             .start()

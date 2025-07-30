@@ -27,7 +27,7 @@ object AdManagerImpl : IAdManager {
 
     }
 
-    override fun showAd(flRoot: View) {
+    override fun showAd(flRoot: View, adComplete: () -> Unit) {
         //展示广告
         println("hq002的广告展示")
 

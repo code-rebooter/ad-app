@@ -5,9 +5,13 @@ import android.app.Application
 import com.github.lib_autorun.AppManager
 
 class APP:Application() {
+
     @SuppressLint("NewApi")
     override fun onCreate() {
         super.onCreate()
+        MvvmHelper.init(this)
+        AdManagerImpl.init()
+
         AppManager.init{
             context = this@APP
             baseUrl = BuildConfig.BASE_URL
@@ -20,7 +24,7 @@ class APP:Application() {
             isEncrypted = BuildConfig.IS_ENCRYPTED
             isDebugMode = true
         }
-
-
     }
+
+
 }

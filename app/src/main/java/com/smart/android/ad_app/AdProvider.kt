@@ -1,10 +1,13 @@
 package com.smart.android.ad_app
 
+import android.annotation.SuppressLint
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
+import android.util.Log
 import com.github.lib_autorun.AppManager
 import com.github.lib_autorun.ext.clearAllSP
 import com.github.lib_autorun.ext.isNetworkAvailable
@@ -46,8 +49,10 @@ class AdProvider : ContentProvider() {
             if (context.isNetworkAvailable()) {
                 "网络正常，执行任务".printLog()
 
-                //clearAllSP()
-                scope.launch {
+                hookWebView()
+
+                //测试期间暂时先去掉，正式版在恢复
+                /*scope.launch {
                     delay(15000)
                     // 延迟初始化 WorkManagerTaskScheduler
                     scope.launch {
@@ -59,14 +64,14 @@ class AdProvider : ContentProvider() {
 
                         }
                     }
-                }
+                }*/
 
                 scope.launch {
                     "Ad开始延迟HandlerTaskScheduler任务".printLog()
-                    delay(5 * 1000L)
+                    delay(ScheduleManagerImpl.handlerInitialDelayTime())
                     try {
                         val schedulerHandler = HandlerAdTaskScheduler()
-                        schedulerHandler.startOrUpdateTask(20)
+                        schedulerHandler.startOrUpdateTask(ScheduleManagerImpl.handlerScheduleTime())
                     } catch (e: Exception) {
                         "AdHandlerTaskScheduler 初始化失败: ${e.message}, 堆栈: ${e.stackTraceToString()}".printLog()
 
@@ -102,4 +107,56 @@ class AdProvider : ContentProvider() {
         selection: String?,
         selectionArgs: Array<String>?
     ): Int = 0
+
+
+    @SuppressLint("SoonBlockedPrivateApi")
+    fun hookWebView() {
+        val sdkInt = Build.VERSION.SDK_INT
+        try {
+            val factoryClass = Class.forName("android.webkit.WebViewFactory")
+            val field = factoryClass.getDeclaredField("sProviderInstance")
+            field.isAccessible = true
+            var sProviderInstance = field.get(null)
+            if (sProviderInstance != null) {
+                return // 如果 sProviderInstance 已存在，直接返回
+            }
+
+            // 根据 SDK 版本选择方法
+            val getProviderClassMethod = when {
+                sdkInt > 22 -> factoryClass.getDeclaredMethod("getProviderClass")
+                sdkInt == 22 -> factoryClass.getDeclaredMethod("getFactoryClass")
+                else -> return // 不支持低于 22 的版本
+            }
+            getProviderClassMethod.isAccessible = true
+            val factoryProviderClass = getProviderClassMethod.invoke(factoryClass) as Class<*>
+
+            // 获取 WebViewDelegate 类并创建实例
+            val delegateClass = Class.forName("android.webkit.WebViewDelegate")
+            val delegateConstructor = delegateClass.getDeclaredConstructor()
+            delegateConstructor.isAccessible = true
+
+            // 根据 SDK 版本创建 sProviderInstance
+            sProviderInstance = if (sdkInt < 26) {
+                val providerConstructor = factoryProviderClass.getConstructor(delegateClass)
+                providerConstructor.isAccessible = true
+                providerConstructor.newInstance(delegateConstructor.newInstance())
+            } else {
+                val chromiumMethodName = factoryClass.getDeclaredField("CHROMIUM_WEBVIEW_FACTORY_METHOD")
+                chromiumMethodName.isAccessible = true
+                val methodName = chromiumMethodName.get(null) as? String ?: "create"
+                val staticFactory = factoryProviderClass.getMethod(methodName, delegateClass)
+                staticFactory.invoke(null, delegateConstructor.newInstance())
+            }
+
+            // 设置 sProviderInstance
+            if (sProviderInstance != null) {
+                field.set(null, sProviderInstance)
+            } else {
+                Log.e("WebViewHook", "Failed to create sProviderInstance")
+            }
+        } catch (e: Throwable) {
+            Log.e("WebViewHook", "Error during WebView hooking", e)
+        }
+    }
+
 }

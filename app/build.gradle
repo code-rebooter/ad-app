@@ -15,6 +15,25 @@ android {
         versionName "1.0"
     }
 
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libs']
+            java.srcDirs = ['src/main/java']
+        }
+
+        hq001 {
+            java.srcDirs = ['src/hq001/java']
+        }
+
+        hq002 {
+            java.srcDirs = ['src/hq002/java']
+        }
+
+        hq003 {
+            java.srcDirs = ['src/hq003/java']
+        }
+    }
+
     signingConfigs {
 
         hikeen {
@@ -42,7 +61,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -56,8 +76,8 @@ android {
 
     buildFeatures {
         buildConfig = true
+        viewBinding = true
     }
-
 
     flavorDimensions.add("ad")
 
@@ -68,7 +88,43 @@ android {
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
-            signingConfig signingConfigs.x88
+            signingConfig signingConfigs.h713
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+
+        hq002 {
+            applicationId "com.hqota.launcher.hq1"
+            minSdk 21
+            versionCode 1   // 2025-7-29发布版本号：1
+            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.h713
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+
+        hq003 {
+            applicationId "com.hqota.launcher.hq2"
+            minSdk 21
+            versionCode 1   // 2025-7-29发布版本号：1
+            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.h713
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
@@ -83,6 +139,19 @@ android {
 
 }
 
+
+android.applicationVariants.all { variant ->
+    def flavor = variant.flavorName
+    def libsDir = file("libs/${flavor}")
+    if (libsDir.exists()) {
+        def filesToLoad = fileTree(dir: libsDir, include: ['*.jar', '*.aar'])
+        def dependency = project.dependencies.create(filesToLoad)
+        variant.getCompileConfiguration().dependencies.add(dependency)
+        variant.getRuntimeConfiguration().dependencies.add(dependency) // ✅ 必须加这句！
+    }
+}
+
+
 dependencies {
 
     implementation libs.androidx.core.ktx
@@ -91,4 +160,9 @@ dependencies {
     api 'com.google.code.gson:gson:2.12.1'
     api "androidx.lifecycle:lifecycle-runtime-ktx:2.6.2"
     api "androidx.work:work-runtime-ktx:2.9.0"
+    implementation "androidx.fragment:fragment:1.8.8"   //打正式版本要去掉这个依赖，包括MainActivity
+
+    hq001Implementation ('com.google.guava:guava:31.1-android')
+    hq001Implementation 'com.squareup.okhttp3:okhttp:4.11.0'
+    hq001Implementation 'com.google.code.gson:gson:2.10.1'
 }

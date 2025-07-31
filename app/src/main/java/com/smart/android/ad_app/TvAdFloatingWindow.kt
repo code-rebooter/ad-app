@@ -17,7 +17,12 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
             setFocusable(true)
             // 启动10秒倒计时
             startCountdown()
+        }, adError = {
+            //广告错误
+            AdConfigManager.reportAdStatus(false)
+            hide()
         }) {
+            AdConfigManager.reportAdStatus(true)
             hide()
         }
     }

@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <meta-data
+            android:name="tcl_app_key"
+            android:value="GhnR/ZY3jmkNdQ3mOh5vh3V0DJzM9O7PfLhjcKq7mItJhEE0isAZ9fhON3lS7OWCQhqS8tJRkXV6Mg5KI2o7VQ==" />
+        <meta-data
+            android:name="partner_name"
+            android:value="Cyhikeen" />
+    </application>
+
+</manifest>

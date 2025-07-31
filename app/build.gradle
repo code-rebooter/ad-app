@@ -32,6 +32,12 @@ android {
         hq003 {
             java.srcDirs = ['src/hq003/java']
         }
+        hq004 {
+            java.srcDirs = ['src/hq004/java']
+        }
+        hq005 {
+            java.srcDirs = ['src/hq005/java']
+        }
     }
 
     signingConfigs {
@@ -55,6 +61,14 @@ android {
             storePassword "platform"
             keyAlias "platform"
             keyPassword "platform"
+        }
+
+        yxt {
+            storeFile file("yxt_X98K_10.keystore")
+            //storeFile file("platform_X98K_301.keystore")
+            storePassword "android"
+            keyAlias "platform"
+            keyPassword "android"
         }
 
     }
@@ -101,7 +115,7 @@ android {
         }
 
         hq002 {
-            applicationId "com.hqota.launcher.SLFhq"
+            applicationId "com.hqota.launcher.slfhq"
             minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
@@ -119,12 +133,12 @@ android {
         }
 
         hq003 {
-            applicationId "com.hqota.launcher.LIUhq"
+            applicationId "com.hqota.launcher.liuhq"
             minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
-            signingConfig signingConfigs.x88
+            signingConfig signingConfigs.h713
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
@@ -135,6 +149,44 @@ android {
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
             buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
         }
+
+        hq004 {
+            applicationId "com.hqota.launcher.aduhq"
+            minSdk 21
+            versionCode 1   // 2025-7-31发布版本号：1
+            versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.h713
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_ADU"'
+            buildConfigField "String", "C_TYPE", '"HQTV_ADU"'
+            buildConfigField "String", "MODEL", '"HQTV_ADU"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+
+        hq005 {
+            //这个yxt签名文件跟com.chihim.launcher.x98m是对应的，不能随意该任何一个，不然无法展示广告
+            applicationId "com.chihim.launcher.x98m"
+            minSdk 21
+            versionCode 1   // 2025-7-31发布版本号：1
+            versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.yxt
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_MOFENG"'
+            buildConfigField "String", "C_TYPE", '"HQTV_MOFENG"'
+            buildConfigField "String", "MODEL", '"HQTV_MOFENG"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+
     }
 
 }
@@ -160,20 +212,27 @@ dependencies {
     api 'com.google.code.gson:gson:2.12.1'
     api "androidx.lifecycle:lifecycle-runtime-ktx:2.6.2"
     api "androidx.work:work-runtime-ktx:2.9.0"
-    //compileOnly "androidx.fragment:fragment:1.8.8"   //打正式版本要去掉这个依赖，包括MainActivity
+    implementation "androidx.fragment:fragment:1.8.8"   //打正式版本要去掉这个依赖，包括MainActivity
 
     hq001Implementation ('com.google.guava:guava:31.1-android')
-    hq001Implementation 'com.squareup.okhttp3:okhttp:4.11.0'
-    hq001Implementation 'com.google.code.gson:gson:2.10.1'
+    //hq001Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    //hq001Implementation 'com.google.code.gson:gson:2.12.1'
 
     hq003Implementation 'com.squareup.retrofit2:adapter-rxjava2:2.9.0'
     hq003Implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     hq003Implementation 'androidx.media3:media3-exoplayer:1.6.1'
     hq003Implementation 'androidx.media3:media3-ui:1.6.1'
     hq003Implementation 'androidx.media3:media3-exoplayer-ima:1.6.1'
+    hq003Implementation "io.reactivex.rxjava2:rxjava:2.2.21"
+    hq003Implementation "io.reactivex.rxjava2:rxandroid:2.1.1"
 
-    implementation "io.reactivex.rxjava2:rxjava:2.2.21"
-    implementation "io.reactivex.rxjava2:rxandroid:2.1.1"
+    //hq004Implementation 'com.google.code.gson:gson:2.12.1'
+    //hq004Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    hq004Implementation 'androidx.medAia3:media3-exoplayer:1.5.1'
+
+    hq005Implementation ('com.google.guava:guava:31.1-android')
+    //hq005Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    //hq005Implementation 'com.google.code.gson:gson:2.12.1'
 
 
 }

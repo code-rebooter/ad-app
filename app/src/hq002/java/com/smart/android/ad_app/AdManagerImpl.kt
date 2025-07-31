@@ -36,7 +36,12 @@ object AdManagerImpl : IAdManager {
 
     }
 
-    override fun showAd(flRoot: View, adStart: () -> Unit, adComplete: () -> Unit) {
+    override fun showAd(
+        flRoot: View,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit
+    ) {
         //展示广告
         println("hq002的广告展示")
 
@@ -47,7 +52,7 @@ object AdManagerImpl : IAdManager {
                 when (it) {
                     AdStateListener.AD_ERROR -> {
                         //广告加载错误
-                        adComplete.invoke()
+                        adError?.invoke()
                     }
                     AD_LOADING -> {
                         //广告开始加载
@@ -57,9 +62,12 @@ object AdManagerImpl : IAdManager {
                     }
                     AD_PLAYING -> {
                         //广告开始播放
-                        adStart.invoke()
+                        adStart?.invoke()
                     }
-                    AD_COMPLETE_ALL -> adComplete.invoke()
+                    AD_COMPLETE_ALL -> {
+                        //广告播放完成
+                        adComplete.invoke()
+                    }
                 }
             }
             // 存储弱引用

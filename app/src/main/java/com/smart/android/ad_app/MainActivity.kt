@@ -1,4 +1,3 @@
-/*
 package com.smart.android.ad_app
 
 import android.os.Bundle
@@ -17,7 +16,7 @@ class MainActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             delay(3000)
-           /* val floatingWindow = TvAdFloatingWindow(appContext)
+            val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
                 width = MATCH_PARENT
@@ -30,9 +29,9 @@ class MainActivity : FragmentActivity() {
             if (floatingWindow.hasOverlayPermission()) {
                 println("开始显示悬浮窗")
                 floatingWindow.show()
-            }*/
+            }
         }
 
 
     }
-}*/
+}

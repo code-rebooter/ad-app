@@ -27,17 +27,35 @@
 }
 -keep class com.smart.android.ad_app.bean.** { *; }
 
-
+#Tcl.aar的混淆配置，mofeng_ad.aar也是这个混淆配置
 -keep class com.tcl.ff.component.vastad.**{*;}
 #xstream
 -keep class com.thoughtworks.xstream.**{*;}
+
 
 #Sad1.0.9的混淆
 -keep class com.seraphic.ad.** { *; }
 -keep interface com.seraphic.ad.** { *; }
 -keepclassmembers class com.seraphic.ad.** { *; }
-# Please add these rules to your existing keep rules in order to suppress warnings.
-# This is generated automatically by the Android Gradle plugin.
+
+
+
+#zyvideo_ad.aar的混淆配置
+#okhttp
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.squareup.okhttp.** { *; }
+-keep class okhttp3.** { *; }
+-dontwarn com.squareup.okhttp.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+#Rxjava + Retrofit
+-keep class io.reactivex.** { *; }
+-keep class retrofit2.** { *; }
+-keepattributes Signature
+-keepattributes Exceptions
+
+
 -dontwarn com.barchart.udt.TypeUDT
 -dontwarn com.barchart.udt.nio.RendezvousChannelUDT
 -dontwarn com.barchart.udt.nio.SocketChannelUDT

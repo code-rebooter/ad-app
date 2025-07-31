@@ -5,6 +5,7 @@ import com.github.lib_autorun.ext.getMacAddress
 import com.github.lib_autorun.net.NetworkHelper
 import com.github.lib_autorun.net.enum.RequestMethod
 import com.smart.android.ad_app.bean.AdConfigDto
+import com.smart.android.ad_app.bean.EmptyData
 
 object AdConfigManager {
     fun getAdConfig() {
@@ -34,6 +35,30 @@ object AdConfigManager {
         }else{
             println("当前是没有在桌面的")
         }
+
+    }
+
+    fun reportAdStatus(isAdSuccess: Boolean) {
+            println("上报广告状态")
+            val url = "${BuildConfig.BASE_URL}api/v2/ad/task/report"
+            NetworkHelper.makeRequest<EmptyData> (
+                url,
+                RequestMethod.POST,
+                mapOf(
+                    "packageName" to NetCache.appId(),
+                    "channel" to NetCache.channel(),
+                    "macAddress" to (getMacAddress() ?: ""),
+                    "status" to if(isAdSuccess)"completed" else "failed",
+                    "result" to if(isAdSuccess)"广告播放完成" else "广告播放失败",
+                ),
+                isEncryted = false
+            ) { dto, error ->
+                if (error != null) {
+                    println("请求失败")
+                } else {
+                    println("请求成功-${dto}")
+                }
+            }
 
     }
 

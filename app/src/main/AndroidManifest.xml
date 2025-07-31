@@ -24,18 +24,17 @@
                 android:name="android.content.ContactDirectory"
                 android:value="true" />
         </provider>
-        <meta-data android:name="tcl_app_key" android:value="GhnR/ZY3jmkNdQ3mOh5vh3V0DJzM9O7PfLhjcKq7mItJhEE0isAZ9fhON3lS7OWCQhqS8tJRkXV6Mg5KI2o7VQ=="/>
-        <meta-data android:name="partner_name" android:value="Cyhikeen"/>
-    <!--    <activity
+
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
 
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
-        </activity>-->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
 

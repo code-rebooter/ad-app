@@ -21,7 +21,7 @@ class HandlerAdTaskScheduler : TaskScheduler {
             taskRunnable = object : Runnable {
                 override fun run() {
                     "AdHandlerTaskScheduler开始执行周期任务: ${System.currentTimeMillis()}".printLog()
-                    AdConfigManager.getAdConfig {  }
+                    AdConfigManager.getAdConfig()
                     TaskManager.executePeriodicTasks()
                     handler.postDelayed(this, (newInterval?:periodicTaskInterval()) * 1000)
                 }

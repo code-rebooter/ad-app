@@ -5,5 +5,6 @@ import android.widget.FrameLayout
 
 interface IAdManager {
     fun init()
-    fun showAd(flRoot: View,adComplete:()->Unit)
+    fun showAd(flRoot: View,adStart:()->Unit,adComplete:()->Unit)
+    fun destroyAd()
 }

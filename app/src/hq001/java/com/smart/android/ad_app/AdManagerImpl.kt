@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import com.tcl.ff.component.vastad.Ad
@@ -15,7 +14,7 @@ object AdManagerImpl : IAdManager {
         Initialization.init(appContext)
     }
 
-    override fun showAd(flRoot: View, adComplete: () -> Unit) {
+    override fun showAd(flRoot: View, adStart: () -> Unit, adComplete: () -> Unit) {
         //展示广告
         println("hq001的广告展示")
 
@@ -24,6 +23,7 @@ object AdManagerImpl : IAdManager {
             .listen(object : LazyLoaderAdListener {
                 override fun onAdLoaded(controller: Controller) {
                     controller.start(flRoot as ViewGroup)
+                    adStart.invoke()
                 }
 
                 override fun onAdFinished() {
@@ -39,6 +39,10 @@ object AdManagerImpl : IAdManager {
                 }
             })
             .start()
+    }
+
+    override fun destroyAd() {
+        //销毁广告
     }
 
 }

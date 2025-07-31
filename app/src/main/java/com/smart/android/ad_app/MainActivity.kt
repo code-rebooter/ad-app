@@ -1,6 +1,7 @@
 package com.smart.android.ad_app
 
 import android.os.Bundle
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.chihi.ad_lib.ext.grantSystemAlertWindowPermission
@@ -16,20 +17,20 @@ class MainActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             delay(3000)
-            val floatingWindow = TvAdFloatingWindow(appContext)
+           /* val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
-                width = 500
-                height = 300
+                width = MATCH_PARENT
+                height = MATCH_PARENT
                 x = 0
                 y = 0
-                position = Position.RIGHT_BOTTOM
+                position = Position.CENTER
             }
             // 检查权限并显示
             if (floatingWindow.hasOverlayPermission()) {
                 println("开始显示悬浮窗")
                 floatingWindow.show()
-            }
+            }*/
         }
 
 

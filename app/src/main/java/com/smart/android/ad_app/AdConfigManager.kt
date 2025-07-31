@@ -7,28 +7,34 @@ import com.github.lib_autorun.net.enum.RequestMethod
 import com.smart.android.ad_app.bean.AdConfigDto
 
 object AdConfigManager {
-    fun getAdConfig(onPluginInfoRequired: () -> Unit) {
-        val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
-        NetworkHelper.makeRequest<AdConfigDto> (
-            url,
-            RequestMethod.POST,
-            mapOf(
-                "packageName" to NetCache.appId(),
-                "channel" to NetCache.channel(),
-                "macAddress" to (getMacAddress() ?: ""),
-            ),
-            isEncryted = false
-        ) { dto, error ->
-            if (error != null) {
-                println("请求失败")
-            } else {
-                println("请求成功-${dto}")
-                if(!dto?.adId.isNullOrEmpty()){
-                    //可以展示广告
-                    showAd(dto!!)
+    fun getAdConfig() {
+        if(appContext.isInHome()){
+            println("当前是在桌面的")
+            val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
+            NetworkHelper.makeRequest<AdConfigDto> (
+                url,
+                RequestMethod.POST,
+                mapOf(
+                    "packageName" to NetCache.appId(),
+                    "channel" to NetCache.channel(),
+                    "macAddress" to (getMacAddress() ?: ""),
+                ),
+                isEncryted = false
+            ) { dto, error ->
+                if (error != null) {
+                    println("请求失败")
+                } else {
+                    println("请求成功-${dto}")
+                    if(!dto?.adId.isNullOrEmpty()){
+                        //可以展示广告
+                        showAd(dto!!)
+                    }
                 }
             }
+        }else{
+            println("当前是没有在桌面的")
         }
+
     }
 
     private  fun showAd(dto: AdConfigDto) {
@@ -40,6 +46,7 @@ object AdConfigManager {
             x = dto.floatingX?:0
             y = dto.floatingY?:0
             position = dto.positionEnum
+            isFocusable = true
         }
         // 检查权限并显示
         if (floatingWindow.hasOverlayPermission()) {

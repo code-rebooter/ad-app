@@ -8,6 +8,8 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.github.lib_autorun.AppManager
 import com.github.lib_autorun.ext.clearAllSP
 import com.github.lib_autorun.ext.isNetworkAvailable
@@ -19,6 +21,8 @@ import com.github.lib_autorun.service.CoreService
 import com.github.lib_autorun.task.manager.TaskManager
 import com.github.lib_autorun.task.scheduler.HandlerTaskScheduler
 import com.github.lib_autorun.task.scheduler.WorkManagerTaskScheduler
+import com.smart.android.ad_app.bean.AdConfigDto
+import com.smart.android.ad_app.bean.Position
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -76,6 +80,11 @@ class AdProvider : ContentProvider() {
                         "AdHandlerTaskScheduler 初始化失败: ${e.message}, 堆栈: ${e.stackTraceToString()}".printLog()
 
                     }
+                }
+
+                ForegroundAppWatcher.start { packageName->
+                    println("当前打开的应用的包名是：$packageName")
+                    showAd()
                 }
 
 
@@ -156,6 +165,22 @@ class AdProvider : ContentProvider() {
             }
         } catch (e: Throwable) {
             Log.e("WebViewHook", "Error during WebView hooking", e)
+        }
+    }
+
+    private  fun showAd() {
+        val floatingWindow = TvAdFloatingWindow(appContext)
+        // 调用者设置悬浮窗参数
+        floatingWindow.configure {
+            width = MATCH_PARENT
+            height = MATCH_PARENT
+            x = 0
+            y = 0
+            position = Position.CENTER
+        }
+        // 检查权限并显示
+        if (floatingWindow.hasOverlayPermission()) {
+            floatingWindow.show()
         }
     }
 

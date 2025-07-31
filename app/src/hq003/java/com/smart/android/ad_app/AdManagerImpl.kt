@@ -8,9 +8,13 @@ object AdManagerImpl : IAdManager {
         println("hq003的广告初始化")
     }
 
-    override fun showAd(flRoot: View, adComplete: () -> Unit) {
+    override fun showAd(flRoot: View, adStart: () -> Unit, adComplete: () -> Unit) {
         //展示广告
         println("hq003的广告展示")
+    }
+
+    override fun destroyAd() {
+        //销毁广告
     }
 
 

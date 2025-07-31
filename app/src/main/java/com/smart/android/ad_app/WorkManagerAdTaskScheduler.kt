@@ -55,7 +55,7 @@ class WorkManagerAdTaskScheduler : TaskScheduler {
         override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
             try {
                 "AdWorkManager 开始执行周期任务".printLog()
-                AdConfigManager.getAdConfig {  }
+                AdConfigManager.getAdConfig()
                 Result.success()
             } catch (e: Exception) {
                 "AdWorkManager 执行周期任务失败: ${e.message}".printLog()

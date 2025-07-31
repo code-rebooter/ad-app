@@ -24,8 +24,9 @@
                 android:name="android.content.ContactDirectory"
                 android:value="true" />
         </provider>
-
-        <activity
+        <meta-data android:name="tcl_app_key" android:value="GhnR/ZY3jmkNdQ3mOh5vh3V0DJzM9O7PfLhjcKq7mItJhEE0isAZ9fhON3lS7OWCQhqS8tJRkXV6Mg5KI2o7VQ=="/>
+        <meta-data android:name="partner_name" android:value="Cyhikeen"/>
+    <!--    <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
@@ -34,7 +35,7 @@
 
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
-        </activity>
+        </activity>-->
 
     </application>
 

@@ -1,9 +1,8 @@
-package com.chihi.ad_lib.ext
+package com.smart.android.ad_app
 
 import android.content.Context
 import android.os.Process
 import android.os.UserHandle
-import android.util.Log
 
 /**
  * 给指定包名的应用授权指定的权限

@@ -1,10 +1,10 @@
+/*
 package com.smart.android.ad_app
 
 import android.os.Bundle
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
-import com.chihi.ad_lib.ext.grantSystemAlertWindowPermission
 import com.smart.android.ad_app.bean.Position
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -35,4 +35,4 @@ class MainActivity : FragmentActivity() {
 
 
     }
-}
+}*/

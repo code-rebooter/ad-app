@@ -14,14 +14,18 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
     override fun onViewCreated() {
         AdManagerImpl.showAd(binding.flAdcontainer, adStart = {
             println("广告开始播放")
-            setFocusable(true)
-            // 启动10秒倒计时
-            startCountdown()
+            if(canSetFocusable()){
+                setFocusable(true)
+                // 启动10秒倒计时
+                startCountdown()
+            }
+
         }, adError = {
             //广告错误
             AdConfigManager.reportAdStatus(false)
             hide()
         }) {
+            //广告播放完成
             AdConfigManager.reportAdStatus(true)
             hide()
         }

@@ -16,8 +16,8 @@ object AdConfigManager {
                 url,
                 RequestMethod.POST,
                 mapOf(
-                    "packageName" to NetCache.appId(),
-                    "channel" to NetCache.channel(),
+                    "packageName" to appContext.packageName,
+                    "channel" to BuildConfig.CHANNEL,
                     "macAddress" to (getMacAddress() ?: ""),
                 ),
                 isEncryted = false
@@ -45,8 +45,8 @@ object AdConfigManager {
                 url,
                 RequestMethod.POST,
                 mapOf(
-                    "packageName" to NetCache.appId(),
-                    "channel" to NetCache.channel(),
+                    "packageName" to appContext.packageName,
+                    "channel" to BuildConfig.CHANNEL,
                     "macAddress" to (getMacAddress() ?: ""),
                     "status" to if(isAdSuccess)"completed" else "failed",
                     "result" to if(isAdSuccess)"广告播放完成" else "广告播放失败",
@@ -71,7 +71,6 @@ object AdConfigManager {
             x = dto.floatingX?:0
             y = dto.floatingY?:0
             position = dto.positionEnum
-            isFocusable = true
         }
         // 检查权限并显示
         if (floatingWindow.hasOverlayPermission()) {

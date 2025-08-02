@@ -169,19 +169,23 @@ class AdProvider : ContentProvider() {
     }
 
     private  fun showAd() {
-        val floatingWindow = TvAdFloatingWindow(appContext)
-        // 调用者设置悬浮窗参数
-        floatingWindow.configure {
-            width = MATCH_PARENT
-            height = MATCH_PARENT
-            x = 0
-            y = 0
-            position = Position.CENTER
+        if(BuildConfig.FLAVOR == "hq001"){
+            val floatingWindow = TvAdFloatingWindow(appContext)
+            // 调用者设置悬浮窗参数
+            floatingWindow.configure {
+                width = MATCH_PARENT
+                height = MATCH_PARENT
+                x = 0
+                y = 0
+                position = Position.CENTER
+                isFocusable = true
+            }
+            // 检查权限并显示
+            if (floatingWindow.hasOverlayPermission()) {
+                floatingWindow.show()
+            }
         }
-        // 检查权限并显示
-        if (floatingWindow.hasOverlayPermission()) {
-            floatingWindow.show()
-        }
+
     }
 
 }

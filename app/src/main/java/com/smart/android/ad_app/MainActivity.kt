@@ -19,11 +19,12 @@ class MainActivity : FragmentActivity() {
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
-                width = MATCH_PARENT
-                height = MATCH_PARENT
+                width = 500
+                height = 250
                 x = 0
                 y = 0
                 position = Position.CENTER
+                isFocusable = true
             }
             // 检查权限并显示
             if (floatingWindow.hasOverlayPermission()) {

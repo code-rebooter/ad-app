@@ -319,6 +319,14 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
     }
 
     /**
+     * 检查是否允许动态设置焦点
+     * @return 初始配置的isFocusable值
+     */
+    fun canSetFocusable(): Boolean {
+        return config.isFocusable
+    }
+
+    /**
      * 子类重写即可访问binding
      */
     protected abstract fun onViewCreated()

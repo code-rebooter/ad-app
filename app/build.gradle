@@ -120,7 +120,7 @@ android {
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
-            signingConfig signingConfigs.x88
+            signingConfig signingConfigs.h713
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'

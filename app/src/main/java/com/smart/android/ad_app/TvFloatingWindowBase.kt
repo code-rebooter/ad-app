@@ -69,10 +69,10 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
             }
         }
         layoutParams?.let {
-            it.width = config.width ?: WindowManager.LayoutParams.WRAP_CONTENT
-            it.height = config.height ?: WindowManager.LayoutParams.WRAP_CONTENT
-            it.x = config.x
-            it.y = config.y
+            it.width = config.width?.getServerDimenPx() ?: WindowManager.LayoutParams.WRAP_CONTENT
+            it.height = config.height?.getServerDimenPx() ?: WindowManager.LayoutParams.WRAP_CONTENT
+            it.x = config.x.getServerDimenPx()
+            it.y = config.y.getServerDimenPx()
             it.gravity = config.position.toGravity()
             it.flags = if (config.isFocusable) {
                 (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -249,10 +249,10 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
             }
             format = PixelFormat.TRANSLUCENT
             gravity = config.position.toGravity()
-            width = config.width ?: WindowManager.LayoutParams.WRAP_CONTENT
-            height = config.height ?: WindowManager.LayoutParams.WRAP_CONTENT
-            x = config.x
-            y = config.y
+            width = config.width?.getServerDimenPx() ?: WindowManager.LayoutParams.WRAP_CONTENT
+            height = config.height?.getServerDimenPx() ?: WindowManager.LayoutParams.WRAP_CONTENT
+            x = config.x.getServerDimenPx()
+            y = config.y.getServerDimenPx()
         }
     }
 

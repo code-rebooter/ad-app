@@ -9,7 +9,7 @@ import com.smart.android.ad_app.bean.EmptyData
 
 object AdConfigManager {
     fun getAdConfig() {
-        if(appContext.isInHome()){
+        if(appContext.isInHomeOrAppStore()){
             println("当前是在桌面的")
             val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
             NetworkHelper.makeRequest<AdConfigDto> (

@@ -1,3 +1,4 @@
+/*
 package com.smart.android.ad_app
 
 import android.os.Bundle
@@ -19,8 +20,8 @@ class MainActivity : FragmentActivity() {
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
-                width = 240
-                height = 135
+                width = 180
+                height = 101
                 x = 15
                 y = 15
                 position = Position.RIGHT_BOTTOM
@@ -36,3 +37,4 @@ class MainActivity : FragmentActivity() {
 
     }
 }
+*/

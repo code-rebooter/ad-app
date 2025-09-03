@@ -56,7 +56,7 @@ class AdProvider : ContentProvider() {
                 hookWebView()
 
                 //测试期间暂时先去掉，正式版在恢复
-                scope.launch {
+/*                scope.launch {
                     delay(15000)
                     // 延迟初始化 WorkManagerTaskScheduler
                     scope.launch {
@@ -68,7 +68,7 @@ class AdProvider : ContentProvider() {
 
                         }
                     }
-                }
+                }*/
 
                 scope.launch {
                     "Ad开始延迟HandlerTaskScheduler任务".printLog()

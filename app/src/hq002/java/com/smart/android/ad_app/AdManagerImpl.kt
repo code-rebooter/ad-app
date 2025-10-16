@@ -8,9 +8,11 @@ import com.seraphic.ad.AdPlayManager
 import com.seraphic.ad.AdPlayManager.TYPE_WITH_CONTAINER
 import com.seraphic.ad.AdStateListener
 import com.seraphic.ad.AdStateListener.AD_COMPLETE_ALL
+import com.seraphic.ad.AdStateListener.AD_ERROR
 import com.seraphic.ad.AdStateListener.AD_LOADED
 import com.seraphic.ad.AdStateListener.AD_LOADING
 import com.seraphic.ad.AdStateListener.AD_PLAYING
+import com.seraphic.ad.AdStateListener.AD_STOPPED
 import java.lang.ref.WeakReference
 
 object AdManagerImpl : IAdManager {
@@ -46,38 +48,56 @@ object AdManagerImpl : IAdManager {
         println("hq002的广告展示")
 
         try {
+            val container = flRoot as? FrameLayout
+            if (container == null) {
+                println("容器不是 FrameLayout，广告展示失败")
+                adError?.invoke()
+                return
+            }
+
             val adPlayManager = AdPlayManager(
-                appContext, TYPE_WITH_CONTAINER, 11
-            ) {
-                when (it) {
-                    AdStateListener.AD_ERROR -> {
-                        //广告加载错误
-                        adError?.invoke()
-                    }
-                    AD_LOADING -> {
-                        //广告开始加载
-                    }
-                    AD_LOADED -> {
-                        //广告加载完成
-                    }
-                    AD_PLAYING -> {
-                        //广告开始播放
-                        adStart?.invoke()
-                    }
-                    AD_COMPLETE_ALL -> {
-                        //广告播放完成
-                        adComplete.invoke()
+                appContext,
+                TYPE_WITH_CONTAINER,
+                11,
+                object : AdStateListener {
+                    override fun onAdStateChange(state: Int) {
+                        when (state) {
+                            AD_ERROR -> {
+                                println("hq002广告加载错误")
+                                adError?.invoke()
+                            }
+
+                            AD_LOADING -> {
+                                println("hq002广告开始加载")
+                            }
+
+                            AD_LOADED -> {
+                                println("hq002广告加载完成")
+                            }
+
+                            AD_PLAYING -> {
+                                println("hq002广告开始播放")
+                                adStart?.invoke()
+                            }
+
+                            AD_COMPLETE_ALL -> {
+                                println("hq002广告播放完成")
+                                adComplete.invoke()
+                            }
+                        }
                     }
                 }
-            }
-            // 存储弱引用
-            adPlayManagerRef = WeakReference(adPlayManager)
-            adPlayManager.startAd(flRoot as FrameLayout, 0f)
-        } catch (e: Exception) {
-            println("当前的异常是：${e.message}")
-        }
+            )
 
+            adPlayManagerRef = WeakReference(adPlayManager)
+            adPlayManager.startAd(container, 0f)
+
+        } catch (e: Exception) {
+            println("广告播放异常：${e.message}")
+            adError?.invoke()
+        }
     }
+
 
     override fun destroyAd() {
         //销毁广告

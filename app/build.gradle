@@ -119,7 +119,7 @@ android {
         }
 
         hq002 {
-            applicationId "com.yt.launcher.ad"
+            applicationId "com.hqota.launcher.slfhq"
             minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
@@ -128,9 +128,9 @@ android {
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_SLF"'
-            buildConfigField "String", "C_TYPE", '"HQTV_SLF"'
-            buildConfigField "String", "MODEL", '"HQTV_SLF"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
             buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
@@ -142,13 +142,13 @@ android {
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
-            signingConfig signingConfigs.h713
+            signingConfig signingConfigs.hikeen
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_LIU"'
-            buildConfigField "String", "C_TYPE", '"HQTV_LIU"'
-            buildConfigField "String", "MODEL", '"HQTV_LIU"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
             buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
@@ -164,9 +164,9 @@ android {
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_ADU"'
-            buildConfigField "String", "C_TYPE", '"HQTV_ADU"'
-            buildConfigField "String", "MODEL", '"HQTV_ADU"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
             buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
@@ -183,9 +183,9 @@ android {
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_MOFENG"'
-            buildConfigField "String", "C_TYPE", '"HQTV_MOFENG"'
-            buildConfigField "String", "MODEL", '"HQTV_MOFENG"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
             buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'

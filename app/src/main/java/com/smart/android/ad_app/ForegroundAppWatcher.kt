@@ -8,7 +8,9 @@ import android.os.Looper
 object ForegroundAppWatcher {
 
     private val targetPackages = setOf(
-        "com.google.android.youtube.tv"
+        "com.google.android.youtube.tv",
+        "com.netflix.mediaclient",
+        "com.netflix.ninja"
     )
 
     private const val intervalMs = 200L

@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 import android.annotation.SuppressLint
 import android.app.Application
-import com.github.lib_autorun.AppManager
+import io.github.lib_autorun.AppManager
 
 class APP:Application() {
 

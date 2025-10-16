@@ -1,41 +1,55 @@
 package com.smart.android.ad_app
 
-import com.github.lib_autorun.ext.NetCache
-import com.github.lib_autorun.ext.getMacAddress
-import com.github.lib_autorun.net.NetworkHelper
-import com.github.lib_autorun.net.enum.RequestMethod
+import android.os.Build
+import android.provider.Settings
 import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.EmptyData
+import io.github.lib_autorun.ext.getMacAddress
+import io.github.lib_autorun.net.NetworkHelper
+import io.github.lib_autorun.net.enum.RequestMethod
 
 object AdConfigManager {
+
+    fun hasOverlayPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(appContext)
+        } else {
+            true
+        }
+    }
     fun getAdConfig() {
-        if(appContext.isInHomeOrAppStore()){
-            println("当前是在桌面的")
-            val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
-            NetworkHelper.makeRequest<AdConfigDto> (
-                url,
-                RequestMethod.POST,
-                mapOf(
-                    "packageName" to appContext.packageName,
-                    "channel" to BuildConfig.CHANNEL,
-                    "macAddress" to (getMacAddress() ?: ""),
-                ),
-                isEncryted = false
-            ) { dto, error ->
-                if (error != null) {
-                    println("请求失败")
-                } else {
-                    println("请求成功-${dto}")
-                    if(!dto?.adId.isNullOrEmpty()){
-                        //可以展示广告
-                        showAd(dto!!)
+        if(hasOverlayPermission()) {
+            println("当前有悬浮窗权限")
+            val inDesktop = isInDesktop
+            println("当前是否是在桌面的：$inDesktop")
+            if (inDesktop) {
+                val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
+                NetworkHelper.makeRequest<AdConfigDto>(
+                    url,
+                    RequestMethod.POST,
+                    mapOf(
+                        "packageName" to appContext.packageName,
+                        "channel" to BuildConfig.CHANNEL,
+                        "macAddress" to (getMacAddress() ?: ""),
+                    ),
+                    isEncryted = false
+                ) { dto, error ->
+                    if (error != null) {
+                        println("请求失败")
+                    } else {
+                        println("请求成功-${dto}")
+                        if (!dto?.adId.isNullOrEmpty()) {
+                            //可以展示广告
+                            //showAd(dto!!)
+                        }
                     }
                 }
+            } else {
+                println("当前是没有在桌面的")
             }
         }else{
-            println("当前是没有在桌面的")
+            println("没有悬浮窗权限")
         }
-
     }
 
     fun reportAdStatus(isAdSuccess: Boolean) {

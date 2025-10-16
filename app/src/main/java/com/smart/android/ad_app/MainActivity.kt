@@ -13,14 +13,19 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         appContext.grantSystemAlertWindowPermission()
+        requestOverlayPermission()
+
+
 
         lifecycleScope.launch {
-            delay(3000)
+            delay(5000)
+            println("开始调用了")
+            AdConfigManager.reportAdStatus(false)
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
-                width = 240
-                height = 135
+                width = 200
+                height = 112
                 x = 15
                 y = 15
                 position = Position.RIGHT_BOTTOM
@@ -32,7 +37,6 @@ class MainActivity : FragmentActivity() {
                 floatingWindow.show()
             }
         }
-
 
     }
 }

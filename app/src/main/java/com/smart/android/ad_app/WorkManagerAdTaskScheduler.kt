@@ -2,11 +2,9 @@ package com.smart.android.ad_app
 
 import android.content.Context
 import androidx.work.*
-import com.github.lib_autorun.AppManager
-import com.github.lib_autorun.log.printLog
-import com.github.lib_autorun.task.manager.LogCollector
-import com.github.lib_autorun.task.manager.TaskManager
-import com.github.lib_autorun.task.scheduler.TaskScheduler
+import io.github.lib_autorun.AppManager
+import io.github.lib_autorun.log.printLog
+import io.github.lib_autorun.task.scheduler.TaskScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit

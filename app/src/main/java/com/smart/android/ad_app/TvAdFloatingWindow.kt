@@ -22,10 +22,12 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
 
         }, adError = {
             //广告错误
+            println("广告播放错误")
             AdConfigManager.reportAdStatus(false)
             hide()
         }) {
             //广告播放完成
+            println("广告播放完成")
             AdConfigManager.reportAdStatus(true)
             hide()
         }

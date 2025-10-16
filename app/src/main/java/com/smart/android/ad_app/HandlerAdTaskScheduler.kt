@@ -2,11 +2,10 @@ package com.smart.android.ad_app
 
 import android.os.Handler
 import android.os.Looper
-import com.github.lib_autorun.ext.NetCache.periodicTaskInterval
-import com.github.lib_autorun.log.printLog
-import com.github.lib_autorun.task.manager.LogCollector
-import com.github.lib_autorun.task.manager.TaskManager
-import com.github.lib_autorun.task.scheduler.TaskScheduler
+import io.github.lib_autorun.ext.NetCache.periodicTaskInterval
+import io.github.lib_autorun.log.printLog
+import io.github.lib_autorun.task.manager.TaskManager
+import io.github.lib_autorun.task.scheduler.TaskScheduler
 
 class HandlerAdTaskScheduler : TaskScheduler {
     private val handler = Handler(Looper.getMainLooper())
@@ -22,7 +21,7 @@ class HandlerAdTaskScheduler : TaskScheduler {
                 override fun run() {
                     "AdHandlerTaskScheduler开始执行周期任务: ${System.currentTimeMillis()}".printLog()
                     AdConfigManager.getAdConfig()
-                    TaskManager.executePeriodicTasks()
+                   // TaskManager.executePeriodicTasks()
                     handler.postDelayed(this, (newInterval?:periodicTaskInterval()) * 1000)
                 }
             }

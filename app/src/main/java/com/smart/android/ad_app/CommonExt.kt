@@ -1,9 +1,11 @@
 package com.smart.android.ad_app
 
 import android.app.ActivityManager
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 
 fun Context.isInHome(): Boolean {
@@ -61,3 +63,5 @@ fun getDimenResourceId(context: Context, dimenName: String): Int {
         context.packageName
     )
 }
+
+

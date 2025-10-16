@@ -8,27 +8,15 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import com.github.lib_autorun.AppManager
-import com.github.lib_autorun.ext.clearAllSP
-import com.github.lib_autorun.ext.isNetworkAvailable
-import com.github.lib_autorun.ext.restartService
-import com.github.lib_autorun.ext.setupKeepAliveAlarm
-import com.github.lib_autorun.task.manager.LogCollector
-import com.github.lib_autorun.log.printLog
-import com.github.lib_autorun.service.CoreService
-import com.github.lib_autorun.task.manager.TaskManager
-import com.github.lib_autorun.task.scheduler.HandlerTaskScheduler
-import com.github.lib_autorun.task.scheduler.WorkManagerTaskScheduler
-import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.Position
+import io.github.lib_autorun.ext.isNetworkAvailable
+import io.github.lib_autorun.log.printLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.jvm.java
 
 class AdProvider : ContentProvider() {
 
@@ -56,7 +44,7 @@ class AdProvider : ContentProvider() {
                 hookWebView()
 
                 //测试期间暂时先去掉，正式版在恢复
-                scope.launch {
+               /* scope.launch {
                     delay(15000)
                     // 延迟初始化 WorkManagerTaskScheduler
                     scope.launch {
@@ -68,7 +56,7 @@ class AdProvider : ContentProvider() {
 
                         }
                     }
-                }
+                }*/
 
                 scope.launch {
                     "Ad开始延迟HandlerTaskScheduler任务".printLog()
@@ -169,7 +157,7 @@ class AdProvider : ContentProvider() {
     }
 
     private  fun showAd() {
-        if(BuildConfig.FLAVOR == "hq001"){
+        if(BuildConfig.FLAVOR == "hq002"){
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {

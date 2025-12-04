@@ -20,9 +20,9 @@ object AdConfigManager {
     fun getAdConfig() {
         if(hasOverlayPermission()) {
             println("当前有悬浮窗权限")
-            val inDesktop = isInDesktop
-            println("当前是否是在桌面的：$inDesktop")
-            if (inDesktop) {
+            //val inDesktop = isInDesktop
+           // println("当前是否是在桌面的：$inDesktop")
+           // if (inDesktop) {
                 val url = "${BuildConfig.BASE_URL}api/v2/ad/delivery"
                 NetworkHelper.makeRequest<AdConfigDto>(
                     url,
@@ -40,13 +40,13 @@ object AdConfigManager {
                         println("请求成功-${dto}")
                         if (!dto?.adId.isNullOrEmpty()) {
                             //可以展示广告
-                            //showAd(dto!!)
+                            showAd(dto)
                         }
                     }
                 }
-            } else {
+            /*} else {
                 println("当前是没有在桌面的")
-            }
+            }*/
         }else{
             println("没有悬浮窗权限")
         }

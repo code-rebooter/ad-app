@@ -2,6 +2,7 @@ package com.smart.android.ad_app
 
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import com.sjkj.ad.AdManager
 import com.sjkj.ad.AdPlayManager
 import com.sjkj.ad.AdViewDynamic
@@ -19,7 +20,12 @@ object AdManagerImpl : IAdManager {
     }
 
     private var manager : AdPlayManager?=null
-    override fun showAd(flRoot: View, adStart: () -> Unit, adComplete: () -> Unit) {
+    override fun showAd(
+        flRoot: ViewGroup,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit
+    ) {
         println("hq004的广告展示")
         val adView = AdViewDynamic(appContext)
          manager = AdPlayManager()
@@ -28,7 +34,7 @@ object AdManagerImpl : IAdManager {
                //广告开始
                 if(cur==1){
                     //开始播放广告
-                    adStart.invoke()
+                    adStart?.invoke()
                 }
             }
 

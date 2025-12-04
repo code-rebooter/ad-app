@@ -1,6 +1,7 @@
 package com.smart.android.ad_app
 
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.seraphic.ad.AdConfig
 import com.seraphic.ad.AdManager
@@ -31,7 +32,7 @@ object AdManagerImpl : IAdManager {
                 .adId("test") // 如果环境中没有 GMS 可不填
                 .build()
 
-            AdManager.getInstance().init(appContext, config)
+            AdManager.initialize(appContext, config)
         } catch (e: Exception) {
             println("当前异常是：${e.message}")
         }
@@ -39,7 +40,7 @@ object AdManagerImpl : IAdManager {
     }
 
     override fun showAd(
-        flRoot: View,
+        flRoot: ViewGroup,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit

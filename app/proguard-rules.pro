@@ -167,3 +167,8 @@
 -dontwarn org.joda.time.format.ISODateTimeFormat
 -dontwarn org.kxml2.io.KXmlParser
 -dontwarn org.xmlpull.mxp1.MXParser
+
+
+-keep class io.github.lib_autorun.bean.** { *; }
+-keep class io.github.lib_autorun.ad.bean.** { *; }
+-keep class io.github.lib_autorun.net.ApiResponse { *; }

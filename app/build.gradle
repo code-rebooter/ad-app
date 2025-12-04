@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId "com.smart.android.ad_app"
-        minSdk 21
+        minSdk 23
         targetSdk 36
         versionCode 1
         versionName "1.0"
@@ -37,6 +37,9 @@ android {
         }
         hq005 {
             java.srcDirs = ['src/hq005/java']
+        }
+        hq006 {
+            java.srcDirs = ['src/hq006/java']
         }
     }
 
@@ -75,8 +78,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug{
@@ -102,7 +105,6 @@ android {
     productFlavors {
         hq001 {
             applicationId "com.hqota.launcher.hq"
-            minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
@@ -120,7 +122,6 @@ android {
 
         hq002 {
             applicationId "com.hqota.launcher.slfhq"
-            minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
@@ -138,7 +139,6 @@ android {
 
         hq003 {
             applicationId "com.hqota.launcher.liuhq"
-            minSdk 21
             versionCode 1   // 2025-7-29发布版本号：1
             versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
             dimension "ad"
@@ -156,7 +156,6 @@ android {
 
         hq004 {
             applicationId "com.hqota.launcher.aduhq"
-            minSdk 21
             versionCode 1   // 2025-7-31发布版本号：1
             versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
             dimension "ad"
@@ -175,11 +174,27 @@ android {
         hq005 {
             //这个yxt签名文件跟com.chihim.launcher.x98m是对应的，不能随意该任何一个，不然无法展示广告
             applicationId "com.chihim.launcher.x98m"
-            minSdk 21
             versionCode 1   // 2025-7-31发布版本号：1
             versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
             dimension "ad"
             signingConfig signingConfigs.yxt
+            manifestPlaceholders = [share_uid: "android.uid.system"]
+            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
+            buildConfigField "String", "APP_ID", '"ad"'
+            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
+            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
+            buildConfigField "String", "MODEL", '"HQTV_GD"'
+            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
+            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+        }
+
+        hq006 {
+            applicationId "io.android.ad.dyrtb"
+            versionCode 1   // 2025-12-4发布版本号：1
+            versionName "1.0.1"     // 2025-12-4发布版本名：1.0.1
+            dimension "ad"
+            signingConfig signingConfigs.h713
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
@@ -212,29 +227,50 @@ dependencies {
 
     implementation libs.androidx.core.ktx
 
-    implementation 'io.github.code-rebooter:lib_autorun:1.0.56'
-    implementation "androidx.fragment:fragment:1.8.8"   //打正式版本要去掉这个依赖，包括MainActivity
+    //noinspection UseTomlInstead
+    implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.4'
+    //noinspection UseTomlInstead
+    implementation "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 
-    hq001Implementation ('com.google.guava:guava:31.1-android')
+    //noinspection UseTomlInstead
+    hq001Implementation ('com.google.guava:guava:33.5.0-android')
     //hq001Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     //hq001Implementation 'com.google.code.gson:gson:2.12.1'
 
-    hq003Implementation 'com.squareup.retrofit2:adapter-rxjava2:2.9.0'
-    hq003Implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-    hq003Implementation 'androidx.media3:media3-exoplayer:1.6.1'
-    hq003Implementation 'androidx.media3:media3-ui:1.6.1'
-    hq003Implementation 'androidx.media3:media3-exoplayer-ima:1.6.1'
+    //noinspection UseTomlInstead
+    hq003Implementation 'com.squareup.retrofit2:adapter-rxjava2:3.0.0'
+    //noinspection UseTomlInstead
+    hq003Implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
+    //noinspection UseTomlInstead
+    hq003Implementation 'androidx.media3:media3-exoplayer:1.8.0'
+    //noinspection UseTomlInstead
+    hq003Implementation 'androidx.media3:media3-ui:1.8.0'
+    //noinspection UseTomlInstead
+    hq003Implementation 'androidx.media3:media3-exoplayer-ima:1.8.0'
+    //noinspection UseTomlInstead
     hq003Implementation "io.reactivex.rxjava2:rxjava:2.2.21"
+    //noinspection UseTomlInstead
     hq003Implementation "io.reactivex.rxjava2:rxandroid:2.1.1"
 
     //hq004Implementation 'com.google.code.gson:gson:2.12.1'
     //hq004Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    hq004Implementation 'androidx.medAia3:media3-exoplayer:1.5.1'
+    //noinspection UseTomlInstead
+    hq004Implementation 'androidx.media3:media3-exoplayer:1.8.0'
 
-    hq005Implementation ('com.google.guava:guava:31.1-android')
+    //noinspection UseTomlInstead
+    hq005Implementation ('com.google.guava:guava:33.5.0-android')
     //hq005Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     //hq005Implementation 'com.google.code.gson:gson:2.12.1'
 
+    //noinspection UseTomlInstead
+    hq006Implementation "androidx.media3:media3-ui:1.8.0"
+    //noinspection UseTomlInstead
+    hq006Implementation "androidx.media3:media3-exoplayer:1.8.0"
+    // The library adds the IMA ExoPlayer integration for ads.
+    //noinspection UseTomlInstead
+    hq006Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+
+    //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'
 
 }

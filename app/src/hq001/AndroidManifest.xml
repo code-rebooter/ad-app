@@ -3,10 +3,10 @@
     <application>
         <meta-data
             android:name="tcl_app_key"
-            android:value="GhnR/ZY3jmkNdQ3mOh5vh3V0DJzM9O7PfLhjcKq7mItJhEE0isAZ9fhON3lS7OWCQhqS8tJRkXV6Mg5KI2o7VQ==" />
+            android:value="XJOA2T1sKz+BJL1HNzpBaePohAy/oizvZic2ubbJPNu6195sjBwDRE53JuhPNiCA9pvvUz7g0SC4wfRcQa8aOg==" />
         <meta-data
             android:name="partner_name"
-            android:value="Cyhikeen" />
+            android:value="cyhikeen" />
     </application>
 
 </manifest>

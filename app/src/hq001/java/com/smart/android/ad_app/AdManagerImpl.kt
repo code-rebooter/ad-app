@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import android.view.View
 import android.view.ViewGroup
 import com.google.android.exoplayer2.util.Log
 import com.tcl.ff.component.vastad.Ad
@@ -16,7 +15,7 @@ object AdManagerImpl : IAdManager {
     }
 
     override fun showAd(
-        flRoot: View,
+        flRoot: ViewGroup,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -28,7 +27,7 @@ object AdManagerImpl : IAdManager {
             .listen(object : AdStatusListener {
                 override fun onAdLoaded(controller: Controller) {
                     Log.d("TvAdFloatingWindow", "广告加载成功，开始播放广告")
-                    controller.start(flRoot as ViewGroup)
+                    controller.start(flRoot)
                     adStart?.invoke()
                 }
 

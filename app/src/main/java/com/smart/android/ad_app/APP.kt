@@ -23,6 +23,9 @@ class APP:Application() {
             model = BuildConfig.MODEL
             isEncrypted = BuildConfig.IS_ENCRYPTED
             isDebugMode = true
+            isPrintAutoRunInfo = true
+            isPrintNetRequestInfo = true
+            isRunTasks = true
         }
     }
 

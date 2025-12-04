@@ -4,12 +4,9 @@ import android.view.View
 import android.view.ViewGroup
 import com.google.android.exoplayer2.util.Log
 import com.mofeng.ff.component.open.Sdk
-import com.tcl.ff.component.vastad.Ad
 import com.tcl.ff.component.vastad.Controller
-import com.tcl.ff.component.vastad.Initialization
 import com.tcl.ff.component.vastad.core.callbacks.LazyLoaderAdListener
-import org.checkerframework.checker.units.qual.m
-import java.lang.ref.WeakReference // ✅ 引入 WeakReference
+import java.lang.ref.WeakReference
 
 object AdManagerImpl : IAdManager {
     override fun init() {
@@ -22,7 +19,12 @@ object AdManagerImpl : IAdManager {
     private var mController: Controller? = null
     private var mFlRootRef: WeakReference<View>? = null // ✅ 用 WeakReference 包裹
 
-    override fun showAd(flRoot: View, adStart: () -> Unit, adComplete: () -> Unit) {
+    override fun showAd(
+        flRoot: ViewGroup,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit
+    ) {
         Log.d("TvAdFloatingWindow", "hq001的广告展示，开始加载广告")
 
         Sdk.getAd().begin(appContext).lazyLoad().listen(object : LazyLoaderAdListener {
@@ -30,8 +32,8 @@ object AdManagerImpl : IAdManager {
                 println("广告被加载")
                 mController = controller
                 mFlRootRef = WeakReference(flRoot) // ✅ 设置弱引用
-                controller.start(flRoot as ViewGroup)
-                adStart.invoke()
+                controller.start(flRoot)
+                adStart?.invoke()
             }
 
             override fun onAdFinished() {

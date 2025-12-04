@@ -2,6 +2,7 @@ package com.smart.android.ad_app
 
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.zykj.vastplayer.manager.ZyVideoAd
 
@@ -11,7 +12,7 @@ object AdManagerImpl : IAdManager {
     }
 
     override fun showAd(
-        flRoot: View,
+        flRoot: ViewGroup,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit

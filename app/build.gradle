@@ -78,8 +78,9 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
-            shrinkResources false
+            minifyEnabled true
+            zipAlignEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug{
@@ -230,7 +231,7 @@ dependencies {
     //noinspection UseTomlInstead
     implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.4'
     //noinspection UseTomlInstead
-    implementation "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
+    compileOnly "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 
     //noinspection UseTomlInstead
     hq001Implementation ('com.google.guava:guava:33.5.0-android')

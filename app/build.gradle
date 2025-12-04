@@ -229,7 +229,7 @@ dependencies {
     implementation libs.androidx.core.ktx
 
     //noinspection UseTomlInstead
-    implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.4'
+    implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
     //noinspection UseTomlInstead
     compileOnly "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 

@@ -110,7 +110,7 @@ class VastAdPlayerView @JvmOverloads constructor(
     private val imaSdkSettings: ImaSdkSettings by lazy {
         ImaSdkFactory.getInstance().createImaSdkSettings().apply {
             // 需要时再打开
-            isDebugMode = true
+            isDebugMode = false
         }
     }
 
@@ -152,7 +152,7 @@ class VastAdPlayerView @JvmOverloads constructor(
                 println("当前的广告错误：${error}")
                 isVisible = false
                 onAdError?.invoke(error.toString())
-            }.setImaSdkSettings(imaSdkSettings).setDebugModeEnabled(true)
+            }.setImaSdkSettings(imaSdkSettings).setDebugModeEnabled(false)
             .build()
 
         // 2. ExoPlayer

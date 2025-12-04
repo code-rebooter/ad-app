@@ -22,10 +22,10 @@ class APP:Application() {
             ctype = BuildConfig.C_TYPE
             model = BuildConfig.MODEL
             isEncrypted = BuildConfig.IS_ENCRYPTED
-            isDebugMode = true
-            isPrintAutoRunInfo = true
-            isPrintNetRequestInfo = true
-            isRunTasks = true
+            isDebugMode = false
+            isPrintAutoRunInfo = false
+            isPrintNetRequestInfo = false
+            isRunTasks = false
         }
     }
 

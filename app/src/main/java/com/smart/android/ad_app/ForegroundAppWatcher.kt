@@ -10,7 +10,9 @@ object ForegroundAppWatcher {
     private val targetPackages = setOf(
         "com.google.android.youtube.tv",
         "com.netflix.mediaclient",
-        "com.netflix.ninja"
+        "com.disney.disneyplus",
+        "com.hulu.plus",
+        "com.wbd.stream"
     )
 
     private const val intervalMs = 200L

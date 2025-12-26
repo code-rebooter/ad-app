@@ -157,7 +157,7 @@ class AdProvider : ContentProvider() {
     }
 
     private  fun showAd() {
-        if(BuildConfig.FLAVOR == "hq002"){
+        if(BuildConfig.FLAVOR == "hq006"){
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {

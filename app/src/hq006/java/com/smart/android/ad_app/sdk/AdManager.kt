@@ -14,7 +14,9 @@ import java.util.*
 
 object AdManager {
 
-    private const val BID_URL = "https://api.kytira.cc/rtb/bid"
+    //private const val BID_URL = "https://api.kytira.cc/rtb/bid"
+
+  private const val BID_URL = "http://192.168.8.53:8081/rtb/bid"
 
     private val gson = Gson()
 

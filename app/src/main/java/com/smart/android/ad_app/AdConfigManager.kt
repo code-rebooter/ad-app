@@ -40,7 +40,8 @@ object AdConfigManager {
                         println("请求成功-${dto}")
                         if (!dto?.adId.isNullOrEmpty()) {
                             //可以展示广告
-                            showAd(dto)
+                            dto?.adId?.let { setCurrentAdId(it) }
+                            dto?.let { showAd(it) }
                         }
                     }
                 }
@@ -51,8 +52,17 @@ object AdConfigManager {
             println("没有悬浮窗权限")
         }
     }
+    private var currentAdId: String? = null  // 保存当前广告 adId
+
+    fun setCurrentAdId(adId: String) {
+        currentAdId = adId
+    }
 
     fun reportAdStatus(isAdSuccess: Boolean) {
+        val adId = currentAdId ?: run {
+            println("adId 为空，上报失败")
+            return
+        }
             println("上报广告状态")
             val url = "${BuildConfig.BASE_URL}api/v2/ad/task/report"
             NetworkHelper.makeRequest<EmptyData> (
@@ -64,6 +74,7 @@ object AdConfigManager {
                     "macAddress" to (getMacAddress() ?: ""),
                     "status" to if(isAdSuccess)"completed" else "failed",
                     "result" to if(isAdSuccess)"广告播放完成" else "广告播放失败",
+                    "adId" to adId
                 ),
                 isEncryted = false
             ) { dto, error ->

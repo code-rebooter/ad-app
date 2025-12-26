@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.CountDownTimer
 import android.os.Handler

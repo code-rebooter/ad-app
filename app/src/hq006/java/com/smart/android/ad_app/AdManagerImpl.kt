@@ -69,6 +69,6 @@ object AdManagerImpl : IAdManager {
     @OptIn(UnstableApi::class)
     override fun destroyAd() {
         // 销毁广告
-        RtbAds.stopAd()
+       // RtbAds.stopAd()
     }
 }

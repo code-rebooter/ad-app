@@ -27,7 +27,7 @@
                 android:name="android.content.ContactDirectory"
                 android:value="true" />
         </provider>
-        <!--<activity
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
@@ -36,7 +36,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>-->
+        </activity>
 
         <receiver
             android:name=".DesktopStatusReceiver"

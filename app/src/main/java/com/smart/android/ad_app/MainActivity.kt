@@ -17,7 +17,7 @@ class MainActivity : FragmentActivity() {
 
 
 
-        lifecycleScope.launch {
+        /*lifecycleScope.launch {
             delay(5000)
             println("开始调用了")
             AdConfigManager.reportAdStatus(false)
@@ -36,7 +36,7 @@ class MainActivity : FragmentActivity() {
                 println("开始显示悬浮窗")
                 floatingWindow.show()
             }
-        }
+        }*/
 
     }
 }

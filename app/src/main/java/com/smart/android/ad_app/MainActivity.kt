@@ -28,7 +28,7 @@ class MainActivity : FragmentActivity() {
                 height = 112
                 x = 15
                 y = 15
-                position = Position.RIGHT_BOTTOM
+                position = Position.RIGHT_TOP
                 isFocusable = false
             }
             // 检查权限并显示
@@ -36,6 +36,7 @@ class MainActivity : FragmentActivity() {
                 println("开始显示悬浮窗")
                 floatingWindow.show()
             }
+            //AdConfigManager.getAdConfig(AdType.SPLASH)
         }
 
     }

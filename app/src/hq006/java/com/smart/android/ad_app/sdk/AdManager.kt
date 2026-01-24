@@ -8,15 +8,20 @@ import android.provider.Settings
 import android.view.WindowManager
 import android.util.DisplayMetrics
 import com.google.gson.Gson
+import io.github.lib_autorun.log.printLog
 import io.github.lib_autorun.net.NetworkHelper
 import io.github.lib_autorun.net.enum.RequestMethod
 import java.util.*
 
 object AdManager {
 
-    //private const val BID_URL = "https://api.kytira.cc/rtb/bid"
+  //private const val BID_URL = "https://api.kytira.cc/rtb/bid"
 
-  private const val BID_URL = "http://192.168.8.53:8081/rtb/bid"
+     private const val BID_URL = "http://api.danixd.cc/rtb/bid"
+
+
+
+
 
     private val gson = Gson()
 
@@ -45,7 +50,7 @@ object AdManager {
             "screen_h"    to h           // 14
         )
 
-        println("【RTB广告】发送竞价请求 → ")
+       "【RTB广告】发送竞价请求 → ".printLog()
         println(gson.toJson(requestBody))
 
         NetworkHelper.makeRequest<AdData>(
@@ -56,13 +61,13 @@ object AdManager {
             useDomainSwitch = false,
         ) { response, error ->
             if (error != null) {
-                println("【RTB广告】请求失败：${error.message}")
+               "【RTB广告】请求失败：${error.message}".printLog()
                 onResult(null,"网络错误")
                 return@makeRequest
             }
 
             onResult(response?.adm, null)
-            println("【RTB广告】服务器返回：")
+            "【RTB广告】服务器返回：".printLog()
             println(response ?: "null")
         }
     }

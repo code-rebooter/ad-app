@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">unknow</string>
+    <string name="app_closure" translatable="false">秒后可关闭广告</string>
+    <string name="app_Return" translatable="false">按返回键关闭</string>
+</resources>

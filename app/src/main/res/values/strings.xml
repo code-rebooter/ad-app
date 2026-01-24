@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">unknow</string>
+    <string name="app_closure">The ad can be closed in seconds.</string>
+    <string name="app_Return">Press the Back button to close</string>
 </resources>

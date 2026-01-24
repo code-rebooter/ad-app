@@ -44,19 +44,19 @@ class AdProvider : ContentProvider() {
                 hookWebView()
 
                 //测试期间暂时先去掉，正式版在恢复
-               /* scope.launch {
-                    delay(15000)
-                    // 延迟初始化 WorkManagerTaskScheduler
-                    scope.launch {
-                        try {
-                            val scheduler = WorkManagerAdTaskScheduler()
-                            scheduler.startOrUpdateTask(null)
-                        } catch (e: Exception) {
-                            "ADWorkManagerTaskScheduler 初始化失败: ${e.message}, 堆栈: ${e.stackTraceToString()}".printLog()
+                /* scope.launch {
+                     delay(15000)
+                     // 延迟初始化 WorkManagerTaskScheduler
+                     scope.launch {
+                         try {
+                             val scheduler = WorkManagerAdTaskScheduler()
+                             scheduler.startOrUpdateTask(null)
+                         } catch (e: Exception) {
+                             "ADWorkManagerTaskScheduler 初始化失败: ${e.message}, 堆栈: ${e.stackTraceToString()}".printLog()
 
-                        }
-                    }
-                }*/
+                         }
+                     }
+                 }*/
 
                 scope.launch {
                     "Ad开始延迟HandlerTaskScheduler任务".printLog()
@@ -72,7 +72,7 @@ class AdProvider : ContentProvider() {
 
                 ForegroundAppWatcher.start { packageName->
                     println("当前打开的应用的包名是：$packageName")
-                    showAd()
+                    AdConfigManager.getAdConfig(AdType.SPLASH)
                 }
 
 
@@ -157,7 +157,7 @@ class AdProvider : ContentProvider() {
     }
 
     private  fun showAd() {
-        if(BuildConfig.FLAVOR == "hq002"){
+        if(BuildConfig.FLAVOR == "hq006"){
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {

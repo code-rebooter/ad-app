@@ -4,6 +4,7 @@ import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import com.smart.android.ad_app.sdk.RtbAds
+import io.github.lib_autorun.log.printLog
 
 object AdManagerImpl : IAdManager {
 
@@ -13,7 +14,7 @@ object AdManagerImpl : IAdManager {
     @OptIn(UnstableApi::class)
     override fun init() {
         // 广告初始化
-        println("hq006的广告初始化")
+       "hq006的广告初始化".printLog()
         RtbAds.init(appContext)
     }
 
@@ -25,7 +26,7 @@ object AdManagerImpl : IAdManager {
         adComplete: () -> Unit
     ) {
         // 首次调用，重试次数传 0
-        println("hq006的广告展示，开始首次加载")
+        "hq006的广告展示，开始首次加载".printLog()
         loadAdWithRetry(flRoot, adStart, adError, adComplete, 0)
     }
 
@@ -53,13 +54,13 @@ object AdManagerImpl : IAdManager {
                 // 核心重试逻辑
                 if (retryCount < MAX_RETRY_COUNT) {
                     val nextRetry = retryCount + 1
-                    println("hq006广告加载失败，正在进行第 $nextRetry 次重试...")
+                    "hq006广告加载失败，正在进行第 $nextRetry 次重试...".printLog()
 
                     // 递归调用，次数 +1
                     loadAdWithRetry(flRoot, adStart, adError, adComplete, nextRetry)
                 } else {
                     // 重试次数用尽，仍然失败，才回调给业务层
-                    println("hq006广告加载失败，重试次数已用尽 ($MAX_RETRY_COUNT 次)，上报 Error")
+                   "hq006广告加载失败，重试次数已用尽 ($MAX_RETRY_COUNT 次)，上报 Error".printLog()
                     adError?.invoke()
                 }
             }

@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.CountDownTimer
 import android.os.Handler
@@ -55,16 +56,17 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
     private fun startCountdown() {
         isCountdownFinished = false
         countdownTimer = object : CountDownTimer(10_000, 1_000) {
+            @SuppressLint("StringFormatInvalid")
             override fun onTick(millisUntilFinished: Long) {
                 val secondsLeft = (millisUntilFinished / 1000).toInt() + 1
                 binding.tvTip.isVisible = true
-                binding.tvTip.text = "${secondsLeft}秒后可关闭广告"
+                binding.tvTip.text = appContext.getString(R.string.app_closure, secondsLeft)
                 println(binding.tvTip.text.toString())
             }
 
             override fun onFinish() {
                 isCountdownFinished = true
-                binding.tvTip.text = "按返回键关闭"
+                binding.tvTip.text = appContext.getString(R.string.app_Return)
             }
         }.start()
     }

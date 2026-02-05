@@ -198,20 +198,20 @@ android {
         }
 
         hq006 {
-            applicationId "io.android.ad.dyrtb"
-            versionCode 3   // 2025-12-24发布版本号：2
-            versionName "1.0.3"     // 2025-12-24发布版本名：1.0.2
+            applicationId "com.google.android.dyrtb"
+            versionCode 2   // 2025-12-24发布版本号：2
+            versionName "1.0.2"     // 2025-12-24发布版本名：1.0.2
             dimension "ad"
             signingConfig signingConfigs.h713    //https://api.pavaro.cc/
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.pavaro.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"AD_RT_rd"'
-            buildConfigField "String", "C_TYPE", '"AD_RT_rd"'
-            buildConfigField "String", "MODEL", '"AD_RT_rb"'
+            buildConfigField "String", "CHANNEL", '"AD_RT"'
+            buildConfigField "String", "C_TYPE", '"AD_RT"'
+            buildConfigField "String", "MODEL", '"AD_RT"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.pavaro.cc/"'
         }
 
         hq007 {

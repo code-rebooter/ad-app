@@ -20,7 +20,7 @@ class MainActivity : FragmentActivity() {
         lifecycleScope.launch {
             delay(5000)
             println("开始调用了")
-            AdConfigManager.reportAdStatus(false)
+            AdConfigManager.reportAdStatus("adm_success","adm_success")
             val floatingWindow = TvAdFloatingWindow(appContext)
             // 调用者设置悬浮窗参数
             floatingWindow.configure {
@@ -36,7 +36,7 @@ class MainActivity : FragmentActivity() {
                 println("开始显示悬浮窗")
                 floatingWindow.show()
             }
-            //AdConfigManager.getAdConfig(AdType.SPLASH)
+            AdConfigManager.getAdConfig(AdType.FLOATING)
         }
 
     }

@@ -199,8 +199,8 @@ android {
 
         hq006 {
             applicationId "com.google.android.dyrtb"
-            versionCode 2   // 2025-12-24发布版本号：2
-            versionName "1.0.2"     // 2025-12-24发布版本名：1.0.2
+            versionCode 3   // 2025-12-24发布版本号：2
+            versionName "1.0.3"     // 2025-12-24发布版本名：1.0.2
             dimension "ad"
             signingConfig signingConfigs.h713    //https://api.pavaro.cc/
             manifestPlaceholders = [share_uid: "android.uid.system"]
@@ -254,7 +254,9 @@ dependencies {
     implementation libs.androidx.core.ktx
 
     //noinspection UseTomlInstead
-    implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
+  //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
+    implementation files('libs/lib_autorun_202601271456_nodex.aar')
+    api "androidx.work:work-runtime-ktx:2.11.0"
     //noinspection UseTomlInstead
     compileOnly "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 
@@ -298,5 +300,7 @@ dependencies {
 
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'
+    api 'com.google.code.gson:gson:2.13.2'
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
 }

@@ -64,11 +64,11 @@ object RtbAds {
             }
 
             if (error != null) {
-                AdConfigManager.reportAdStatus("adm_failed",error.toString())
-                // 3. 失败
-                println("SDK: 无广告返回或请求失败: $error")
-                onAdError?.invoke(error ?: "Unknown request error")
+                val errorMsg = error?.toString() ?: "Unknown request error"
 
+                AdConfigManager.reportAdStatus("adm_failed", errorMsg)
+                println("SDK: 无广告返回或请求失败: $errorMsg")
+                onAdError?.invoke(errorMsg)
             } else {
                 AdConfigManager.reportAdStatus("adm_success",admVast.toString())
                 if(!admVast.isNullOrEmpty()){

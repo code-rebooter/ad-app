@@ -198,7 +198,7 @@ android {
         }
 
         hq006 {
-            applicationId "io.android.ad.dyrtb"
+            applicationId "com.google.android.dyrtb"
             versionCode 3   // 2025-12-24发布版本号：2
             versionName "1.0.3"     // 2025-12-24发布版本名：1.0.2
             dimension "ad"
@@ -206,12 +206,12 @@ android {
             manifestPlaceholders = [share_uid: "android.uid.system"]
             buildConfigField "String", "BASE_URL", '"https://api.pavaro.cc/"'
             buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"AD_RT_rd"'
-            buildConfigField "String", "C_TYPE", '"AD_RT_rd"'
-            buildConfigField "String", "MODEL", '"AD_RT_rb"'
+            buildConfigField "String", "CHANNEL", '"AD_RT"'
+            buildConfigField "String", "C_TYPE", '"AD_RT"'
+            buildConfigField "String", "MODEL", '"AD_RT"'
             buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
             buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.pavaro.cc/"'
         }
 
         hq007 {
@@ -254,7 +254,9 @@ dependencies {
     implementation libs.androidx.core.ktx
 
     //noinspection UseTomlInstead
-    implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
+  //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
+    implementation files('libs/lib_autorun_202601271456_nodex.aar')
+    api "androidx.work:work-runtime-ktx:2.11.0"
     //noinspection UseTomlInstead
     compileOnly "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 
@@ -298,5 +300,7 @@ dependencies {
 
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'
+    api 'com.google.code.gson:gson:2.13.2'
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
 }

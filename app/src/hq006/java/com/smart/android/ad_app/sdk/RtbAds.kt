@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import com.smart.android.ad_app.AdConfigManager
 import java.lang.ref.WeakReference
 
 /**
@@ -62,52 +63,58 @@ object RtbAds {
                 return@requestHomeVideoAd
             }
 
-            if (admVast != null) {
-                // 2. 成功：创建 View 并播放
-                val vastAdView = VastAdPlayerView(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+            if (error != null) {
+                val errorMsg = error?.toString() ?: "Unknown request error"
 
-                    this.isMuted = isMutedDefault
+                AdConfigManager.reportAdStatus("adm_failed", errorMsg)
+                println("SDK: 无广告返回或请求失败: $errorMsg")
+                onAdError?.invoke(errorMsg)
+            } else {
+                AdConfigManager.reportAdStatus("adm_success",admVast.toString())
+                if(!admVast.isNullOrEmpty()){
+                    // 2. 成功：创建 View 并播放
+                    val vastAdView = VastAdPlayerView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 
-                    // --- 设置回调事件 ---
+                        this.isMuted = isMutedDefault
 
-                    // A. 开始播放回调
-                    this.onAdStarted = {
-                        onAdStarted?.invoke()
-                    }
+                        // --- 设置回调事件 ---
 
-                    // 定义统一的清理动作（不论是出错还是播完）
-                    val finishAction = {
-                        (parent as? ViewGroup)?.removeView(this)
-                        release()
-                        if (currentAdViewRef?.get() == this) {
-                            currentAdViewRef = null
+                        // A. 开始播放回调
+                        this.onAdStarted = {
+                            onAdStarted?.invoke()
+                        }
+
+                        // 定义统一的清理动作（不论是出错还是播完）
+                        val finishAction = {
+                            (parent as? ViewGroup)?.removeView(this)
+                            release()
+                            if (currentAdViewRef?.get() == this) {
+                                currentAdViewRef = null
+                            }
+                        }
+
+                        // B. 播放完成回调 (包含跳过、正常播完)
+                        this.onAllAdsCompleted = {
+                            finishAction()
+                            onAdCompleted?.invoke()
+                        }
+                        this.onAdError = { errorMsg ->
+                            finishAction()
+                            println("SDK: 播放器内部错误: $errorMsg")
+                            onAdError?.invoke(errorMsg)
                         }
                     }
 
-                    // B. 播放完成回调 (包含跳过、正常播完)
-                    this.onAllAdsCompleted = {
-                        finishAction()
-                        onAdCompleted?.invoke()
-                    }
-                    this.onAdError = { errorMsg ->
-                        finishAction()
-                        println("SDK: 播放器内部错误: $errorMsg")
-                        onAdError?.invoke(errorMsg)
-                    }
+                    // 【新增】保存引用
+                    currentAdViewRef = WeakReference(vastAdView)
+
+                    // 3. 添加到 UI 并开始播放
+                    container.addView(vastAdView)
+                    vastAdView.playWithAdm(admVast)
                 }
 
-                // 【新增】保存引用
-                currentAdViewRef = WeakReference(vastAdView)
 
-                // 3. 添加到 UI 并开始播放
-                container.addView(vastAdView)
-                vastAdView.playWithAdm(admVast)
-
-            } else {
-                // 3. 失败
-                println("SDK: 无广告返回或请求失败: $error")
-                onAdError?.invoke(error ?: "Unknown request error")
             }
         }
     }

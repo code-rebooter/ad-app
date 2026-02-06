@@ -29,6 +29,7 @@ import com.google.ads.interactivemedia.v3.api.AdEvent
 import com.google.ads.interactivemedia.v3.api.ImaSdkFactory
 import com.google.ads.interactivemedia.v3.api.ImaSdkSettings
 import com.google.common.collect.ImmutableList
+import com.smart.android.ad_app.AdConfigManager
 import kotlin.apply
 
 
@@ -120,7 +121,9 @@ class VastAdPlayerView @JvmOverloads constructor(
         ImaSdkFactory.getInstance().initialize(context, imaSdkSettings)
         // 1. IMA AdsLoader
         adsLoader = ImaAdsLoader.Builder(context)
-            .setAdEventListener { event ->
+            // 将媒体加载超时时间从默认的 8 秒增加到 15 秒
+            .setMediaLoadTimeoutMs(20000)
+            .setAdEventListener { event: AdEvent ->
                 println("当前的广告事件：${event.type}")
                 when (event.type) {
                     AdEvent.AdEventType.LOADED -> {
@@ -128,10 +131,23 @@ class VastAdPlayerView @JvmOverloads constructor(
                     }
 
                     AdEvent.AdEventType.STARTED -> {
+                        AdConfigManager.reportAdStatus("play_start","播放开始")
                         onAdStarted?.invoke()
+
+                    }
+                    AdEvent.AdEventType.FIRST_QUARTILE -> {
+                        AdConfigManager.reportAdStatus("play_25","播放进度25%")
                     }
 
+                    AdEvent.AdEventType.MIDPOINT -> {
+                        AdConfigManager.reportAdStatus("play_50","播放进度50%")
+                    }
+
+                    AdEvent.AdEventType.THIRD_QUARTILE -> {
+                        AdConfigManager.reportAdStatus("play_75","播放进度75%")
+                    }
                     AdEvent.AdEventType.COMPLETED -> {
+                        AdConfigManager.reportAdStatus("completed","播放完成")
                         onAdCompleted?.invoke()
                     }
 
@@ -151,7 +167,11 @@ class VastAdPlayerView @JvmOverloads constructor(
             .setAdErrorListener { error ->
                 println("当前的广告错误：${error}")
                 isVisible = false
-                onAdError?.invoke(error.toString())
+                val errorMsg = error?.toString() ?: "UNKNOWN_AD_ERROR"
+                println("当前的广告错误：$errorMsg")
+                isVisible = false
+                AdConfigManager.reportAdStatus("failed",errorMsg)
+                onAdError?.invoke(errorMsg)
             }.setImaSdkSettings(imaSdkSettings).setDebugModeEnabled(false)
             .build()
 

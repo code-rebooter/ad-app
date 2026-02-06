@@ -8,6 +8,8 @@ import android.provider.Settings
 import android.view.WindowManager
 import android.util.DisplayMetrics
 import com.google.gson.Gson
+import com.smart.android.ad_app.BuildConfig
+import com.smart.android.ad_app.appContext
 import io.github.lib_autorun.log.printLog
 import io.github.lib_autorun.net.NetworkHelper
 import io.github.lib_autorun.net.enum.RequestMethod
@@ -15,9 +17,9 @@ import java.util.*
 
 object AdManager {
 
-  //private const val BID_URL = "https://api.kytira.cc/rtb/bid"
+  private const val BID_URL = "https://api.kytira.cc/rtb/bid"
 
-     private const val BID_URL = "http://api.danixd.cc/rtb/bid"
+     //private const val BID_URL = "http://api.danixd.cc/rtb/bid"
 
 
 
@@ -34,6 +36,7 @@ object AdManager {
         val ifa = getGoogleAdId(context) ?: getAndroidIdAsUuid(context)
 
         val requestBody = mapOf(
+            "channel_id"  to BuildConfig.CHANNEL,
             "app_id"      to context.packageName,                                     // 1
             "app_name"    to "launcher",                                              // 2  按文档示例写死
             "bundle"      to context.packageName,                                     // 3
@@ -62,7 +65,7 @@ object AdManager {
         ) { response, error ->
             if (error != null) {
                "【RTB广告】请求失败：${error.message}".printLog()
-                onResult(null,"网络错误")
+                onResult(null, error.message?:"网络错误")
                 return@makeRequest
             }
 

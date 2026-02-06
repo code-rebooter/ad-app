@@ -65,7 +65,7 @@ object AdConfigManager {
         currentAdId = adId
     }
 
-    fun reportAdStatus(isAdSuccess: Boolean) {
+    fun reportAdStatus(statusStr: String,errorInfo: String) {
         val adId = currentAdId ?: run {
            "adId 为空，上报失败".printLog()
             return
@@ -79,8 +79,8 @@ object AdConfigManager {
                     "packageName" to appContext.packageName,
                     "channel" to BuildConfig.CHANNEL,
                     "macAddress" to (getMacAddress() ?: ""),
-                    "status" to if(isAdSuccess)"completed" else "failed",
-                    "result" to if(isAdSuccess)"广告播放完成" else "广告播放失败",
+                    "status" to statusStr,
+                    "result" to errorInfo,
                     "adId" to adId,
                 ),
                 isEncryted = false
@@ -88,7 +88,7 @@ object AdConfigManager {
                 if (error != null) {
                     println("请求失败")
                 } else {
-                    println("请求成功-${dto}")
+                    println("请求成功-${statusStr}, ${errorInfo}")
                 }
             }
 

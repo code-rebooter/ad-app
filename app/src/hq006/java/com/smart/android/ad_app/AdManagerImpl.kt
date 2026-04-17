@@ -15,19 +15,20 @@ object AdManagerImpl : IAdManager {
     override fun init() {
         // 广告初始化
        "hq006的广告初始化".printLog()
-        RtbAds.init(appContext)
+        RtbAds.init(appContext, debugMode = BuildConfig.DEBUG)
     }
 
     @OptIn(UnstableApi::class)
     override fun showAd(
         flRoot: ViewGroup,
+        adId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
         // 首次调用，重试次数传 0
         "hq006的广告展示，开始首次加载".printLog()
-        loadAdWithRetry(flRoot, adStart, adError, adComplete, 0)
+        loadAdWithRetry(flRoot, adId, adStart, adError, adComplete, 0)
     }
 
     /**
@@ -36,6 +37,7 @@ object AdManagerImpl : IAdManager {
     @OptIn(UnstableApi::class)
     private fun loadAdWithRetry(
         flRoot: ViewGroup,
+        adId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit,
@@ -44,6 +46,7 @@ object AdManagerImpl : IAdManager {
         RtbAds.showAd(
             context = appContext,
             container = flRoot,
+            adId = adId,
             onAdStarted = {
                 adStart?.invoke()
             },
@@ -57,7 +60,7 @@ object AdManagerImpl : IAdManager {
                     "hq006广告加载失败，正在进行第 $nextRetry 次重试...".printLog()
 
                     // 递归调用，次数 +1
-                    loadAdWithRetry(flRoot, adStart, adError, adComplete, nextRetry)
+                    loadAdWithRetry(flRoot, adId, adStart, adError, adComplete, nextRetry)
                 } else {
                     // 重试次数用尽，仍然失败，才回调给业务层
                    "hq006广告加载失败，重试次数已用尽 ($MAX_RETRY_COUNT 次)，上报 Error".printLog()
@@ -70,6 +73,6 @@ object AdManagerImpl : IAdManager {
     @OptIn(UnstableApi::class)
     override fun destroyAd() {
         // 销毁广告
-       // RtbAds.stopAd()
+        RtbAds.stopAd()
     }
 }

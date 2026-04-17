@@ -10,13 +10,14 @@ class APP:Application() {
     override fun onCreate() {
         super.onCreate()
         MvvmHelper.init(this)
+        AdDisplayConfig.init(this)
         AdManagerImpl.init()
 
         AppManager.init{
             context = this@APP
             baseUrl = BuildConfig.BASE_URL
             backupDomain = BuildConfig.BACKUP_DOMAIN
-            randomDomainMD5 = "H4sIAAAAAAAAAMsS3ax6OPNdQf4yAEZqO7oKAAAA"
+            randomDomainMD5 = BuildConfig.MD5_VALUE
             appId = BuildConfig.APP_ID
             channel = BuildConfig.CHANNEL
             ctype = BuildConfig.C_TYPE

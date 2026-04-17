@@ -35,6 +35,12 @@ object RtbAds {
         this.isMutedDefault = muted
     }
 
+    private fun debugLog(message: String) {
+        if (isDebugMode) {
+            println(message)
+        }
+    }
+
     // ================= Ad Loading & Showing (加载展示) =================
 
     /**
@@ -44,6 +50,7 @@ object RtbAds {
     fun showAd(
         context: Context,
         container: ViewGroup,
+        adId: String? = null,
         onAdStarted: (() -> Unit)? = null,   // 【新增】开始播放
         onAdError: ((String) -> Unit)? = null, // 【新增】出错
         onAdCompleted: (() -> Unit)? = null    // 【修改】播放完成/结束
@@ -59,62 +66,67 @@ object RtbAds {
 
             // 【关键】如果用户在请求过程中已经调用了 stopCurrentAd()，则数据回来也不展示
             if (isStopRequested) {
-                println("SDK: 广告已取消展示")
+                debugLog("SDK: 广告已取消展示")
                 return@requestHomeVideoAd
             }
 
             if (error != null) {
                 val errorMsg = error?.toString() ?: "Unknown request error"
 
-                AdConfigManager.reportAdStatus("adm_failed", errorMsg)
-                println("SDK: 无广告返回或请求失败: $errorMsg")
+                AdConfigManager.reportAdStatus("adm_failed", errorMsg, adId)
+                debugLog("SDK: 无广告返回或请求失败: $errorMsg")
                 onAdError?.invoke(errorMsg)
             } else {
-                AdConfigManager.reportAdStatus("adm_success",admVast.toString())
-                if(!admVast.isNullOrEmpty()){
-                    // 2. 成功：创建 View 并播放
-                    val vastAdView = VastAdPlayerView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                if (admVast.isNullOrEmpty()) {
+                    val errorMsg = "EMPTY_ADM"
+                    AdConfigManager.reportAdStatus("adm_empty", errorMsg, adId)
+                    onAdError?.invoke(errorMsg)
+                    return@requestHomeVideoAd
+                }
 
-                        this.isMuted = isMutedDefault
+                AdConfigManager.reportAdStatus("adm_success", admVast, adId)
+                // 2. 成功：创建 View 并播放
+                val vastAdView = VastAdPlayerView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                    requestAdId = adId
+                    enableDebugLogging = isDebugMode
 
-                        // --- 设置回调事件 ---
+                    this.isMuted = isMutedDefault
 
-                        // A. 开始播放回调
-                        this.onAdStarted = {
-                            onAdStarted?.invoke()
-                        }
+                    // --- 设置回调事件 ---
 
-                        // 定义统一的清理动作（不论是出错还是播完）
-                        val finishAction = {
-                            (parent as? ViewGroup)?.removeView(this)
-                            release()
-                            if (currentAdViewRef?.get() == this) {
-                                currentAdViewRef = null
-                            }
-                        }
+                    // A. 开始播放回调
+                    this.onAdStarted = {
+                        onAdStarted?.invoke()
+                    }
 
-                        // B. 播放完成回调 (包含跳过、正常播完)
-                        this.onAllAdsCompleted = {
-                            finishAction()
-                            onAdCompleted?.invoke()
-                        }
-                        this.onAdError = { errorMsg ->
-                            finishAction()
-                            println("SDK: 播放器内部错误: $errorMsg")
-                            onAdError?.invoke(errorMsg)
+                    // 定义统一的清理动作（不论是出错还是播完）
+                    val finishAction = {
+                        (parent as? ViewGroup)?.removeView(this)
+                        release()
+                        if (currentAdViewRef?.get() == this) {
+                            currentAdViewRef = null
                         }
                     }
 
-                    // 【新增】保存引用
-                    currentAdViewRef = WeakReference(vastAdView)
-
-                    // 3. 添加到 UI 并开始播放
-                    container.addView(vastAdView)
-                    vastAdView.playWithAdm(admVast)
+                    // B. 播放完成回调 (包含跳过、正常播完)
+                    this.onAllAdsCompleted = {
+                        finishAction()
+                        onAdCompleted?.invoke()
+                    }
+                    this.onAdError = { errorMsg ->
+                        finishAction()
+                        debugLog("SDK: 播放器内部错误: $errorMsg")
+                        onAdError?.invoke(errorMsg)
+                    }
                 }
 
+                // 【新增】保存引用
+                currentAdViewRef = WeakReference(vastAdView)
 
+                // 3. 添加到 UI 并开始播放
+                container.addView(vastAdView)
+                vastAdView.playWithAdm(admVast)
             }
         }
     }
@@ -134,7 +146,7 @@ object RtbAds {
         val currentView = currentAdViewRef?.get()
 
         if (currentView != null) {
-            println("SDK: 强制停止当前广告")
+            debugLog("SDK: 强制停止当前广告")
             // 从父布局移除
             (currentView.parent as? ViewGroup)?.removeView(currentView)
             // 调用 View 内部的 release 方法彻底释放 ExoPlayer

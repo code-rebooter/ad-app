@@ -15,7 +15,7 @@ data class AdConfigDto(
     val position: Int?,
     val videoUrl: String?
 ){
-    open val positionEnum: Position get() = Position.fromInt(position?:0)
+    val positionEnum: Position get() = Position.fromInt(position?:0)
 }
 
 // 广告显示位置：例如居中与右下角

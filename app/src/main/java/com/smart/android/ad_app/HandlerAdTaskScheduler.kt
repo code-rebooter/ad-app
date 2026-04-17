@@ -2,33 +2,88 @@ package com.smart.android.ad_app
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import io.github.lib_autorun.log.printLog
 import io.github.lib_autorun.task.scheduler.TaskScheduler
 
-class HandlerAdTaskScheduler : TaskScheduler {
+object HandlerAdTaskScheduler : TaskScheduler {
+    private const val TAG = "HandlerAdTaskScheduler"
     private val handler = Handler(Looper.getMainLooper())
     private var taskRunnable: Runnable? = null
+    private var currentIntervalSeconds: Long? = null
+    private var isExecuting = false
+    private var skipAutoReschedule = false
 
     override fun startOrUpdateTask(newInterval: Long?) {
-        synchronized(this) {
-            "AdHandlerTaskScheduler 启动，间隔: ${newInterval?:0} 秒".printLog()
+        val intervalSeconds = newInterval?.takeIf { it > 0 } ?: run {
+            Log.e(TAG, "Invalid interval: ${newInterval ?: 0}")
+            "AdHandlerTaskScheduler 启动失败，非法间隔: ${newInterval ?: 0}".printLog()
+            shutdown()
+            return
+        }
 
-            taskRunnable?.let { handler.removeCallbacks(it) }
-            taskRunnable = null
-            taskRunnable = object : Runnable {
+        synchronized(this) {
+            val runnable = taskRunnable
+            if (runnable != null && currentIntervalSeconds == intervalSeconds) {
+                Log.i(TAG, "Already running with interval=${intervalSeconds}s")
+                "AdHandlerTaskScheduler 已运行，保持间隔: $intervalSeconds 秒".printLog()
+                return
+            }
+
+            Log.i(TAG, "Start scheduler interval=${intervalSeconds}s")
+            "AdHandlerTaskScheduler 启动，间隔: $intervalSeconds 秒".printLog()
+            val isFirstStart = runnable == null
+            runnable?.let(handler::removeCallbacks)
+
+            currentIntervalSeconds = intervalSeconds
+            if (isExecuting) {
+                skipAutoReschedule = true
+            }
+
+            val activeRunnable = runnable ?: object : Runnable {
                 override fun run() {
-                    "AdHandlerTaskScheduler开始执行周期任务: ${System.currentTimeMillis()}".printLog()
+                    synchronized(this@HandlerAdTaskScheduler) {
+                        isExecuting = true
+                    }
+
+                    Log.i(TAG, "Run periodic task at=${System.currentTimeMillis()}")
+                    "AdHandlerTaskScheduler 开始执行周期任务: ${System.currentTimeMillis()}".printLog()
                     AdConfigManager.getAdConfig(AdType.FLOATING)
-                   // TaskManager.executePeriodicTasks()
-                    handler.postDelayed(this, (newInterval?:0) * 1000)
+
+                    val nextIntervalSeconds: Long?
+                    val shouldAutoReschedule: Boolean
+                    synchronized(this@HandlerAdTaskScheduler) {
+                        isExecuting = false
+                        nextIntervalSeconds = currentIntervalSeconds
+                        shouldAutoReschedule = !skipAutoReschedule && taskRunnable === this && nextIntervalSeconds != null
+                        if (skipAutoReschedule) {
+                            skipAutoReschedule = false
+                        }
+                    }
+
+                    if (shouldAutoReschedule) {
+                        handler.postDelayed(this, nextIntervalSeconds!! * 1000)
+                    }
                 }
             }
-            taskRunnable?.let { handler.post(it) }
+            taskRunnable = activeRunnable
+
+            if (isFirstStart) {
+                handler.post(activeRunnable)
+            } else {
+                handler.postDelayed(activeRunnable, intervalSeconds * 1000)
+            }
         }
     }
 
     override fun shutdown() {
-        taskRunnable?.let { handler.removeCallbacks(it) }
-        taskRunnable = null
+        synchronized(this) {
+            Log.i(TAG, "Shutdown scheduler")
+            taskRunnable?.let(handler::removeCallbacks)
+            taskRunnable = null
+            currentIntervalSeconds = null
+            isExecuting = false
+            skipAutoReschedule = false
+        }
     }
 }

@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:remove="android:sharedUserId">
+
+    <application>
+        <meta-data
+            android:name="tcl_app_key"
+            android:value="${tcl_app_key}" />
+        <meta-data
+            android:name="partner_name"
+            android:value="${partner_name}" />
+        <meta-data
+            android:name="project_id"
+            android:value="${project_id}" />
+    </application>
+
+</manifest>

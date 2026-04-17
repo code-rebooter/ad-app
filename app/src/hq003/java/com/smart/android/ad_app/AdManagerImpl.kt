@@ -1,30 +1,30 @@
 package com.smart.android.ad_app
 
 import android.util.Log
-import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import com.zykj.vastplayer.manager.ZyVideoAd
 
 object AdManagerImpl : IAdManager {
+    private const val isDebugMode = false
+    private const val isFillVideo = false
+    private const val adIdValue = "112"
+    private const val channelId = "3"
+    private const val placementId = "3"
+
     override fun init() {
         println("hq003的广告初始化")
     }
 
     override fun showAd(
         flRoot: ViewGroup,
+        adId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        val IS_DEBUG = false          // 是否测试模式
-        val IS_FLL_VIDEO = false       // 是否拉伸视频
-        val AD_ID = "112"             // 广告ID
-        val CHANNEL_ID = "3"          // 渠道ID
-        val T_ID = "3"          // 广告位ID
-
-
-        val zyVideoAd = ZyVideoAd(appContext, IS_DEBUG, IS_FLL_VIDEO, AD_ID, CHANNEL_ID)
+        val container = flRoot.requireFrameLayout("hq003容器不是 FrameLayout，广告展示失败", adError)
+            ?: return
+        val zyVideoAd = ZyVideoAd(appContext, isDebugMode, isFillVideo, adIdValue, channelId)
 
         zyVideoAd.addAdEventListener(object : ZyVideoAd.JoyeAdListener {
             override fun onStart() {
@@ -43,11 +43,10 @@ object AdManagerImpl : IAdManager {
             }
         })
 
-        zyVideoAd.requestAds(flRoot as FrameLayout, T_ID)
+        zyVideoAd.requestAds(container, placementId)
     }
 
     override fun destroyAd() {
         //销毁广告
     }
 }
-

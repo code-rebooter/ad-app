@@ -1,15 +1,17 @@
+@file:Suppress("DEPRECATION")
+
 // RtbAdManager.kt —— 绝对终极完美版（2025-11-19 彻底封神）
 package com.smart.android.ad_app.sdk
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Rect
 import android.os.Build
 import android.provider.Settings
-import android.view.WindowManager
 import android.util.DisplayMetrics
+import android.view.WindowManager
 import com.google.gson.Gson
 import com.smart.android.ad_app.BuildConfig
-import com.smart.android.ad_app.appContext
 import io.github.lib_autorun.log.printLog
 import io.github.lib_autorun.net.NetworkHelper
 import io.github.lib_autorun.net.enum.RequestMethod
@@ -53,8 +55,10 @@ object AdManager {
             "screen_h"    to h           // 14
         )
 
-       "【RTB广告】发送竞价请求 → ".printLog()
-        println(gson.toJson(requestBody))
+        if (BuildConfig.DEBUG) {
+            "【RTB广告】发送竞价请求 → ".printLog()
+            println(gson.toJson(requestBody))
+        }
 
         NetworkHelper.makeRequest<AdData>(
             url = BID_URL,
@@ -64,22 +68,29 @@ object AdManager {
             useDomainSwitch = false,
         ) { response, error ->
             if (error != null) {
-               "【RTB广告】请求失败：${error.message}".printLog()
+                "【RTB广告】请求失败：${error.message}".printLog()
                 onResult(null, error.message?:"网络错误")
                 return@makeRequest
             }
 
             onResult(response?.adm, null)
-            "【RTB广告】服务器返回：".printLog()
-            println(response ?: "null")
+            if (BuildConfig.DEBUG) {
+                "【RTB广告】服务器返回：".printLog()
+                println(response ?: "null")
+            }
         }
     }
 
     fun getScreenResolution(context: Context): Pair<Int, Int> {
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val metrics = DisplayMetrics()
-        wm.defaultDisplay.getRealMetrics(metrics)
-        return metrics.widthPixels to metrics.heightPixels
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds: Rect = wm.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            val metrics = DisplayMetrics()
+            wm.defaultDisplay.getRealMetrics(metrics)
+            metrics.widthPixels to metrics.heightPixels
+        }
     }
 
     fun getGoogleAdId(context: Context): String? {

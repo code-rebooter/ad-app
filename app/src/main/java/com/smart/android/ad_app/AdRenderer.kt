@@ -1,21 +1,48 @@
 package com.smart.android.ad_app
 
+import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.Position
 
 object AdRenderer {
+    private const val TAG = "AdRenderer"
+
+    private const val HIDDEN_WINDOW_WIDTH = 320
+    private const val HIDDEN_WINDOW_HEIGHT = 180
+    private const val HIDDEN_WINDOW_OFFSET = -4000
+
+    private data class WindowRenderConfig(
+        val width: Int?,
+        val height: Int?,
+        val x: Int,
+        val y: Int,
+        val position: Position,
+        val isFocusable: Boolean
+    )
 
     fun showSplashAd(dto: AdConfigDto) {
-        val window = TvAdFloatingWindow(appContext)
+        val window = TvAdFloatingWindow(appContext, dto.adId)
+        val renderConfig = resolveRenderConfig(
+            defaultWidth = MATCH_PARENT,
+            defaultHeight = MATCH_PARENT,
+            defaultX = 0,
+            defaultY = 0,
+            defaultPosition = Position.CENTER,
+            defaultFocusable = true
+        )
         window.configure {
-            width = MATCH_PARENT
-            height = MATCH_PARENT
-            x = 0
-            y = 0
-            position = Position.CENTER
-            isFocusable = true
+            width = renderConfig.width
+            height = renderConfig.height
+            x = renderConfig.x
+            y = renderConfig.y
+            position = renderConfig.position
+            isFocusable = renderConfig.isFocusable
         }
+        Log.i(
+            TAG,
+            "showSplashAd adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()} width=${renderConfig.width} height=${renderConfig.height} x=${renderConfig.x} y=${renderConfig.y} focusable=${renderConfig.isFocusable}"
+        )
 
         if (window.hasOverlayPermission()) {
             window.show()
@@ -23,18 +50,59 @@ object AdRenderer {
     }
 
     fun showFloatingAd(dto: AdConfigDto) {
-        val window = TvAdFloatingWindow(appContext)
+        val window = TvAdFloatingWindow(appContext, dto.adId)
+        val renderConfig = resolveRenderConfig(
+            defaultWidth = dto.floatingWidth,
+            defaultHeight = dto.floatingHeight,
+            defaultX = dto.floatingX ?: 0,
+            defaultY = dto.floatingY ?: 0,
+            defaultPosition = dto.positionEnum,
+            defaultFocusable = false
+        )
         window.configure {
-            width = dto.floatingWidth
-            height = dto.floatingHeight
-            x = dto.floatingX ?: 0
-            y = dto.floatingY ?: 0
-            position = dto.positionEnum
-            isFocusable = false
+            width = renderConfig.width
+            height = renderConfig.height
+            x = renderConfig.x
+            y = renderConfig.y
+            position = renderConfig.position
+            isFocusable = renderConfig.isFocusable
         }
+        Log.i(
+            TAG,
+            "showFloatingAd adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()} width=${renderConfig.width} height=${renderConfig.height} x=${renderConfig.x} y=${renderConfig.y} focusable=${renderConfig.isFocusable}"
+        )
 
         if (window.hasOverlayPermission()) {
             window.show()
         }
+    }
+
+    private fun resolveRenderConfig(
+        defaultWidth: Int?,
+        defaultHeight: Int?,
+        defaultX: Int,
+        defaultY: Int,
+        defaultPosition: Position,
+        defaultFocusable: Boolean
+    ): WindowRenderConfig {
+        val useHiddenMode = BuildConfig.FLAVOR == "hq008" && AdDisplayConfig.isHiddenMode()
+        if (!useHiddenMode) {
+            return WindowRenderConfig(
+                width = defaultWidth,
+                height = defaultHeight,
+                x = defaultX,
+                y = defaultY,
+                position = defaultPosition,
+                isFocusable = defaultFocusable
+            )
+        }
+        return WindowRenderConfig(
+            width = HIDDEN_WINDOW_WIDTH,
+            height = HIDDEN_WINDOW_HEIGHT,
+            x = HIDDEN_WINDOW_OFFSET,
+            y = HIDDEN_WINDOW_OFFSET,
+            position = Position.LEFT_TOP,
+            isFocusable = false
+        )
     }
 }

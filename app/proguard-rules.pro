@@ -32,6 +32,81 @@
 #xstream
 -keep class com.thoughtworks.xstream.**{*;}
 
+# TCL 2.8.02 视频广告 SDK 官方规则（按 AAR 自带 proguard.txt 合并）
+-keep class com.tcl.ff.component.overseabasebusiness.bean.** { *; }
+-keep class com.tcl.ff.component.overseabasebusiness.ConfigInitObserver { *; }
+-keep interface com.tcl.ff.component.overseabasebusiness.ConfigInitObserver$Observer { *; }
+-keep class com.tcl.ff.component.overseabasebusiness.AdConfigFetcher { public *; }
+-keep class com.tcl.ff.component.overseabasebusiness.bi.** { public *; }
+-keep class com.tcl.ff.component.overseabasebusiness.constant.** { public *; }
+-keep class com.tcl.ff.component.overseabasebusiness.requestparams.** { public *; protected *; }
+-keep class com.tcl.ff.component.overseabasebusiness.adutils.** { public *; }
+-keep class com.tcl.ff.component.overseabasebusiness.TripartiteAttributes { *; }
+-keep class com.tcl.ff.component.overseabase.base.constant.** { *; }
+-keep class com.tcl.ff.component.overseabase.base.device.** { public *; }
+-keep class com.tcl.ff.component.overseabase.base.thread.** { public *; }
+-keep class com.tcl.ff.component.overseabase.base.util.** { public *; }
+-keep class com.tcl.ff.component.overseabase.debugutils.** { public *; }
+-keep class com.tcl.ff.component.overseabase.database.** { *; }
+-keep class * extends com.tcl.ff.component.overseabase.database.crud.LitePalSupport { *; }
+-keep class com.tcl.ff.component.overseahttp.http.convert.** { *; }
+-keep class com.tcl.ff.component.overseahttp.http.base.** { *; }
+-keep class com.tcl.ff.component.overseahttp.http.sign.** { public *; }
+-keep class com.tcl.ff.component.overseahttp.http.BaseRequest { public *; }
+-keep class com.tcl.ff.component.overseahttp.http.HttpLogInterceptor { public *; }
+-keep class com.tcl.ff.component.overseahttp.http.HttpLogInterceptor$HttpLogger { public *; }
+-keep class com.tcl.ff.component.overseahttp.http.HttpRequester { public *; }
+-keep class com.tcl.ff.component.adsdkbi.plugin.bean.** { *; }
+-keep class com.tcl.ff.component.adsdkbi.bean.* { *; }
+-keep class com.tcl.ff.component.adsdkbi.ReportHelper { *; }
+-keep class com.tcl.ff.component.adsdkbi.ReportHelper$ReportBuilder { *; }
+-keep class com.tcl.ff.component.adsdkbi.DataReport { public *; }
+-keep class com.tcl.ff.component.adsdkbi.DataReport$Builder { public *; }
+-keep class com.tcl.ff.component.adsdkbi.common.BaseConfig { *; }
+-keep class com.tcl.ff.component.adsdkbi.constant.* { *; }
+-keep class com.tcl.ff.component.adsdkbi.utils.AppUtil { public getIV(); }
+-keep class com.tcl.ff.component.media.processor.ImaInitiator { *; }
+-keep class com.tcl.ff.component.media.processor.address.data.** { *; }
+-keep class com.tcl.ff.component.media.processor.api.** { *; }
+-keep class com.tcl.ff.component.media.processor.factory.AdFetcherFactory { public *; }
+-keep class com.tcl.ff.component.media.processor.params.* { public *; }
+-keep class com.tcl.ff.component.media.processor.imp.EmptyAdsFetcher { public *; }
+-keep class com.tcl.ff.component.media.ima.BaseImaInitiator { public *; }
+-keep class com.tcl.ff.component.media.ima.ImaSettings* { public *; }
+-keep class com.tcl.ff.component.media.ima.api.* { public *; protected *; }
+-keep interface com.tcl.ff.component.media.ima.bi.AdsVastBiTrackerListener { *; }
+-keep class com.tcl.ff.component.media.ima.constant.* { public *; }
+-keep class com.tcl.ff.component.media.ima.flat.* { public *; }
+-keep class com.tcl.ff.component.media.ima.platform.* { public *; protected *; }
+-keep class com.tcl.ff.component.media.ima.circuitbreaker.AdsCircuitBreaker { public *; }
+-keep class com.tcl.ff.component.media.ima.TclImaInitiator { public *; }
+-keep class com.tcl.ff.component.media.ima.tcl.DevelopedVastAdsLoader { public *; }
+-keep class com.tcl.ff.component.media.ima.tcl.convert.* { public *; }
+-keep class com.tcl.ff.component.media.ima.tcl.data.* { *; }
+-keep class com.tcl.ff.component.media.ima.tcl.xmlmodels.* { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.config.* { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.factory.* { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.init.* { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.listener.* { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.player.IPlayer { *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.player.SysVideoPlayerImpl { public *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.player.UniVideoPlayerImpl { public *; }
+-keep class com.tcl.ff.component.oversea.uniplayer.player.IjkVideoPlayerImpl { public *; }
+-keepclassmembers enum com.tcl.uniplayer.** { *; }
+-keepclassmembers enum com.tcl.ff.component.uniplayer.** { *; }
+-keep class * extends com.tcl.tuniplayer_base.DefaultPlayerDelegate { *; }
+-keep class * extends com.tcl.ff.component.uniplayer.player.StreamMediaPlayer { *; }
+-keep class com.tcl.tuniplayer_base.DefaultPlayerDelegate
+-keep class * extends com.tcl.ff.component.uniplayer.AbstractConfigFactory { *; }
+-keep class * extends com.tcl.ff.component.uniplayer.AbstractPlayerFactory { *; }
+-keep class com.google.android.exoplayer2.** { *; }
+-keep class com.tcl.tuniplayer_ijk.IjkPlayerDelegate { *; }
+-keep class tv.danmaku.ijk.media.player.** { *; }
+-keep public class * extends android.content.ContentProvider
+-keep class io.github.xstream.mxparser* { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+
 
 #Sad1.0.9的混淆
 -keep class com.seraphic.ad.** { *; }
@@ -49,6 +124,27 @@
 -dontwarn com.squareup.okhttp.**
 -dontwarn okhttp3.**
 -dontwarn okio.**
+-dontwarn org.checkerframework.**
+-dontwarn kotlin.annotations.jvm.**
+-dontwarn javax.annotation.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn com.google.j2objc.annotations.**
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+-dontwarn com.tcl.ff.component.media.ima.GPalInitiator
+-dontwarn com.tcl.ff.component.media.ima.GoogleImaInitiator
+-dontwarn com.tcl.ff.component.media.ima.google.GoogleVastAdsLoader
+-dontwarn com.tcl.ff.component.media.ima.googlepal.GPalVastAdsLoader
+-dontwarn com.tcl.ff.component.uniplayer.data.TclAdInfo
+-dontwarn com.tcl.uniplayer.cache.Proxy
+-dontwarn com.tcl.uniplayer.cache.cache.CacheConfig$Builder
+-dontwarn jcifs.CIFSContext
+-dontwarn jcifs.Configuration
+-dontwarn jcifs.config.PropertyConfiguration
+-dontwarn jcifs.context.BaseContext
+-dontwarn jcifs.smb.SmbFile
+-dontwarn jcifs.smb.SmbFileInputStream
+-dontwarn org.apache.commons.net.ftp.FTPClient
+-dontwarn org.apache.commons.net.ftp.FTPFile
 #Rxjava + Retrofit
 -keep class io.reactivex.** { *; }
 -keep class retrofit2.** { *; }
@@ -173,3 +269,7 @@
 -keep class io.github.lib_autorun.ad.bean.** { *; }
 -keep class io.github.lib_autorun.net.ApiResponse { *; }
 -keep class com.smart.android.ad_app.sdk.AdData { *; }
+# Keep hq008 authorize response fields stable for Gson reflection in release builds.
+-keepclassmembers class com.smart.android.ad_app.Hq008AuthorizeResponseData {
+    <fields>;
+}

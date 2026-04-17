@@ -3,55 +3,64 @@ package com.smart.android.ad_app
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.CountDownTimer
-import android.os.Handler
 import androidx.core.view.isVisible
 import com.smart.android.ad_app.databinding.FloatAdBinding
+import io.github.lib_autorun.log.printLog
 
-class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding>(context) {
+class TvAdFloatingWindow(
+    context: Context,
+    private val adId: String? = null
+) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
     private var isCountdownFinished = false // 倒计时是否完成
     private lateinit var countdownTimer: CountDownTimer // 倒计时器
 
     override fun onViewCreated() {
-        AdManagerImpl.showAd(binding.flAdcontainer, adStart = {
-            println("广告开始播放")
-            if(canSetFocusable()){
-                setFocusable(true)
-                // 启动10秒倒计时
-                startCountdown()
+        AdManagerImpl.showAd(
+            binding.flAdcontainer,
+            adId = adId,
+            adStart = {
+                "广告开始播放".printLog()
+                if (canSetFocusable()) {
+                    setFocusable(true)
+                    startCountdown()
+                }
+            },
+            adError = {
+                "广告播放错误".printLog()
+                hide()
             }
-
-        }, adError = {
-            //广告错误
-            println("广告播放错误")
-            hide()
-        }) {
-            //广告播放完成
-            println("广告播放完成")
+        ) {
+            "广告播放完成".printLog()
             hide()
         }
     }
 
     override fun onBackPressed(): Boolean {
         if (!isCountdownFinished) {
-            println("W: 倒计时未结束，返回键无效")
+            "W: 倒计时未结束，返回键无效".printLog()
             return true // 拦截返回键，不隐藏
         }
-        println("我按下了返回")
+        "我按下了返回".printLog()
         binding.root.isVisible = false
         hide()
         return true
     }
 
     override fun onWindowHidden() {
-        //在这里销毁广告
+        cancelCountdown()
         AdManagerImpl.destroyAd()
+    }
+
+    override fun onWindowDestroyed() {
+        cancelCountdown()
     }
 
     /**
      * 启动10秒倒计时，更新tv_tip文本
      */
     private fun startCountdown() {
+        cancelCountdown()
         isCountdownFinished = false
         countdownTimer = object : CountDownTimer(10_000, 1_000) {
             @SuppressLint("StringFormatInvalid")
@@ -59,7 +68,7 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
                 val secondsLeft = (millisUntilFinished / 1000).toInt() + 1
                 binding.tvTip.isVisible = true
                 binding.tvTip.text = appContext.getString(R.string.app_closure, secondsLeft)
-                println(binding.tvTip.text.toString())
+                binding.tvTip.text.toString().printLog()
             }
 
             override fun onFinish() {
@@ -69,4 +78,10 @@ class TvAdFloatingWindow(context: Context) : TvFloatingWindowBase<FloatAdBinding
         }.start()
     }
 
+    private fun cancelCountdown() {
+        if (::countdownTimer.isInitialized) {
+            countdownTimer.cancel()
+        }
+        isCountdownFinished = true
+    }
 }

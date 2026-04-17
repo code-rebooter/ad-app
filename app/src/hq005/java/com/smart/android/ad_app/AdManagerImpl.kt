@@ -11,9 +11,9 @@ import java.lang.ref.WeakReference
 object AdManagerImpl : IAdManager {
     override fun init() {
         // 广告初始化
-        println("hq001的广告初始化")
+        println("hq005的广告初始化")
         Sdk.init(appContext)
-        Sdk.getAd().setEnableLog(true)
+        Sdk.getAd().setEnableLog(BuildConfig.DEBUG)
     }
 
     private var mController: Controller? = null
@@ -21,11 +21,12 @@ object AdManagerImpl : IAdManager {
 
     override fun showAd(
         flRoot: ViewGroup,
+        adId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        Log.d("TvAdFloatingWindow", "hq001的广告展示，开始加载广告")
+        Log.d("TvAdFloatingWindow", "hq005的广告展示，开始加载广告")
 
         Sdk.getAd().begin(appContext).lazyLoad().listen(object : LazyLoaderAdListener {
             override fun onAdLoaded(controller: Controller) {

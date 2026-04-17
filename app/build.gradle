@@ -1,7 +1,28 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
 }
+
+def tclDemoProjectDir = rootProject.file("../tcl_ad_demo")
+def tclDemoSigningPropertiesFile = new File(tclDemoProjectDir, "signing/release-signing.properties")
+def tclDemoSigningProperties = new Properties()
+if (tclDemoSigningPropertiesFile.exists()) {
+    tclDemoSigningPropertiesFile.withInputStream { stream ->
+        tclDemoSigningProperties.load(stream)
+    }
+}
+
+def tclDemoGradlePropertiesFile = new File(tclDemoProjectDir, "gradle.properties")
+def tclDemoGradleProperties = new Properties()
+if (tclDemoGradlePropertiesFile.exists()) {
+    tclDemoGradlePropertiesFile.withInputStream { stream ->
+        tclDemoGradleProperties.load(stream)
+    }
+}
+
+def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 
 android {
     namespace 'com.smart.android.ad_app'
@@ -22,7 +43,7 @@ android {
         }
 
         hq001 {
-            java.srcDirs = ['src/hq001/java']
+            java.srcDirs = ['src/hq001/java', 'src/tclShared/java']
         }
 
         hq002 {
@@ -40,6 +61,14 @@ android {
         }
         hq006 {
             java.srcDirs = ['src/hq006/java']
+        }
+
+        hq007 {
+            java.srcDirs = ['src/hq007/java', 'src/tclShared/java']
+        }
+
+        hq008 {
+            java.srcDirs = ['src/hq008/java']
         }
     }
 
@@ -81,18 +110,27 @@ android {
             keyPassword '123456'
         }
 
+        tclDemoRelease {
+            if (tclDemoSigningPropertiesFile.exists()) {
+                storeFile new File(tclDemoProjectDir, tclDemoSigningProperties.getProperty("storeFile"))
+                storePassword tclDemoSigningProperties.getProperty("storePassword")
+                keyAlias tclDemoSigningProperties.getProperty("keyAlias")
+                keyPassword tclDemoSigningProperties.getProperty("keyPassword")
+                storeType tclDemoSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            zipAlignEnabled false
-            shrinkResources false
+            minifyEnabled true
+            zipAlignEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug{
             minifyEnabled false
-            signingConfig signingConfigs.h713
         }
     }
     compileOptions {
@@ -111,125 +149,130 @@ android {
     flavorDimensions.add("ad")
 
     productFlavors {
+        def commonFlavorConfig = [
+                versionCode         : 1,
+                versionName         : "1.0.1",
+                baseUrl             : "https://api.gp0312.cc/",
+                appId               : "ad",
+                channel             : "HQTV_GD",
+                cType               : "HQTV_GD",
+                model               : "HQTV_GD",
+                isEncrypted         : false,
+                md5Value            : "H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA",
+                backupDomain        : "https://api.g5movie.cc/",
+                handlerInitialDelayMs: 3500L,
+                handlerScheduleSeconds: 50L,
+                manifestPlaceholders: [share_uid: "android.uid.system"]
+        ]
+
+        def applyCommonFlavorConfig = { flavor, Map overrides ->
+            def merged = commonFlavorConfig + overrides
+
+            flavor.applicationId merged.applicationId
+            if (merged.containsKey("minSdk")) {
+                flavor.minSdk merged.minSdk
+            }
+            flavor.versionCode merged.versionCode
+            flavor.versionName merged.versionName
+            flavor.dimension "ad"
+            flavor.signingConfig merged.signingConfig
+            flavor.manifestPlaceholders = merged.manifestPlaceholders
+            flavor.buildConfigField "String", "BASE_URL", "\"${merged.baseUrl}\""
+            flavor.buildConfigField "String", "APP_ID", "\"${merged.appId}\""
+            flavor.buildConfigField "String", "CHANNEL", "\"${merged.channel}\""
+            flavor.buildConfigField "String", "C_TYPE", "\"${merged.cType}\""
+            flavor.buildConfigField "String", "MODEL", "\"${merged.model}\""
+            flavor.buildConfigField "boolean", "IS_ENCRYPTED", merged.isEncrypted.toString()
+            flavor.buildConfigField "String", "MD5_VALUE", "\"${merged.md5Value}\""
+            flavor.buildConfigField "String", "BACKUP_DOMAIN", "\"${merged.backupDomain}\""
+            flavor.buildConfigField "long", "HANDLER_INITIAL_DELAY_MS", "${merged.handlerInitialDelayMs}L"
+            flavor.buildConfigField "long", "HANDLER_SCHEDULE_SECONDS", "${merged.handlerScheduleSeconds}L"
+        }
+
         hq001 {
-            applicationId "com.hqota.launcher.hq"
-            versionCode 1   // 2025-7-29发布版本号：1
-            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.hikeen
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
-            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
-            buildConfigField "String", "MODEL", '"HQTV_GD"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId: "com.hqota.launcher.hq",
+                    signingConfig: signingConfigs.hikeen
+            ])
         }
 
         hq002 {
-            applicationId "com.hqota.launcher.slfhq"
-            versionCode 1   // 2025-7-29发布版本号：1
-            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.h713
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
-            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
-            buildConfigField "String", "MODEL", '"HQTV_GD"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId         : "com.hqota.launcher.slfhq",
+                    signingConfig         : signingConfigs.h713,
+                    handlerInitialDelayMs : 2500L,
+                    handlerScheduleSeconds: 20L
+            ])
         }
 
         hq003 {
-            applicationId "com.hqota.launcher.liuhq"
-            versionCode 1   // 2025-7-29发布版本号：1
-            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.hikeen
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
-            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
-            buildConfigField "String", "MODEL", '"HQTV_GD"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId         : "com.hqota.launcher.liuhq",
+                    signingConfig         : signingConfigs.hikeen,
+                    handlerInitialDelayMs : 4500L,
+                    handlerScheduleSeconds: 60L
+            ])
         }
 
         hq004 {
-            applicationId "com.hqota.launcher.aduhq"
-            versionCode 1   // 2025-7-31发布版本号：1
-            versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.h713
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
-            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
-            buildConfigField "String", "MODEL", '"HQTV_GD"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId: "com.hqota.launcher.aduhq",
+                    signingConfig: signingConfigs.h713
+            ])
         }
 
         hq005 {
             //这个yxt签名文件跟com.chihim.launcher.x98m是对应的，不能随意该任何一个，不然无法展示广告
-            applicationId "com.chihim.launcher.x98m"
-            versionCode 1   // 2025-7-31发布版本号：1
-            versionName "1.0.1"     // 2025-7-31发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.yxt
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_GD"'
-            buildConfigField "String", "C_TYPE", '"HQTV_GD"'
-            buildConfigField "String", "MODEL", '"HQTV_GD"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId: "com.chihim.launcher.x98m",
+                    signingConfig: signingConfigs.yxt
+            ])
         }
 
         hq006 {
-            applicationId "com.google.android.dyrtb"
-            versionCode 3   // 2025-12-24发布版本号：2
-            versionName "1.0.3"     // 2025-12-24发布版本名：1.0.2
-            dimension "ad"
-            signingConfig signingConfigs.h713    //https://api.pavaro.cc/
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.pavaro.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"AD_RT"'
-            buildConfigField "String", "C_TYPE", '"AD_RT"'
-            buildConfigField "String", "MODEL", '"AD_RT"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.pavaro.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId         : "com.google.android.dyrtb",
+                    versionCode           : 3,
+                    versionName           : "1.0.3",
+                    signingConfig         : signingConfigs.h713,
+                    baseUrl               : "https://api.kytira.cc/",
+                    channel               : "AD_RT",
+                    cType                 : "AD_RT",
+                    model                 : "AD_RT",
+                    backupDomain          : "https://api.kytira.cc/",
+                    handlerScheduleSeconds: 300L
+            ])
         }
 
         hq007 {
-            applicationId "com.yt.launcher.ad"
-            minSdk 21
-            versionCode 1   // 2025-7-29发布版本号：1
-            versionName "1.0.1"     // 2025-7-29发布版本名：1.0.1
-            dimension "ad"
-            signingConfig signingConfigs.h713
-            manifestPlaceholders = [share_uid: "android.uid.system"]
-            buildConfigField "String", "BASE_URL", '"https://api.gp0312.cc/"'
-            buildConfigField "String", "APP_ID", '"ad"'
-            buildConfigField "String", "CHANNEL", '"HQTV_yt"'
-            buildConfigField "String", "C_TYPE", '"HQTV_yt"'
-            buildConfigField "String", "MODEL", '"HQTV_yt"'
-            buildConfigField "boolean", "IS_ENCRYPTED", "false" // 默认值为false
-            buildConfigField "String", "MD5_VALUE", '"H4sIAAAAAAAAAMuX3FR5Jn9nofVvAAt++nAKAAAA"'
-            buildConfigField "String", "BACKUP_DOMAIN", '"https://api.g5movie.cc/"'
+            applyCommonFlavorConfig(delegate, [
+                    applicationId: "com.yt.launcher.ad",
+                    minSdk       : 23,
+                    signingConfig: signingConfigs.h713,
+                    channel      : "HQTV_yt",
+                    cType        : "HQTV_yt",
+                    model        : "HQTV_yt"
+            ])
+        }
+
+        hq008 {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.adcl",
+                    versionCode         : 1,
+                    versionName         : "1.0",
+                    signingConfig       : signingConfigs.tclDemoRelease,
+                    baseUrl             : "https://api.kytira.cc/",
+                    channel             : "TCL_DEMO",
+                    cType               : "TCL_DEMO",
+                    model               : "TCL_DEMO",
+                    backupDomain        : "https://api.kytira.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : "",
+                            tcl_app_key : tclDemoGradleProperties.getProperty("TCL_APP_KEY", ""),
+                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
+                    ]
+            ])
         }
 
     }
@@ -248,20 +291,27 @@ android.applicationVariants.all { variant ->
     }
 }
 
+androidComponents {
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoRelease"))
+    }
+}
+
 
 dependencies {
 
     implementation libs.androidx.core.ktx
+    testImplementation 'junit:junit:4.13.2'
 
     //noinspection UseTomlInstead
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
     implementation files('libs/lib_autorun_202601271456_nodex.aar')
-    api "androidx.work:work-runtime-ktx:2.11.0"
-    //noinspection UseTomlInstead
-    compileOnly "androidx.fragment:fragment-ktx:1.8.9"   //打正式版本要去掉这个依赖，包括MainActivity
 
     //noinspection UseTomlInstead
     hq001Implementation ('com.google.guava:guava:33.5.0-android')
+    //noinspection UseTomlInstead
+    hq007Implementation ('com.google.guava:guava:33.5.0-android')
+    hq007Implementation fileTree(dir: 'libs/hq001', include: ['*.jar', '*.aar'])
     //hq001Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     //hq001Implementation 'com.google.code.gson:gson:2.12.1'
 
@@ -298,9 +348,28 @@ dependencies {
     //noinspection UseTomlInstead
     hq006Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
 
+    if (tclDemoLibsDir.exists()) {
+        hq008Implementation fileTree(dir: tclDemoLibsDir, include: [
+                'adsdk_overseas_base_business-*.aar',
+                'adsdk_overseas_media_ad-*.aar',
+                'adsdk_overseas_player-*.aar'
+        ])
+    }
+    //noinspection UseTomlInstead
+    hq008Implementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
+    hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
+    hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    hq008Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'
     api 'com.google.code.gson:gson:2.13.2'
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "androidx.work:work-runtime-ktx:2.10.0"
 
 }

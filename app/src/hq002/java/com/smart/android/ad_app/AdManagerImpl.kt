@@ -1,6 +1,7 @@
+@file:Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+
 package com.smart.android.ad_app
 
-import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.seraphic.ad.AdConfig
@@ -13,11 +14,14 @@ import com.seraphic.ad.AdStateListener.AD_ERROR
 import com.seraphic.ad.AdStateListener.AD_LOADED
 import com.seraphic.ad.AdStateListener.AD_LOADING
 import com.seraphic.ad.AdStateListener.AD_PLAYING
-import com.seraphic.ad.AdStateListener.AD_STOPPED
 import java.lang.ref.WeakReference
 
 object AdManagerImpl : IAdManager {
 
+    private const val productName = "test"
+    private const val productTag = "test"
+    private const val adIdValue = "test"
+    private const val adSlotId = 11
     private var adPlayManagerRef: WeakReference<AdPlayManager>? = null
 
     override fun init() {
@@ -26,10 +30,10 @@ object AdManagerImpl : IAdManager {
 
         try {
             val config = AdConfig.Builder()
-                .isDebug(false) // 是否开启 debug 模式，开启会打印更多 log，供开发调试
-                .productName("test")
-                .productTag("test")
-                .adId("test") // 如果环境中没有 GMS 可不填
+                .isDebug(BuildConfig.DEBUG) // 是否开启 debug 模式，开启会打印更多 log，供开发调试
+                .productName(productName)
+                .productTag(productTag)
+                .adId(adIdValue) // 如果环境中没有 GMS 可不填
                 .build()
 
             AdManager.initialize(appContext, config)
@@ -41,6 +45,7 @@ object AdManagerImpl : IAdManager {
 
     override fun showAd(
         flRoot: ViewGroup,
+        adId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -49,17 +54,13 @@ object AdManagerImpl : IAdManager {
         println("hq002的广告展示")
 
         try {
-            val container = flRoot as? FrameLayout
-            if (container == null) {
-                println("容器不是 FrameLayout，广告展示失败")
-                adError?.invoke()
-                return
-            }
+            val container = flRoot.requireFrameLayout("容器不是 FrameLayout，广告展示失败", adError)
+                ?: return
 
             val adPlayManager = AdPlayManager(
                 appContext,
                 TYPE_WITH_CONTAINER,
-                11,
+                adSlotId,
                 object : AdStateListener {
                     override fun onAdStateChange(state: Int) {
                         when (state) {
@@ -109,6 +110,7 @@ object AdManagerImpl : IAdManager {
                 adPlayManager.stopAd() // 请确认 AdPlayManager 是否有 destroy 方法
                 adPlayManagerRef?.clear() // 清除弱引用
             }
+            adPlayManagerRef = null
         } catch (e: Exception) {
             println("销毁广告异常：${e.message}")
         }

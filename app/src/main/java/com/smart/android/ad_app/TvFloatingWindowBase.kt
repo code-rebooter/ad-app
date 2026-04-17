@@ -5,12 +5,13 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.*
+import androidx.core.net.toUri
 import androidx.viewbinding.ViewBinding
 import com.smart.android.ad_app.bean.Position
+import io.github.lib_autorun.log.printLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.ParameterizedType
 import java.util.UUID
@@ -26,6 +27,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
     protected var rootView: View? = null
     protected var layoutParams: WindowManager.LayoutParams? = null
     private var isShowing = false
+    private var hasDispatchedWindowHidden = false
     private var config: WindowConfig = WindowConfig()
 
     // 数据类用于配置悬浮窗参数
@@ -116,21 +118,17 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
      * 检查悬浮窗权限
      */
     fun hasOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
+        return Settings.canDrawOverlays(context)
     }
 
     /**
      * 请求悬浮窗权限
      */
     fun requestOverlayPermission(requestCode: Int, activity: Activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !hasOverlayPermission()) {
+        if (!hasOverlayPermission()) {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
+                "package:${context.packageName}".toUri()
             )
             activity.startActivityForResult(intent, requestCode)
         }
@@ -142,7 +140,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
         if (isShowing || !hasOverlayPermission()) {
-            println("W: Cannot show: already showing or no overlay permission")
+            "W: Cannot show: already showing or no overlay permission".printLog()
             return
         }
 
@@ -160,16 +158,17 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 windowManager?.addView(view, layoutParams)
                 view.animate().alpha(1f).setDuration(300).start()
                 isShowing = true
+                hasDispatchedWindowHidden = false
                 if (config.isFocusable) {
                     view.requestFocus() // 触发系统选择默认焦点视图
                 }
                 onWindowShown()
             } catch (e: SecurityException) {
-                println("E: Failed to show window: permission denied - ${e.message}")
+                "E: Failed to show window: permission denied - ${e.message}".printLog()
                 isShowing = false
                 onPermissionDenied()
             }
-        } ?: println("W: Root view is null, cannot show")
+        } ?: run { "W: Root view is null, cannot show".printLog() }
     }
 
     /**
@@ -179,14 +178,10 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
         if (!isShowing) return
 
         rootView?.let { view ->
+            view.animate()
+                .cancel()
             view.animate().alpha(0f).setDuration(300).withEndAction {
-                try {
-                    windowManager?.removeView(view)
-                    isShowing = false
-                    onWindowHidden()
-                } catch (e: Exception) {
-                    println("E: Failed to hide window - ${e.message}")
-                }
+                removeWindowView(view)
             }.start()
         }
     }
@@ -238,11 +233,11 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             }
             flags = if (config.isFocusable) {
-                println("设置了获取焦点")
+                "设置了获取焦点".printLog()
                 (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             } else {
-                println("设置了不获取焦点")
+                "设置了不获取焦点".printLog()
                 (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
@@ -360,7 +355,11 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
      * 销毁悬浮窗
      */
     fun destroy() {
-        hide()
+        val view = rootView
+        if (view != null) {
+            view.animate().cancel()
+            removeWindowView(view)
+        }
         rootView = null
         layoutParams = null
         windowManager = null
@@ -368,7 +367,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
             instances.remove(config.id)
         }
         onWindowDestroyed()
-        println("D: Floating window with id=${config.id} destroyed")
+        "D: Floating window with id=${config.id} destroyed".printLog()
     }
 
     companion object {
@@ -384,7 +383,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 }
                 instances.clear()
             }
-            println("D: All floating windows closed")
+            "D: All floating windows closed".printLog()
         }
 
         /**
@@ -395,7 +394,26 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 instances[id]?.get()?.destroy()
                 instances.remove(id)
             }
-            println("D: Floating window with id=$id closed")
+            "D: Floating window with id=$id closed".printLog()
+        }
+    }
+
+    private fun removeWindowView(view: View) {
+        if (!isShowing && hasDispatchedWindowHidden) {
+            return
+        }
+        try {
+            windowManager?.removeView(view)
+        } catch (_: IllegalArgumentException) {
+            // View may already be removed by the system or a previous teardown path.
+        } catch (e: Exception) {
+            "E: Failed to remove window - ${e.message}".printLog()
+        } finally {
+            isShowing = false
+            if (!hasDispatchedWindowHidden) {
+                hasDispatchedWindowHidden = true
+                onWindowHidden()
+            }
         }
     }
 }

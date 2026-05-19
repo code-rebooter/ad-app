@@ -5,7 +5,7 @@ import android.content.Context
 import android.os.CountDownTimer
 import androidx.core.view.isVisible
 import com.smart.android.ad_app.databinding.FloatAdBinding
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 
 class TvAdFloatingWindow(
     context: Context,

@@ -3,6 +3,17 @@
     tools:remove="android:sharedUserId">
 
     <application>
+        <activity
+            android:name=".Hq008CmpDebugActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity
+            android:name=".Hq008FloatingDebugActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <meta-data
             android:name="tcl_app_key"
             android:value="${tcl_app_key}" />

@@ -67,8 +67,13 @@ private object Hq008TclVideoAd {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        Log.i(TAG, "showAd requested hidden=${AdDisplayConfig.isHiddenMode()} container=${flRoot.width}x${flRoot.height}")
         val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+        // PLAY_FLOW showAd entry
+        Log.i(
+            TAG,
+            "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
+        )
+        Log.i(TAG, "播放链路：已进入 showAd，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}，容器尺寸=${flRoot.width}x${flRoot.height}")
         Hq008AdReporter.reportRequested(
             requestId = requestId,
             adId = adId,
@@ -90,7 +95,7 @@ private object Hq008TclVideoAd {
         )
 
         if (!isInitialized()) {
-            Log.i(TAG, "SDK not initialized yet. Queue pending ad request.")
+            Log.i(TAG, "播放链路：媒体广告 SDK 尚未初始化完成，先缓存本次广告请求，等待初始化结束后继续")
             pendingRequest = request
             ensureInitialized()
             return
@@ -138,18 +143,18 @@ private object Hq008TclVideoAd {
                             initCompleted = true
                             initRequested = false
                         }
-                        Log.i(TAG, "TCL media SDK init complete.")
+                        Log.i(TAG, "播放链路：TCL 媒体广告 SDK 初始化完成，准备继续处理待播放广告")
                         startPendingRequestIfNeeded()
                     }
                 }
             )
-            Log.i(TAG, "TCL media SDK init requested.")
+            Log.i(TAG, "播放链路：已发起 TCL 媒体广告 SDK 初始化请求")
         }.onFailure { error ->
             synchronized(initLock) {
                 initCompleted = false
                 initRequested = false
             }
-            Log.e(TAG, "TCL media SDK init failed.", error)
+            Log.e(TAG, "播放链路：TCL 媒体广告 SDK 初始化失败", error)
             pendingRequest?.adError?.invoke()
             pendingRequest = null
         }
@@ -168,7 +173,7 @@ private object Hq008TclVideoAd {
     private fun startAd(request: PendingShowRequest) {
         val container = request.containerRef.get()
         if (container == null) {
-            Log.w(TAG, "startAd aborted: container released.")
+            Log.w(TAG, "播放链路：startAd 中止，广告容器已被释放")
             request.adError?.invoke()
             return
         }
@@ -177,7 +182,7 @@ private object Hq008TclVideoAd {
         container.post {
             val safeContainer = request.containerRef.get()
             if (safeContainer == null) {
-                Log.w(TAG, "startAd aborted in post: container released.")
+                Log.w(TAG, "播放链路：startAd post 阶段中止，广告容器已被释放")
                 request.adError?.invoke()
                 return@post
             }
@@ -193,9 +198,14 @@ private object Hq008TclVideoAd {
             runCatching {
                 val hiddenMode = AdDisplayConfig.isHiddenMode()
                 safeContainer.alpha = if (hiddenMode) 0f else 1f
+                // PLAY_FLOW startAd begin
                 Log.i(
                     TAG,
-                    "begin startAd hidden=$hiddenMode alpha=${safeContainer.alpha} container=${safeContainer.width}x${safeContainer.height}"
+                    "播放链路：开始执行 startAd，requestId=${request.requestId}，adId=${request.adId}，hidden=$hiddenMode，alpha=${safeContainer.alpha}"
+                )
+                Log.i(
+                    TAG,
+                    "播放链路：广告容器已准备就绪，hidden=$hiddenMode，alpha=${safeContainer.alpha}，container=${safeContainer.width}x${safeContainer.height}"
                 )
                 Ad.get()
                     .begin(appContext)
@@ -208,7 +218,7 @@ private object Hq008TclVideoAd {
                             override fun onAdLoaded(controller: Controller) {
                                 safeContainer.post {
                                     request.loadedAtMs = SystemClock.elapsedRealtime()
-                                    Log.i(TAG, "onAdLoaded hidden=${AdDisplayConfig.isHiddenMode()}")
+                                    Log.i(TAG, "播放链路：广告素材加载完成，hidden=${AdDisplayConfig.isHiddenMode()}")
                                     Hq008AdReporter.reportLoaded(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -222,10 +232,10 @@ private object Hq008TclVideoAd {
                                     currentController = controller
                                     currentContainerRef = WeakReference(safeContainer)
                                     runCatching {
-                                        Log.i(TAG, "controller.start invoked.")
+                                        Log.i(TAG, "播放链路：准备调用 controller.start() 开始播放")
                                         controller.start(safeContainer)
                                     }.onFailure { error ->
-                                        Log.e(TAG, "Start TCL video ad failed.", error)
+                                        Log.e(TAG, "播放链路：调用 controller.start() 失败", error)
                                         releaseCurrentController()
                                         request.adError?.invoke()
                                     }
@@ -235,7 +245,7 @@ private object Hq008TclVideoAd {
                             override fun onAdStartPlay() {
                                 safeContainer.post {
                                     request.markStarted()
-                                    Log.i(TAG, "onAdStartPlay hidden=${AdDisplayConfig.isHiddenMode()} alpha=${safeContainer.alpha}")
+                                    Log.i(TAG, "播放链路：收到 onAdStartPlay 回调，hidden=${AdDisplayConfig.isHiddenMode()}，alpha=${safeContainer.alpha}")
                                     Hq008AdReporter.reportStarted(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -250,7 +260,7 @@ private object Hq008TclVideoAd {
                             override fun onAdStartPlay(progress: Double) {
                                 safeContainer.post {
                                     request.markStarted()
-                                    Log.i(TAG, "onAdStartPlay(progress=$progress) hidden=${AdDisplayConfig.isHiddenMode()} alpha=${safeContainer.alpha}")
+                                    Log.i(TAG, "播放链路：收到 onAdStartPlay(progress=$progress) 回调，hidden=${AdDisplayConfig.isHiddenMode()}，alpha=${safeContainer.alpha}")
                                     Hq008AdReporter.reportStarted(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -265,9 +275,14 @@ private object Hq008TclVideoAd {
                             override fun onAdFinished() {
                                 safeContainer.post {
                                     request.finishedAtMs = SystemClock.elapsedRealtime()
-                                    Log.i(TAG, "onAdFinished")
-                                    Log.i(TAG, "playbackDurationMs=${request.playbackDurationMs()}")
-                                    Log.i(TAG, "completionDiagnostics=${request.buildCompletionDiagnostics()}")
+                                    // PLAY_FLOW onAdFinished
+                                    Log.i(
+                                        TAG,
+                                        "播放链路：广告播放完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}"
+                                    )
+                                    Log.i(TAG, "播放链路：onAdFinished 已触发")
+                                    Log.i(TAG, "播放链路：播放时长=${request.playbackDurationMs()}")
+                                    Log.i(TAG, "播放链路：完成态诊断信息=${request.buildCompletionDiagnostics()}")
                                     Hq008AdReporter.reportCompleted(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -281,9 +296,9 @@ private object Hq008TclVideoAd {
                             override fun onAdError(errorCode: Int) {
                                 safeContainer.post {
                                     request.finishedAtMs = SystemClock.elapsedRealtime()
-                                    Log.e(TAG, "TCL video ad error: $errorCode")
-                                    Log.i(TAG, "playbackDurationMs=${request.playbackDurationMs()}")
-                                    Log.i(TAG, "errorDiagnostics=${request.buildCompletionDiagnostics()}")
+                                    Log.e(TAG, "播放链路：TCL 视频广告播放失败，errorCode=$errorCode")
+                                    Log.i(TAG, "播放链路：失败前播放时长=${request.playbackDurationMs()}")
+                                    Log.i(TAG, "播放链路：失败诊断信息=${request.buildCompletionDiagnostics()}")
                                     Hq008AdReporter.reportError(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -300,8 +315,8 @@ private object Hq008TclVideoAd {
                             override fun onContainerSizeError() {
                                 safeContainer.post {
                                     request.finishedAtMs = SystemClock.elapsedRealtime()
-                                    Log.e(TAG, "TCL video ad container size error.")
-                                    Log.i(TAG, "playbackDurationMs=${request.playbackDurationMs()}")
+                                    Log.e(TAG, "播放链路：广告容器尺寸异常，无法继续播放")
+                                    Log.i(TAG, "播放链路：容器异常时播放时长=${request.playbackDurationMs()}")
                                     Hq008AdReporter.reportError(
                                         requestId = request.requestId,
                                         adId = request.adId,
@@ -317,9 +332,9 @@ private object Hq008TclVideoAd {
                         }
                     )
                     .start()
-                Log.i(TAG, "Ad.start() requested.")
+                Log.i(TAG, "播放链路：已调用 Ad.start()，等待 SDK 返回素材加载结果")
             }.onFailure { error ->
-                Log.e(TAG, "Request TCL video ad failed.", error)
+                Log.e(TAG, "播放链路：请求 TCL 视频广告失败", error)
                 releaseCurrentController()
                 request.adError?.invoke()
             }
@@ -350,7 +365,7 @@ private object Hq008TclVideoAd {
     }
 
     private fun buildRequestParams(): RequestParams {
-        return RequestParams.Builder()
+        val builder = RequestParams.Builder()
             .setAppCat("demo")
             .setAppDomain(appContext.packageName)
             .setArea("DE")
@@ -361,13 +376,22 @@ private object Hq008TclVideoAd {
             .setDeviceLanguage(Locale.getDefault().toLanguageTag())
             .setDeviceMake(Build.MANUFACTURER.orEmpty())
             .setDeviceModel(Build.MODEL.orEmpty())
-            .build()
-            .also {
-                Log.i(
-                    TAG,
-                    "buildRequestParams appDomain=${appContext.packageName} area=DE deviceMake=${Build.MANUFACTURER.orEmpty()} deviceModel=${Build.MODEL.orEmpty()}"
-                )
+
+        Hq008CmpManager.getConsentString()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { consent ->
+                builder
+                    .setGdpr("1")
+                    .setGdprConsent(consent)
+                    .setGdprSource("CMP_TCL")
             }
+
+        return builder.build().also {
+            Log.i(
+                TAG,
+                "播放链路：已构建广告请求参数，appDomain=${appContext.packageName}，area=DE，deviceMake=${Build.MANUFACTURER.orEmpty()}，deviceModel=${Build.MODEL.orEmpty()}，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+            )
+        }
     }
 
     private data class PendingShowRequest(

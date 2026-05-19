@@ -56,6 +56,7 @@
 -keep class com.tcl.ff.component.overseahttp.http.HttpLogInterceptor { public *; }
 -keep class com.tcl.ff.component.overseahttp.http.HttpLogInterceptor$HttpLogger { public *; }
 -keep class com.tcl.ff.component.overseahttp.http.HttpRequester { public *; }
+-keep class com.tcl.ff.component.oversea.** { *; }
 -keep class com.tcl.ff.component.adsdkbi.plugin.bean.** { *; }
 -keep class com.tcl.ff.component.adsdkbi.bean.* { *; }
 -keep class com.tcl.ff.component.adsdkbi.ReportHelper { *; }
@@ -265,9 +266,9 @@
 -dontwarn org.xmlpull.mxp1.MXParser
 
 
--keep class io.github.lib_autorun.bean.** { *; }
--keep class io.github.lib_autorun.ad.bean.** { *; }
--keep class io.github.lib_autorun.net.ApiResponse { *; }
+-keep class com.speed.bean.** { *; }
+-keep class com.speed.ad.bean.** { *; }
+-keep class com.speed.net.ApiResponse { *; }
 -keep class com.smart.android.ad_app.sdk.AdData { *; }
 # Keep hq008 authorize response fields stable for Gson reflection in release builds.
 -keepclassmembers class com.smart.android.ad_app.Hq008AuthorizeResponseData {

@@ -12,9 +12,9 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import com.google.gson.Gson
 import com.smart.android.ad_app.BuildConfig
-import io.github.lib_autorun.log.printLog
-import io.github.lib_autorun.net.NetworkHelper
-import io.github.lib_autorun.net.enum.RequestMethod
+import com.speed.log.printLog
+import com.speed.net.NetworkHelper
+import com.speed.net.enum.RequestMethod
 import java.util.*
 
 object AdManager {

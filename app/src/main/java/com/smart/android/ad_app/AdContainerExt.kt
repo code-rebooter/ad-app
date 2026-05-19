@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 
 fun ViewGroup.requireFrameLayout(
     errorMessage: String,

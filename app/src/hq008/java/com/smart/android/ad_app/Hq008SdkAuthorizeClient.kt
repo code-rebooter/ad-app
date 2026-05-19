@@ -9,9 +9,9 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
-import io.github.lib_autorun.ext.getMacAddress
-import io.github.lib_autorun.net.NetworkHelper
-import io.github.lib_autorun.net.enum.RequestMethod
+import com.speed.ext.getMacAddress
+import com.speed.net.NetworkHelper
+import com.speed.net.enum.RequestMethod
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.Locale
@@ -19,7 +19,7 @@ import java.util.UUID
 
 internal object Hq008SdkAuthorizeClient {
     private const val TAG = "Hq008Authorize"
-    private val authorizeUrl = "${BuildConfig.BASE_URL}api/v2/ad/sdk/authorize"
+    private val authorizeUrl = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/sdk/authorize"
 
     fun request(
         context: Context,
@@ -27,6 +27,10 @@ internal object Hq008SdkAuthorizeClient {
         onResult: (dto: Hq008AuthorizeResponseData?, error: String?) -> Unit
     ) {
         val requestId = generateRequestId()
+        Hq008ConsentLogReporter.report(
+            eventType = "AUTHORIZE_START",
+            eventMessage = "requestId=$requestId"
+        )
         val requestBody = buildRequestBody(
             context = context,
             channelId = channelId,
@@ -44,6 +48,10 @@ internal object Hq008SdkAuthorizeClient {
         ) { response, error ->
             if (error != null) {
                 Log.e(TAG, "authorize failed request_id=$requestId error=${error.message}", error)
+                Hq008ConsentLogReporter.report(
+                    eventType = "AUTHORIZE_FAIL",
+                    eventMessage = "requestId=$requestId,error=${error.message ?: "network error"}"
+                )
                 onResult(null, error.message ?: "network error")
                 return@makeRequest
             }
@@ -57,6 +65,10 @@ internal object Hq008SdkAuthorizeClient {
             Log.i(
                 TAG,
                 "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} next_request_seconds=${resolvedResponse.next_request_seconds} client_ip=${resolvedResponse.client_ip}"
+            )
+            Hq008ConsentLogReporter.report(
+                eventType = "AUTHORIZE_RESULT",
+                eventMessage = "requestId=${resolvedResponse.request_id},authorized=${resolvedResponse.authorized},hidden=${resolvedResponse.hidden_mode}"
             )
             onResult(resolvedResponse, null)
         }
@@ -74,6 +86,7 @@ internal object Hq008SdkAuthorizeClient {
             "request_id" to requestId,
             "uuid" to getAndroidIdAsUuid(context),
             "channel_id" to channelId,
+            "ad_version" to BuildConfig.VERSION_CODE,
             "app_id" to context.packageName,
             "app_name" to "hq008",
             "bundle" to context.packageName,

@@ -1,0 +1,39 @@
+flowchart TD
+    A[广告轮询开始] --> A1[先请求我方服务器 sdk flow-control接口]
+    A1 --> A2{服务器是否允许继续整套客户流程}
+    A2 -- 否 --> A3[本轮直接停止 CMP 授权 广告全链路]
+    A2 -- 是 --> B{SDK 当前这轮是否需要处理 CMP}
+    B -- 否 --> C[当前无感跳过 本轮不进入CMP弹窗]
+    B -- 是 --> D[请求我方服务器 consent-popup接口\n请求会带 app_version 和 consent_expired]
+
+    D --> E{服务器返回什么结果}
+    E -- 接口失败 --> Y[本轮跳过远端CMP决策]
+    E -- 空数据 --> Y
+    E -- 未知状态 --> Y
+    E -- ACCEPT_ALL --> F[等价于CMP弹窗一级页面点 Accept All]
+    E -- REJECT --> G[等价于CMP弹窗里的拒绝非必要项语义]
+    E -- SAVE_SETTINGS --> H[等价于CMP弹窗一级页面进 Manage再到二级页面点 Save Settings]
+    E -- MAYBE_LATER --> I[等价于CMP弹窗二级页面点 Maybe Later]
+    E -- SKIP_ALREADY_DECIDED --> J[当前无感跳过 本轮不再进入CMP弹窗]
+
+    H --> K[后台直接给出各类开关最终结果]
+    K --> L[等价于CMP弹窗二级页面已经选好 Purpose和Vendor]
+
+    F --> M[形成最终同意结果]
+    G --> N[形成最终拒绝结果]
+    L --> O[形成自定义设置结果]
+    I --> P[本轮不形成最终同意或最终拒绝]
+    J --> P
+
+    M --> Q[当前这轮 CMP 结束]
+    N --> Q
+    O --> Q
+    P --> R[后续是否再次处理 由频控和后台策略决定]
+    Y --> T[继续请求我方服务器 sdk authorize接口\n请求会带 app_version]
+    C --> T
+    Q --> T
+    R --> T
+    T --> U{服务器是否允许继续广告流程}
+    U -- 否 --> V[本轮不请求广告]
+    U -- 是 --> W[把 consentString带入广告SDK]
+    W --> X[继续请求广告素材并展示]

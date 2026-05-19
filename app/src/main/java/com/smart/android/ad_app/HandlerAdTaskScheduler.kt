@@ -3,8 +3,8 @@ package com.smart.android.ad_app
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import io.github.lib_autorun.log.printLog
-import io.github.lib_autorun.task.scheduler.TaskScheduler
+import com.speed.log.printLog
+import com.speed.task.scheduler.TaskScheduler
 
 object HandlerAdTaskScheduler : TaskScheduler {
     private const val TAG = "HandlerAdTaskScheduler"
@@ -46,6 +46,9 @@ object HandlerAdTaskScheduler : TaskScheduler {
                         isExecuting = true
                     }
 
+                    if (BuildConfig.FLAVOR == "hq008") {
+                        Hq008LocalSchedulePolicy.markFloatingPollTriggered()
+                    }
                     Log.i(TAG, "Run periodic task at=${System.currentTimeMillis()}")
                     "AdHandlerTaskScheduler 开始执行周期任务: ${System.currentTimeMillis()}".printLog()
                     AdConfigManager.getAdConfig(AdType.FLOATING)

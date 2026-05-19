@@ -5,15 +5,15 @@ import android.provider.Settings
 import android.util.Log
 import com.smart.android.ad_app.bean.EmptyData
 import com.google.gson.Gson
-import io.github.lib_autorun.ext.getMacAddress
-import io.github.lib_autorun.net.NetworkHelper
-import io.github.lib_autorun.net.enum.RequestMethod
+import com.speed.ext.getMacAddress
+import com.speed.net.NetworkHelper
+import com.speed.net.enum.RequestMethod
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.UUID
 
 internal object Hq008AdReporter {
-    private val REPORT_URL = "${BuildConfig.BASE_URL}api/v2/ad/report"
+    private val REPORT_URL = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/report"
     private const val TAG = "Hq008AdReporter"
     private val gson = Gson()
 
@@ -131,11 +131,13 @@ internal object Hq008AdReporter {
         message: String,
         diagnosticInfo: String
     ) {
+        // REPORT_FLOW request
         val params = linkedMapOf<String, Any>(
             "request_id" to requestId,
             "event_type" to eventType,
             "uuid" to resolveDeviceId(),
             "channel_id" to BuildConfig.CHANNEL,
+            "ad_version" to BuildConfig.VERSION_CODE,
             "mac" to (safeGetMacAddress()?.takeIf { it.isNotBlank() } ?: "00:00:00:00:00:00"),
             "app_id" to appContext.packageName,
             "make" to Build.MANUFACTURER.orEmpty(),
@@ -149,7 +151,11 @@ internal object Hq008AdReporter {
 
         Log.i(
             TAG,
-            "report requestId=$requestId eventType=$eventType message=$message body=$requestJson"
+            "上报链路：准备上报事件，requestId=$requestId，eventType=$eventType，message=$message"
+        )
+        Log.i(
+            TAG,
+            "上报链路：请求体已生成，requestId=$requestId，eventType=$eventType，message=$message，body=$requestJson"
         )
 
         NetworkHelper.makeRequest<EmptyData>(
@@ -160,11 +166,16 @@ internal object Hq008AdReporter {
             useDomainSwitch = false,
         ) { _, error ->
             if (error != null) {
-                Log.e(TAG, "report failed requestId=$requestId eventType=$eventType message=$message error=${error.message}", error)
+                Log.e(TAG, "上报链路：上报失败，requestId=$requestId，eventType=$eventType，message=$message，error=${error.message}", error)
             } else {
+                // REPORT_FLOW success
                 Log.i(
                     TAG,
-                    "report success requestId=$requestId eventType=$eventType message=$message"
+                    "上报链路：上报成功，requestId=$requestId，eventType=$eventType，message=$message"
+                )
+                Log.i(
+                    TAG,
+                    "上报链路：服务端已确认上报成功，requestId=$requestId，eventType=$eventType，message=$message"
                 )
             }
         }
@@ -204,7 +215,7 @@ internal object Hq008AdReporter {
 
     private fun safeGetMacAddress(): String? {
         return runCatching { getMacAddress() }
-            .onFailure { error -> Log.w(TAG, "getMacAddress failed: ${error.message}") }
+            .onFailure { error -> Log.w(TAG, "上报链路：读取 MAC 地址失败，将使用默认占位值，error=${error.message}") }
             .getOrNull()
     }
 }

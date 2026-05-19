@@ -3,7 +3,7 @@ package com.smart.android.ad_app
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 
 var isInDesktop = false
 class DesktopStatusReceiver : BroadcastReceiver() {

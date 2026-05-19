@@ -4,7 +4,7 @@ import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import com.smart.android.ad_app.sdk.RtbAds
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 
 object AdManagerImpl : IAdManager {
 

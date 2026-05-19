@@ -11,7 +11,7 @@ import android.view.*
 import androidx.core.net.toUri
 import androidx.viewbinding.ViewBinding
 import com.smart.android.ad_app.bean.Position
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.ParameterizedType
 import java.util.UUID

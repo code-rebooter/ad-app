@@ -41,7 +41,7 @@ object AdRenderer {
         }
         Log.i(
             TAG,
-            "showSplashAd adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()} width=${renderConfig.width} height=${renderConfig.height} x=${renderConfig.x} y=${renderConfig.y} focusable=${renderConfig.isFocusable}"
+            "广告展示链路：准备展示开屏广告，adId=${dto.adId}，hidden=${AdDisplayConfig.isHiddenMode()}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
         )
 
         if (window.hasOverlayPermission()) {
@@ -69,7 +69,7 @@ object AdRenderer {
         }
         Log.i(
             TAG,
-            "showFloatingAd adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()} width=${renderConfig.width} height=${renderConfig.height} x=${renderConfig.x} y=${renderConfig.y} focusable=${renderConfig.isFocusable}"
+            "广告展示链路：准备展示悬浮广告，adId=${dto.adId}，hidden=${AdDisplayConfig.isHiddenMode()}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
         )
 
         if (window.hasOverlayPermission()) {

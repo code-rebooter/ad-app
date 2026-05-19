@@ -2,6 +2,7 @@ package com.smart.android.ad_app
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Intent
 import android.os.Binder
 import android.database.MatrixCursor
 import android.database.Cursor
@@ -10,7 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.util.Log
-import io.github.lib_autorun.log.printLog
+import com.speed.log.printLog
 
 class AdProvider : ContentProvider() {
     private companion object {
@@ -18,9 +19,12 @@ class AdProvider : ContentProvider() {
     }
 
     override fun onCreate(): Boolean {
-        Log.i(TAG, "onCreate authority=${context?.packageName}.adprovider")
+        Log.i(TAG, "正式链路：AdProvider 已创建，authority=${context?.packageName}.adprovider，开始初始化 CMP 与广告调度器")
         "AdProvider onCreate".printLog()
-        context?.applicationContext?.let(AdRuntimeCoordinator::start)
+        context?.applicationContext?.let {
+            Hq008CmpManager.init(it)
+            AdRuntimeCoordinator.start(it)
+        }
         return true
     }
 
@@ -31,14 +35,23 @@ class AdProvider : ContentProvider() {
         selectionArgs: Array<String>?,
         sortOrder: String?
     ): Cursor? {
-        Log.i(TAG, "query uri=$uri pathSegments=${uri.pathSegments}")
+        Log.i(TAG, "正式链路：AdProvider 收到查询，uri=$uri，pathSegments=${uri.pathSegments}")
         val callerUid = Binder.getCallingUid()
         val shellCaller = callerUid == Process.SHELL_UID || callerUid == Process.ROOT_UID
         val isDebugShowFloating = shellCaller &&
             uri.pathSegments.contains("debug") &&
             uri.lastPathSegment == "showFloating"
+        val isDebugRequestFloating = shellCaller &&
+            uri.pathSegments.contains("debug") &&
+            uri.lastPathSegment == "requestFloating"
+        val isDebugShowCmp = shellCaller &&
+            uri.pathSegments.contains("debug") &&
+            uri.lastPathSegment == "showCmp"
+        val isDebugCmpAction = shellCaller &&
+            uri.pathSegments.contains("debug") &&
+            uri.pathSegments.contains("cmpAction")
         if (isDebugShowFloating) {
-            Log.i(TAG, "Debug trigger matched: showFloating callerUid=$callerUid")
+            Log.i(TAG, "调试链路：命中 showFloating 触发，callerUid=$callerUid，准备展示调试广告窗口")
             Handler(Looper.getMainLooper()).post {
                 AdRenderer.showFloatingAd(
                     com.smart.android.ad_app.bean.AdConfigDto(
@@ -63,7 +76,47 @@ class AdProvider : ContentProvider() {
                 addRow(arrayOf<Any>(1))
             }
         }
-        return null
+        if (isDebugRequestFloating) {
+            Log.i(TAG, "调试链路：命中 requestFloating 触发，callerUid=$callerUid，准备执行完整悬浮广告请求链路")
+            Handler(Looper.getMainLooper()).post {
+                context?.startActivity(
+                    Intent(context, Hq008FloatingDebugActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
+            return MatrixCursor(arrayOf("triggered")).apply {
+                addRow(arrayOf<Any>(1))
+            }
+        }
+        if (isDebugShowCmp) {
+            Log.i(TAG, "调试链路：命中 showCmp 触发，callerUid=$callerUid，准备拉起 CMP 调试页面")
+            Handler(Looper.getMainLooper()).post {
+                context?.startActivity(
+                    Intent(context, Hq008CmpDebugActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
+            return MatrixCursor(arrayOf("triggered")).apply {
+                addRow(arrayOf<Any>(1))
+            }
+        }
+        if (isDebugCmpAction) {
+            val action = uri.lastPathSegment.orEmpty()
+            Log.i(TAG, "调试链路：命中 cmpAction 触发，callerUid=$callerUid，action=$action")
+            Handler(Looper.getMainLooper()).post {
+                context?.applicationContext?.let { appContext ->
+                    Hq008CmpManager.debugRunReflectiveSdkAction(appContext, action) { result ->
+                        Log.i(TAG, "调试链路：cmpAction 执行结束，action=$action，result=$result")
+                    }
+                }
+            }
+            return MatrixCursor(arrayOf("triggered", "action")).apply {
+                addRow(arrayOf<Any>(1, action))
+            }
+        }
+        return MatrixCursor(arrayOf("result"))
     }
 
     override fun getType(uri: Uri): String? = null

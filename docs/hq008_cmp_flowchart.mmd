@@ -1,0 +1,66 @@
+flowchart TD
+    A[应用启动] --> B[初始化 CMP 管理器]
+    B --> C[如果本地已有 consent 就先预注入给 SDK]
+    C --> D[请求 SDK 当前 CMP 状态]
+    D --> E[SDK 返回当前 consentString 和 needShowPop]
+    E --> F[生成本轮 CMP 标识 cmpCycleKey]
+    F --> G[标记 CMP 状态已准备完成]
+
+    G --> H[广告轮询触发 FLOATING 请求]
+    H --> I[先请求我方 sdk flow-control\n请求带 channel_id mac app_version ad_version]
+    I --> J{服务器是否允许继续整套客户流程}
+    J -- 否 --> K[停止本轮 CMP 授权 广告全链路]
+    J -- 是 --> L[进入 CMP 前置门禁]
+    L --> M{SDK 当前这轮是否需要弹窗}
+    M -- 否 --> N[跳过远端 CMP 决策]
+    M -- 是 --> O[请求我方 consent-popup\n请求带 channel_id mac app_version consent_expired]
+
+    O --> P[请求体带 channel_id mac app_version consent_expired]
+    P --> Q[consent_expired 只表示本地 consent 是否缺失或已过期]
+    Q --> R{后台返回 consent_action}
+
+    R -- ACCEPT_ALL --> S[准备执行静默同意全部]
+    R -- REJECT --> T[准备执行静默拒绝]
+    R -- SAVE_SETTINGS --> U[按 consent_payload 生成自定义静默设置]
+    R -- MAYBE_LATER --> V[准备执行稍后再说]
+    R -- SKIP_ALREADY_DECIDED --> W[记录本轮跳过]
+    R -- 未知值 --> X[直接跳过本轮 CMP]
+
+    S --> Y{本轮 CMP 是否已经执行过终态动作}
+    T --> Y
+    U --> Y
+    V --> Z{本轮是否已经上报过相同的 MAYBE_LATER}
+    W --> N
+    X --> N
+
+    Y -- 是 --> N
+    Y -- 否 --> AA[读取当前 campaign 种子]
+    Z -- 是 --> N
+    Z -- 否 --> AB[执行 SDK Exit 或直接上报 user/action]
+
+    AA --> AC{本次执行哪种 SDK 动作}
+    AC -- 同意全部 --> AD[反射调用 SDK AcceptAll]
+    AC -- 拒绝非必要项 --> AE[反射调用 SDK Reject]
+    AC -- 保存自定义设置 --> AF[反射调用 SDK SaveSettings]
+
+    AD --> AG[生成新的 consentString 并补发 user/action]
+    AE --> AG
+    AF --> AG
+    AB --> AH[完成 MAYBE_LATER 上报]
+    AG --> AI[记录本轮已执行动作]
+    AH --> AI
+
+    AI --> AJ{这次动作是否需要上报 consent-report}
+    AJ -- 是 --> AK[调用我方 consent-report\n请求带 channel_id mac app_version consent_action]
+    AJ -- 否 --> N
+    AK --> N
+
+    N --> AL[请求我方 sdk/authorize\n请求带 request_id uuid channel_id app_version mac ifa]
+    AL --> AM[收到 authorized 和 hidden_mode]
+    AM --> AN{authorized}
+    AN -- false --> AO[本轮不展示广告]
+    AN -- true --> AP[进入广告 SDK 请求]
+
+    AP --> AQ[构建广告请求参数]
+    AQ --> AR[把 consentString 传给广告 SDK]
+    AR --> AS[请求广告素材并进入播放上报]

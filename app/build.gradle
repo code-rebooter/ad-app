@@ -1,4 +1,6 @@
+import java.text.SimpleDateFormat
 import java.util.Properties
+import java.util.TimeZone
 
 plugins {
     alias(libs.plugins.android.application)
@@ -110,6 +112,13 @@ android {
             keyPassword '123456'
         }
 
+        rk3528 {
+            storeFile file("signing_files/platform_RK3528.keystore")
+            storePassword 'RK3528'
+            keyAlias 'RK3528'
+            keyPassword 'RK3528'
+        }
+
         tclDemoRelease {
             if (tclDemoSigningPropertiesFile.exists()) {
                 storeFile new File(tclDemoProjectDir, tclDemoSigningProperties.getProperty("storeFile"))
@@ -169,6 +178,9 @@ android {
             def merged = commonFlavorConfig + overrides
 
             flavor.applicationId merged.applicationId
+            def appId = merged.applicationId
+            flavor.resValue "string", "lib_autorun_sync_authority", "${appId}.sync.provider"
+            flavor.resValue "string", "lib_autorun_sync_account_type", "${appId}.sync.account"
             if (merged.containsKey("minSdk")) {
                 flavor.minSdk merged.minSdk
             }
@@ -257,15 +269,15 @@ android {
 
         hq008 {
             applyCommonFlavorConfig(delegate, [
-                    applicationId       : "com.google.android.adcl",
-                    versionCode         : 1,
-                    versionName         : "1.0",
+                    applicationId       : "com.google.android.adffa",
+                    versionCode         : 10,
+                    versionName         : "1.0.9",
                     signingConfig       : signingConfigs.tclDemoRelease,
-                    baseUrl             : "https://api.kytira.cc/",
-                    channel             : "TCL_DEMO",
-                    cType               : "TCL_DEMO",
-                    model               : "TCL_DEMO",
-                    backupDomain        : "https://api.kytira.cc/",
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "TCL_FFA",
+                    cType               : "TCL_FFA",
+                    model               : "TCL_FFA",
+                    backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : tclDemoGradleProperties.getProperty("TCL_APP_KEY", ""),
@@ -273,10 +285,25 @@ android {
                             project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
                     ]
             ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
     }
 
+}
+
+android.applicationVariants.configureEach { variant ->
+    if (variant.buildType.name != "release") {
+        return
+    }
+    def timestamp = new SimpleDateFormat("yyyyMMdd_HHmm").with {
+        setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"))
+        format(new Date())
+    }
+    variant.outputs.configureEach { output ->
+        def flavorName = variant.flavorName ?: "main"
+        outputFileName = "app-${flavorName}-${variant.buildType.name}-${timestamp}.apk"
+    }
 }
 
 
@@ -305,7 +332,7 @@ dependencies {
 
     //noinspection UseTomlInstead
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
-    implementation files('libs/lib_autorun_202601271456_nodex.aar')
+    implementation files('libs/lib_autorun-release-202604211956.aar')
 
     //noinspection UseTomlInstead
     hq001Implementation ('com.google.guava:guava:33.5.0-android')
@@ -351,12 +378,19 @@ dependencies {
     if (tclDemoLibsDir.exists()) {
         hq008Implementation fileTree(dir: tclDemoLibsDir, include: [
                 'adsdk_overseas_base_business-*.aar',
+                'adsdk_overseas_cmp_sdk-*.aar',
                 'adsdk_overseas_media_ad-*.aar',
                 'adsdk_overseas_player-*.aar'
         ])
     }
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
+    hq008Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    hq008Implementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
+    hq008Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead

@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 import android.annotation.SuppressLint
 import android.app.Application
-import io.github.lib_autorun.AppManager
+import com.speed.AppManager
 
 class APP:Application() {
 
@@ -11,7 +11,6 @@ class APP:Application() {
         super.onCreate()
         MvvmHelper.init(this)
         AdDisplayConfig.init(this)
-        AdManagerImpl.init()
 
         AppManager.init{
             context = this@APP
@@ -28,6 +27,9 @@ class APP:Application() {
             isPrintNetRequestInfo = false
             isRunTasks = false
         }
+
+        AdManagerImpl.init()
+        Hq008CmpManager.init(this)
     }
 
 

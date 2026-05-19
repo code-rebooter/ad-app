@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HQ008 CMP弹窗产品流程图</title>
+  <style>
+    :root {
+      --bg-1: #08101f;
+      --bg-2: #10182d;
+      --frame: rgba(255, 255, 255, 0.1);
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(45, 212, 191, 0.16), transparent 24%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      overflow: auto;
+    }
+
+    .stage {
+      width: min(1720px, calc(100vw - 44px));
+      min-height: calc(100vh - 44px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 24px;
+      border: 1px solid var(--frame);
+      background: rgba(8, 15, 29, 0.44);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    .chart-wrap {
+      width: 100%;
+      overflow: auto;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    }
+
+    .chart {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 1100px;
+      border: 0;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      .stage {
+        width: calc(100vw - 24px);
+        min-height: calc(100vh - 24px);
+        padding: 10px;
+        border-radius: 18px;
+      }
+
+      .chart-wrap {
+        border-radius: 14px;
+      }
+
+      .chart {
+        min-width: 920px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="chart-wrap">
+      <img
+        class="chart"
+        src="./hq008_cmp_product_flow_hd.svg"
+        alt="HQ008 CMP弹窗产品流程图"
+      />
+    </div>
+  </main>
+</body>
+</html>

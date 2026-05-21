@@ -22,9 +22,14 @@ class Hq008CmpFinalDecisionContractTest {
         assertTrue("应支持远端 MAYBE_LATER 动作", source.contains("REMOTE_MAYBE_LATER_ACTION"))
         assertTrue("应支持远端 SKIP_ALREADY_DECIDED 动作", source.contains("REMOTE_SKIP_ALREADY_DECIDED_ACTION"))
         assertTrue("应提供统一的后台策略执行入口", source.contains("applyRemoteCmpDecisionIfNeeded"))
+        assertTrue("MAYBE_LATER 应具备本地冷却状态", source.contains("KEY_MAYBE_LATER_COOLDOWN_STATE"))
+        assertTrue("MAYBE_LATER 冷却应在前置门禁中拦截", source.contains("reason=maybe_later_cooldown"))
+        assertTrue("MAYBE_LATER 冷却命中时应记录 trace", source.contains("CMP_MAYBE_LATER_COOLDOWN_HIT"))
         assertTrue("静默拒绝应复用 SDK Reject user/action 上报", source.contains("resolveSilentUserActionCode(state.seed.actionType)"))
         assertTrue("终态动作构建或执行前失败时，应回退到 MAYBE_LATER", source.contains("fallbackToMaybeLaterDecision("))
-        assertTrue("TC String 无法生成时，应回退 MAYBE_LATER 而不是直接结束", source.contains("reason = \"tc_string_empty\""))
+        assertTrue("TC String 为空时应继续执行原动作，不应强制回退 MAYBE_LATER", source.contains("continueDecisionWithoutTcString("))
+        assertTrue("TC String 为空时应继续补发 user/action，保障动作执行", source.contains("eventType = \"SDK_ACTION_CONTINUE_NO_TC\""))
+        assertFalse("TC String 为空时不应再走 MAYBE_LATER 回退分支", source.contains("reason = \"tc_string_empty\""))
         assertTrue("动作种子构建失败时，应回退 MAYBE_LATER", source.contains("reason = \"decision_build_failed\""))
     }
 

@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name=".Hq008CmpDebugActivity"
+            tools:node="remove" />
+
+        <activity
+            android:name=".Hq008FloatingDebugActivity"
+            tools:node="remove" />
+
+        <activity
+            android:name=".Hq008CmpSdkEntryTestActivity"
+            tools:node="remove" />
+
+        <activity
+            android:name=".Hq008CmpSilentEntryTestActivity"
+            tools:node="remove" />
+    </application>
+
+</manifest>

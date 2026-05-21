@@ -270,8 +270,8 @@ android {
         hq008 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adffa",
-                    versionCode         : 10,
-                    versionName         : "1.0.9",
+                    versionCode         : 11,
+                    versionName         : "1.0.10",
                     signingConfig       : signingConfigs.tclDemoRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_FFA",

@@ -10,6 +10,10 @@ import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
 
 internal object Hq008ConsentLogReporter {
+    fun interface DebugTraceListener {
+        fun onTraceEvent(eventType: String, rawEventMessage: String)
+    }
+
     private const val TAG = "Hq008ConsentLog"
     private const val MAX_MESSAGE_LENGTH = 512
     private const val MAX_TRACE_STEPS = 80
@@ -24,7 +28,20 @@ internal object Hq008ConsentLogReporter {
     private val gson = Gson()
     private val lock = Any()
     private val pendingSteps = mutableListOf<TraceStep>()
+    private val debugTraceListeners = linkedSetOf<DebugTraceListener>()
     private var traceStartedElapsedMs: Long = 0L
+
+    fun addDebugTraceListener(listener: DebugTraceListener) {
+        synchronized(lock) {
+            debugTraceListeners += listener
+        }
+    }
+
+    fun removeDebugTraceListener(listener: DebugTraceListener) {
+        synchronized(lock) {
+            debugTraceListeners -= listener
+        }
+    }
 
     fun report(
         eventType: String,
@@ -33,7 +50,7 @@ internal object Hq008ConsentLogReporter {
     ) {
         val rawMessage = eventMessage.take(MAX_MESSAGE_LENGTH)
         val localizedMessage = localizeEventMessage(eventType, rawMessage)
-        val upload = synchronized(lock) {
+        val (upload, listenersSnapshot) = synchronized(lock) {
             if (shouldResetForNewFlow(eventType)) {
                 Log.w(TAG, "consent-log-report 丢弃未完成旧流程，newStart=$eventType")
                 resetLocked()
@@ -53,7 +70,7 @@ internal object Hq008ConsentLogReporter {
             )
             trimStepsLocked()
 
-            if (!isTerminalEvent(eventType)) {
+            val upload = if (!isTerminalEvent(eventType)) {
                 null
             } else {
                 buildUploadPayloadLocked(
@@ -62,8 +79,15 @@ internal object Hq008ConsentLogReporter {
                     resetLocked()
                 }
             }
+            upload to debugTraceListeners.toList()
         }
 
+        listenersSnapshot.forEach { listener ->
+            runCatching { listener.onTraceEvent(eventType, rawMessage) }
+                .onFailure { error ->
+                    Log.w(TAG, "debug trace listener failed eventType=$eventType error=${error.message}")
+                }
+        }
         upload?.let { send(it) }
     }
 

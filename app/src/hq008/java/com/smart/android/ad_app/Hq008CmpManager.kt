@@ -33,6 +33,7 @@ import okio.Buffer
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -42,6 +43,7 @@ object Hq008CmpManager {
     private const val CONSENT_READY_TIMEOUT_MS = 1_500L
     private const val KEY_PENDING_SDK_SYNC_STATE = "pending_sdk_sync_state"
     private const val KEY_PENDING_CONSENT_REPORT_STATE = "pending_consent_report_state"
+    private const val KEY_MAYBE_LATER_COOLDOWN_STATE = "maybe_later_cooldown_state"
     private const val SILENT_BOOTSTRAP_PREFS = "hq008_cmp_silent_bootstrap"
     private const val SILENT_ACCEPT_ALL_ACTION_CODE = 3
     private const val SILENT_CONSENT_SCREEN = 1
@@ -52,6 +54,8 @@ object Hq008CmpManager {
     private const val REMOTE_MAYBE_LATER_ACTION = "MAYBE_LATER"
     private const val REMOTE_SKIP_ALREADY_DECIDED_ACTION = "SKIP_ALREADY_DECIDED"
     private const val DEFAULT_CONSENT_EXPIRE_MS = 31_536_000_000L
+    // 临时关闭 MAYBE_LATER 冷却，便于直接观察云端是否仍允许再次弹窗。
+    private const val MAYBE_LATER_COOLDOWN_MS = 0L
     private const val MAX_CMP_AD_LOG_RAW_LENGTH = 4096
     private const val MAX_CMP_HTTP_CAPTURE_BYTES = 512L * 1024L
     private const val CMP_HTTP_CAPTURE_WAIT_MS = 2_000L
@@ -73,6 +77,8 @@ object Hq008CmpManager {
     private var cmpCycleKey: String? = null
     @Volatile
     private var currentCmpSeed: SilentConsentSeed? = null
+    @Volatile
+    private var debugDeviceIdOverride: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val consentReadyCallbacks = mutableListOf<() -> Unit>()
@@ -85,6 +91,9 @@ object Hq008CmpManager {
     private val cmpHttpCaptureSlots = CopyOnWriteArrayList<CmpHttpCaptureSlot>()
     private val cmpHttpCaptureInstalled = AtomicBoolean(false)
     private val cmpHttpCaptureInstallLock = Any()
+    private val sdkConsentProcessorLock = Any()
+    private val maybeLaterCooldownLock = Any()
+    private val silentDecisionExecutor = Executors.newSingleThreadExecutor()
 
     data class RemoteCmpDecision(
         val consentAction: String,
@@ -139,6 +148,12 @@ object Hq008CmpManager {
     private data class PendingConsentReportState(
         val cycleKey: String?,
         val reportAction: String
+    )
+
+    private data class MaybeLaterCooldownState(
+        val cycleKey: String?,
+        val uploadHash: String,
+        val recordedAtMs: Long
     )
 
     private data class RemoteConsentStatus(
@@ -401,8 +416,20 @@ object Hq008CmpManager {
         remoteDecisionProvider = provider
     }
 
+    fun setDebugDeviceIdOverride(deviceId: String?) {
+        val normalized = deviceId?.trim()?.takeIf { it.isNotEmpty() }
+        debugDeviceIdOverride = normalized
+    }
+
+    fun getDebugDeviceIdOverride(): String? {
+        return debugDeviceIdOverride
+    }
+
     fun isConsentExpired(context: Context): Boolean {
-        val seed = loadSilentConsentSeedFromLocal(context.applicationContext) ?: return true
+        val seed = loadSilentConsentSeedFromLocal(
+            context = context.applicationContext,
+            reportTrace = false
+        ) ?: return true
         return isSeedExpired(seed)
     }
 
@@ -666,8 +693,19 @@ object Hq008CmpManager {
         onCompleted: (() -> Unit)? = null
     ) {
         val applicationContext = context.applicationContext
+        val provider = remoteDecisionProvider
         consumePendingConsentReportIfNeeded(applicationContext)
         runWhenConsentStateReady {
+            if (provider == null) {
+                Log.i(TAG, "静默同意链路：未配置远端 CMP 决策提供器，本次跳过静默同意/拒绝")
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_PROVIDER_MISSING",
+                    eventMessage = "remoteDecisionProvider=null"
+                )
+                onCompleted?.invoke()
+                return@runWhenConsentStateReady
+            }
+
             refreshSdkCmpSnapshot(
                 context = applicationContext,
                 reason = "ad_gate_sdk",
@@ -678,6 +716,23 @@ object Hq008CmpManager {
                     Hq008ConsentLogReporter.report(
                         eventType = "CMP_GATE_SKIP",
                         eventMessage = "reason=sdk_no_popup_needed"
+                    )
+                    onCompleted?.invoke()
+                    return@refreshSdkCmpSnapshot
+                }
+
+                val maybeLaterCycleKey = cmpCycleKey ?: buildCmpCycleKey(applicationContext, cmpNeedShowPop)
+                val maybeLaterCooldownHit = synchronized(maybeLaterCooldownLock) {
+                    isMaybeLaterCoolingDown(applicationContext, maybeLaterCycleKey)
+                }
+                if (maybeLaterCooldownHit.first) {
+                    Log.i(
+                        TAG,
+                        "静默同意链路：MAYBE_LATER 冷却中，本轮跳过远端 CMP 决策请求，cmpCycleKey=$maybeLaterCycleKey，elapsedMs=${maybeLaterCooldownHit.second ?: -1}"
+                    )
+                    Hq008ConsentLogReporter.report(
+                        eventType = "CMP_GATE_SKIP",
+                        eventMessage = "reason=maybe_later_cooldown,cmpCycleKey=$maybeLaterCycleKey,elapsedMs=${maybeLaterCooldownHit.second ?: -1}"
                     )
                     onCompleted?.invoke()
                     return@refreshSdkCmpSnapshot
@@ -705,19 +760,8 @@ object Hq008CmpManager {
                                 onCompleted = onCompleted
                             )
                             return@refreshAdGateCmpSnapshot
-                        }
-                        Log.i(TAG, "静默同意链路：广告门禁补校验后无需继续远端 CMP 决策")
-                        onCompleted?.invoke()
-                        return@refreshAdGateCmpSnapshot
                     }
-
-                    val provider = remoteDecisionProvider
-                    if (provider == null) {
-                        Log.i(TAG, "静默同意链路：未配置远端 CMP 决策提供器，本次跳过静默同意/拒绝")
-                        Hq008ConsentLogReporter.report(
-                            eventType = "CMP_PROVIDER_MISSING",
-                            eventMessage = "remoteDecisionProvider=null"
-                        )
+                        Log.i(TAG, "静默同意链路：广告门禁补校验后无需继续远端 CMP 决策")
                         onCompleted?.invoke()
                         return@refreshAdGateCmpSnapshot
                     }
@@ -914,6 +958,10 @@ object Hq008CmpManager {
     }
 
     private fun resolveCmpDeviceId(context: Context): String {
+        debugDeviceIdOverride?.let { overrideDeviceId ->
+            Log.i(TAG, "静默同意链路：使用运行时测试覆写的 SDK deviceId=$overrideDeviceId")
+            return overrideDeviceId
+        }
         BuildConfig.CMP_DEVICE_ID_OVERRIDE.takeIf { it.isNotBlank() }?.let { overrideDeviceId ->
             Log.i(TAG, "静默同意链路：使用强制覆写的 SDK deviceId=$overrideDeviceId")
             return overrideDeviceId
@@ -1022,6 +1070,70 @@ object Hq008CmpManager {
             val shouldRecoverFromRemoteConsent = localInvalid &&
                 remoteHasStoredConsent &&
                 remoteConsentStatus?.hasNewCampaign != true
+            val needsDecisionFlow = remoteConsentStatus?.hasNewCampaign == true ||
+                localSeed?.hasNewCampaign == true ||
+                localInvalid
+
+            if (shouldRecoverFromRemoteConsent) {
+                val skipReason = "remote_already_decided"
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_GATE_SKIP",
+                    eventMessage = "reason=$skipReason"
+                )
+                Log.i(
+                    TAG,
+                    "静默同意链路：广告门禁判定远端已存在统一记录，跳过 popup 直接恢复本地状态${localSeed?.campaignId?.let { "，campaignId=$it" } ?: "，但本地种子缺失"}"
+                )
+                mainHandler.post {
+                    pendingRemoteRecovery = localSeed?.let {
+                        PendingRemoteRecoveryState(
+                            cycleKey = cmpCycleKey,
+                            tcString = remoteConsentStatus?.tcString.orEmpty()
+                        )
+                    }
+                    updateAdGateDecisionState(
+                        context = applicationContext,
+                        consentString = remoteConsentStatus?.tcString,
+                        seed = localSeed,
+                        decisionEligible = false,
+                        reason = "ad_gate"
+                    )
+                    if (markReady) {
+                        Log.i(TAG, "静默同意链路：CMP 状态已就绪，reason=ad_gate")
+                    }
+                    onCompleted?.invoke()
+                }
+                return@Thread
+            }
+
+            if (!needsDecisionFlow) {
+                val resolvedConsentString = if (remoteHasStoredConsent) {
+                    remoteConsentStatus?.tcString
+                } else {
+                    localSeed?.currentTcString ?: consentString
+                }
+                Log.i(TAG, "静默同意链路：广告门禁补校验后无需继续远端 CMP 决策")
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_GATE_SKIP",
+                    eventMessage = "reason=ad_gate_no_decision_needed"
+                )
+                mainHandler.post {
+                    updateAdGateDecisionState(
+                        context = applicationContext,
+                        consentString = resolvedConsentString,
+                        seed = localSeed,
+                        decisionEligible = false,
+                        reason = "ad_gate"
+                    )
+                    pendingRemoteRecovery = null
+                    if (markReady) {
+                        Log.i(TAG, "静默同意链路：CMP 状态已就绪，reason=ad_gate")
+                    }
+                    onCompleted?.invoke()
+                }
+                return@Thread
+            }
+
             val shouldFetchCampaign = remoteConsentStatus?.hasNewCampaign == true ||
                 localSeed?.hasNewCampaign == true ||
                 (localInvalid && localSeed == null)
@@ -1031,32 +1143,25 @@ object Hq008CmpManager {
                 null
             }
             val suppressDecisionFlow = remoteCampaignResult?.suppressDecisionFlow == true
-            val needsDecisionFlow = remoteConsentStatus?.hasNewCampaign == true ||
-                localSeed?.hasNewCampaign == true ||
-                localInvalid
             val refreshedSeed = when {
                 remoteCampaignResult?.seed != null -> remoteCampaignResult.seed
                 suppressDecisionFlow -> null
                 else -> localSeed
             }
             val campaignSeedAvailable = refreshedSeed != null
-            val remoteRecoveryEligible = shouldRecoverFromRemoteConsent && refreshedSeed != null
-            val missingRequiredSeed = needsDecisionFlow && !suppressDecisionFlow && !campaignSeedAvailable
+            val missingRequiredSeed = shouldFetchCampaign && !suppressDecisionFlow && !campaignSeedAvailable
             val resolvedConsentString = when {
                 suppressDecisionFlow -> null
-                remoteRecoveryEligible -> null
                 localInvalid -> null
                 remoteHasStoredConsent -> remoteConsentStatus?.tcString
                 else -> localSeed?.currentTcString ?: consentString
             }
             val decisionEligible = needsDecisionFlow &&
                 !suppressDecisionFlow &&
-                campaignSeedAvailable &&
-                !remoteRecoveryEligible
+                campaignSeedAvailable
             val skipReason = when {
                 suppressDecisionFlow -> remoteCampaignResult?.suppressReason?.let { "campaign_$it" } ?: "campaign_suppressed"
                 missingRequiredSeed -> "campaign_seed_missing"
-                remoteRecoveryEligible -> "remote_already_decided"
                 !decisionEligible -> "ad_gate_no_decision_needed"
                 else -> null
             }
@@ -1071,11 +1176,11 @@ object Hq008CmpManager {
             }
             Log.i(
                 TAG,
-                "静默同意链路：ad_gate 对齐 SDK 判定完成，localInvalid=$localInvalid，remoteHasStoredConsent=$remoteHasStoredConsent，remoteHasNewCampaign=${remoteConsentStatus?.hasNewCampaign == true}，shouldFetchCampaign=$shouldFetchCampaign，remoteRecoveryEligible=$remoteRecoveryEligible，campaignSeedAvailable=$campaignSeedAvailable，suppressDecisionFlow=$suppressDecisionFlow，missingRequiredSeed=$missingRequiredSeed${remoteCampaignResult?.suppressReason?.let { "，suppressReason=$it" } ?: ""}"
+                "静默同意链路：ad_gate 对齐 SDK 判定完成，localInvalid=$localInvalid，remoteHasStoredConsent=$remoteHasStoredConsent，remoteHasNewCampaign=${remoteConsentStatus?.hasNewCampaign == true}，shouldFetchCampaign=$shouldFetchCampaign，shouldRecoverFromRemoteConsent=$shouldRecoverFromRemoteConsent，campaignSeedAvailable=$campaignSeedAvailable，suppressDecisionFlow=$suppressDecisionFlow，missingRequiredSeed=$missingRequiredSeed${remoteCampaignResult?.suppressReason?.let { "，suppressReason=$it" } ?: ""}"
             )
             reportCmpTrace(
                 eventType = "CMP_GATE_EVALUATED",
-                eventMessage = "localSeedPresent=${localSeed != null},localInvalid=$localInvalid,remoteHasStoredConsent=$remoteHasStoredConsent,remoteHasNewCampaign=${remoteConsentStatus?.hasNewCampaign == true},shouldFetchCampaign=$shouldFetchCampaign,remoteRecoveryEligible=$remoteRecoveryEligible,campaignSeedAvailable=$campaignSeedAvailable,suppressDecisionFlow=$suppressDecisionFlow,missingRequiredSeed=$missingRequiredSeed,decisionEligible=$decisionEligible,${summarizeSeed(refreshedSeed)}"
+                eventMessage = "localSeedPresent=${localSeed != null},localInvalid=$localInvalid,remoteHasStoredConsent=$remoteHasStoredConsent,remoteHasNewCampaign=${remoteConsentStatus?.hasNewCampaign == true},shouldFetchCampaign=$shouldFetchCampaign,shouldRecoverFromRemoteConsent=$shouldRecoverFromRemoteConsent,campaignSeedAvailable=$campaignSeedAvailable,suppressDecisionFlow=$suppressDecisionFlow,missingRequiredSeed=$missingRequiredSeed,decisionEligible=$decisionEligible,${summarizeSeed(refreshedSeed)}"
             )
             mainHandler.post {
                 updateAdGateDecisionState(
@@ -1085,14 +1190,7 @@ object Hq008CmpManager {
                     decisionEligible = decisionEligible,
                     reason = "ad_gate"
                 )
-                pendingRemoteRecovery = if (remoteRecoveryEligible) {
-                    PendingRemoteRecoveryState(
-                        cycleKey = cmpCycleKey,
-                        tcString = remoteConsentStatus?.tcString.orEmpty()
-                    )
-                } else {
-                    null
-                }
+                pendingRemoteRecovery = null
                 if (markReady) {
                     Log.i(TAG, "静默同意链路：CMP 状态已就绪，reason=ad_gate")
                 }
@@ -1260,6 +1358,7 @@ object Hq008CmpManager {
             tcStringCreateTime = now,
             tcStringExpireTime = expireDuration
         )
+        clearMaybeLaterCooldownState(context)
         Log.i(
             TAG,
             "静默同意链路：已落盘并持久化同意状态，source=$source，storage=${if (persistedBySdk) "sdk" else "manual_fallback"}，consentLength=${tcString.length}，campaignId=${seed.campaignId}，actionType=${seed.actionType}"
@@ -1278,41 +1377,44 @@ object Hq008CmpManager {
         expireDurationMs: Long,
         preferExistingSdkState: Boolean
     ): Boolean {
-        return runCatching {
-            val processorClass = Class.forName("com.tcl.ff.component.oversea.model.CMPConsentDataProcessor")
-            val processor = resolveSdkConsentDataProcessor(processorClass)
-            val clearConsentMethod = processorClass.getDeclaredMethod("b").apply { isAccessible = true }
-            val setTcStringMethod = processorClass.getDeclaredMethod("b", String::class.java).apply { isAccessible = true }
-            val setCreatedAtMethod = processorClass.getDeclaredMethod("b", Long::class.javaObjectType).apply { isAccessible = true }
-            val setExpireDurationMethod = processorClass.getDeclaredMethod("a", Long::class.javaObjectType).apply { isAccessible = true }
-            val setCampaignIdMethod = processorClass.getDeclaredMethod("a", Int::class.javaObjectType).apply { isAccessible = true }
-            val setGvlBeanMethod = processorClass.getDeclaredMethod("b", GvlBean::class.java).apply { isAccessible = true }
-            val setActionTypeMethod = processorClass.getDeclaredMethod("a", ActionType::class.java).apply { isAccessible = true }
-            val setHasNewCampaignMethod = processorClass.getDeclaredMethod("a", Boolean::class.javaPrimitiveType).apply { isAccessible = true }
-            val saveConsentMethod = processorClass.getDeclaredMethod("q").apply { isAccessible = true }
+        return synchronized(sdkConsentProcessorLock) {
+            runCatching {
+                val processorClass = Class.forName("com.tcl.ff.component.oversea.model.CMPConsentDataProcessor")
+                val processor = resolveSdkConsentDataProcessor(processorClass)
+                val clearConsentMethod = processorClass.getDeclaredMethod("b").apply { isAccessible = true }
+                val setTcStringMethod = processorClass.getDeclaredMethod("b", String::class.java).apply { isAccessible = true }
+                val setCreatedAtMethod = processorClass.getDeclaredMethod("b", Long::class.javaObjectType).apply { isAccessible = true }
+                val setExpireDurationMethod = processorClass.getDeclaredMethod("a", Long::class.javaObjectType).apply { isAccessible = true }
+                val setCampaignIdMethod = processorClass.getDeclaredMethod("a", Int::class.javaObjectType).apply { isAccessible = true }
+                val setGvlBeanMethod = processorClass.getDeclaredMethod("b", GvlBean::class.java).apply { isAccessible = true }
+                val setActionTypeMethod = processorClass.getDeclaredMethod("a", ActionType::class.java).apply { isAccessible = true }
+                val setHasNewCampaignMethod = processorClass.getDeclaredMethod("a", Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+                val saveConsentMethod = processorClass.getDeclaredMethod("q").apply { isAccessible = true }
 
-            if (!preferExistingSdkState) {
-                clearConsentMethod.invoke(processor)
-                applySeedToSdkConsentProcessor(processorClass, processor, seed)
-            }
+                if (!preferExistingSdkState) {
+                    clearConsentMethod.invoke(processor)
+                    applySeedToSdkConsentProcessor(processorClass, processor, seed)
+                }
 
-            setTcStringMethod.invoke(processor, tcString)
-            setCreatedAtMethod.invoke(processor, createdAtMs)
-            setExpireDurationMethod.invoke(processor, expireDurationMs)
-            setCampaignIdMethod.invoke(processor, seed.campaignId)
-            setGvlBeanMethod.invoke(processor, seed.gvlBean)
-            setActionTypeMethod.invoke(processor, resolveSdkActionType(seed.actionType))
-            setHasNewCampaignMethod.invoke(processor, seed.hasNewCampaign)
-            saveConsentMethod.invoke(processor)
+                setTcStringMethod.invoke(processor, tcString)
+                setCreatedAtMethod.invoke(processor, createdAtMs)
+                setExpireDurationMethod.invoke(processor, expireDurationMs)
+                setCampaignIdMethod.invoke(processor, seed.campaignId)
+                setGvlBeanMethod.invoke(processor, seed.gvlBean)
+                setActionTypeMethod.invoke(processor, resolveSdkActionType(seed.actionType))
+                setHasNewCampaignMethod.invoke(processor, seed.hasNewCampaign)
+                saveConsentMethod.invoke(processor)
 
-            val persistedSeed = loadSilentConsentSeedFromLocal(context)
-            check(isPersistedSilentConsentStateCompatible(persistedSeed, seed, tcString, expireDurationMs)) {
-                "sdk persisted state verification failed"
-            }
-            true
-        }.onFailure { error ->
-            Log.e(TAG, "静默同意链路：通过 SDK 原生链路持久化 consent 失败", error)
-        }.getOrDefault(false)
+                val persistedSeed = loadSilentConsentSeedFromLocal(context)
+                check(isPersistedSilentConsentStateCompatible(persistedSeed, seed, tcString, expireDurationMs)) {
+                    "sdk persisted state verification failed"
+                }
+                clearMaybeLaterCooldownState(context)
+                true
+            }.onFailure { error ->
+                Log.e(TAG, "静默同意链路：通过 SDK 原生链路持久化 consent 失败", error)
+            }.getOrDefault(false)
+        }
     }
 
     private fun resolveSdkConsentDataProcessor(processorClass: Class<*>): Any {
@@ -1383,6 +1485,24 @@ object Hq008CmpManager {
         seed: SilentConsentSeed,
         onCompleted: (() -> Unit)?
     ) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            val applicationContext = context.applicationContext
+            Log.i(
+                TAG,
+                "静默同意链路：终态动作当前在主线程触发，切到后台串行线程优先等待反射结果，reportAction=$reportAction，cmpCycleKey=$cycleKey"
+            )
+            silentDecisionExecutor.execute {
+                executeSilentDecision(
+                    context = applicationContext,
+                    cycleKey = cycleKey,
+                    reportAction = reportAction,
+                    seed = seed,
+                    onCompleted = onCompleted
+                )
+            }
+            return
+        }
+
         var terminalStatePersisted = false
         try {
             val dynamicTcString = generateSilentTcString(context, seed)
@@ -1441,12 +1561,13 @@ object Hq008CmpManager {
                         eventType = "SDK_ACTION_PREPARE_FAIL",
                         eventMessage = "reportAction=$reportAction,sdkAction=${seed.actionType},reason=tc_string_empty"
                     )
-                    fallbackToMaybeLaterDecision(
+                    continueDecisionWithoutTcString(
                         context = context,
                         cycleKey = cycleKey,
-                        baseSeed = seed,
-                        failedAction = reportAction,
-                        reason = "tc_string_empty",
+                        reportAction = reportAction,
+                        seed = seed,
+                        uploadHash = uploadHash,
+                        source = "reflective_${seed.actionType.lowercase(Locale.US)}",
                         onCompleted = onCompleted
                     )
                     return
@@ -1472,12 +1593,13 @@ object Hq008CmpManager {
                     eventType = "SDK_ACTION_PREPARE_FAIL",
                     eventMessage = "reportAction=$reportAction,sdkAction=${seed.actionType},reason=tc_string_empty"
                 )
-                fallbackToMaybeLaterDecision(
+                continueDecisionWithoutTcString(
                     context = context,
                     cycleKey = cycleKey,
-                    baseSeed = seed,
-                    failedAction = reportAction,
-                    reason = "tc_string_empty",
+                    reportAction = reportAction,
+                    seed = seed,
+                    uploadHash = uploadHash,
+                    source = "explicit_${seed.actionType.lowercase(Locale.US)}",
                     onCompleted = onCompleted
                 )
                 return
@@ -1535,6 +1657,36 @@ object Hq008CmpManager {
         }
     }
 
+    private fun continueDecisionWithoutTcString(
+        context: Context,
+        cycleKey: String,
+        reportAction: String,
+        seed: SilentConsentSeed,
+        uploadHash: String,
+        source: String,
+        onCompleted: (() -> Unit)?
+    ) {
+        Log.w(
+            TAG,
+            "静默同意链路：TC String 为空，继续执行原动作并补发 user/action，reportAction=$reportAction，sdkAction=${seed.actionType}，source=$source，cmpCycleKey=$cycleKey"
+        )
+        reportCmpTrace(
+            eventType = "SDK_ACTION_CONTINUE_NO_TC",
+            eventMessage = "reportAction=$reportAction,sdkAction=${seed.actionType},source=$source,cmpCycleKey=$cycleKey,uploadHash=$uploadHash"
+        )
+        syncSdkUserAction(
+            context = context,
+            state = PendingSdkSyncState(
+                cycleKey = cycleKey,
+                reportAction = reportAction,
+                seed = seed,
+                uploadHash = uploadHash
+            ),
+            onCompleted = onCompleted,
+            onFailure = { onCompleted?.invoke() }
+        )
+    }
+
     private fun executeMaybeLaterDecision(
         context: Context,
         cycleKey: String,
@@ -1543,6 +1695,38 @@ object Hq008CmpManager {
     ) {
         val maybeLaterSeed = baseSeed.copy(actionType = REMOTE_MAYBE_LATER_ACTION)
         val uploadHash = buildSilentUserActionHash(maybeLaterSeed)
+        val cooldownHitMs = synchronized(maybeLaterCooldownLock) {
+            val (coolingDown, elapsedMs) = isMaybeLaterCoolingDown(context, cycleKey, uploadHash)
+            if (coolingDown) {
+                elapsedMs
+            } else {
+                persistMaybeLaterCooldownState(
+                    context,
+                    MaybeLaterCooldownState(
+                        cycleKey = cycleKey,
+                        uploadHash = uploadHash,
+                        recordedAtMs = System.currentTimeMillis()
+                    )
+                )
+                reportCmpTrace(
+                    eventType = "CMP_MAYBE_LATER_COOLDOWN_SET",
+                    eventMessage = "cmpCycleKey=$cycleKey,uploadHash=$uploadHash,cooldownMs=$MAYBE_LATER_COOLDOWN_MS"
+                )
+                null
+            }
+        }
+        if (cooldownHitMs != null) {
+            Log.i(
+                TAG,
+                "静默同意链路：MAYBE_LATER 命中本地冷却，跳过重复执行，campaignId=${baseSeed.campaignId}，cmpCycleKey=$cycleKey，uploadHash=$uploadHash，elapsedMs=$cooldownHitMs"
+            )
+            reportCmpTrace(
+                eventType = "CMP_MAYBE_LATER_COOLDOWN_HIT",
+                eventMessage = "cmpCycleKey=$cycleKey,uploadHash=$uploadHash,elapsedMs=$cooldownHitMs,cooldownMs=$MAYBE_LATER_COOLDOWN_MS"
+            )
+            onCompleted?.invoke()
+            return
+        }
         Log.i(
             TAG,
             "静默同意链路：准备执行 MAYBE_LATER，campaignId=${baseSeed.campaignId}，cmpCycleKey=$cycleKey，uploadHash=$uploadHash"
@@ -1642,132 +1826,144 @@ object Hq008CmpManager {
             ?: loadSilentConsentSeedFromLocal(context)
     }
 
-    private fun loadSilentConsentSeedFromLocal(context: Context): SilentConsentSeed? {
+    private fun loadSilentConsentSeedFromLocal(
+        context: Context,
+        reportTrace: Boolean = true
+    ): SilentConsentSeed? {
         val sdkSeed = loadSilentConsentSeedViaSdk(context)
         if (sdkSeed != null) {
-            reportCmpTrace(
-                eventType = "CMP_LOCAL_STATE_LOADED",
-                eventMessage = "path=sdk_processor,${summarizeSeed(sdkSeed)}"
-            )
+            if (reportTrace) {
+                reportCmpTrace(
+                    eventType = "CMP_LOCAL_STATE_LOADED",
+                    eventMessage = "path=sdk_processor,${summarizeSeed(sdkSeed)}"
+                )
+            }
             return sdkSeed
         }
         return loadSilentConsentSeedFromFile(context)?.also { fileSeed ->
-            reportCmpTrace(
-                eventType = "CMP_LOCAL_STATE_LOADED",
-                eventMessage = "path=file_fallback,${summarizeSeed(fileSeed)}"
-            )
+            if (reportTrace) {
+                reportCmpTrace(
+                    eventType = "CMP_LOCAL_STATE_LOADED",
+                    eventMessage = "path=file_fallback,${summarizeSeed(fileSeed)}"
+                )
+            }
         }
     }
 
     private fun loadSilentConsentSeedViaSdk(context: Context): SilentConsentSeed? {
-        return runCatching {
-            val processorClass = Class.forName("com.tcl.ff.component.oversea.model.CMPConsentDataProcessor")
-            val processor = resolveSdkConsentDataProcessor(processorClass)
-            processorClass.getDeclaredMethod("p").apply {
-                isAccessible = true
-            }.invoke(processor)
+        return synchronized(sdkConsentProcessorLock) {
+            runCatching {
+                val processorClass = Class.forName("com.tcl.ff.component.oversea.model.CMPConsentDataProcessor")
+                val processor = resolveSdkConsentDataProcessor(processorClass)
+                processorClass.getDeclaredMethod("p").apply {
+                    isAccessible = true
+                }.invoke(processor)
 
-            val gvlBean = processorClass.getDeclaredMethod("g").apply {
-                isAccessible = true
-            }.invoke(processor) as? GvlBean ?: return null
-            gvlBean.makeUpData()
+                val gvlBean = processorClass.getDeclaredMethod("g").apply {
+                    isAccessible = true
+                }.invoke(processor) as? GvlBean ?: return@synchronized null
+                gvlBean.makeUpData()
 
-            val currentTcString = processorClass.getDeclaredMethod("l").apply {
-                isAccessible = true
-            }.invoke(processor) as? String
-            val actionType = resolveLocalSdkActionType(
-                processorClass.getDeclaredMethod("c").apply {
+                val currentTcString = processorClass.getDeclaredMethod("l").apply {
                     isAccessible = true
-                }.invoke(processor) as? ActionType
-            )
-            val campaignId = processorClass.getDeclaredMethod("d").apply {
-                isAccessible = true
-            }.invoke(processor) as? Int
-            val hasNewCampaign = processorClass.getDeclaredMethod("h").apply {
-                isAccessible = true
-            }.invoke(processor) as? Boolean ?: false
-            val createdAt = processorClass.getDeclaredField("l").apply {
-                isAccessible = true
-            }.get(processor) as? Long
-            val expireDuration = processorClass.getDeclaredField("m").apply {
-                isAccessible = true
-            }.get(processor) as? Long
-            val purposeConsentIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("i").apply {
+                }.invoke(processor) as? String
+                val actionType = resolveLocalSdkActionType(
+                    processorClass.getDeclaredMethod("c").apply {
+                        isAccessible = true
+                    }.invoke(processor) as? ActionType
+                )
+                val campaignId = processorClass.getDeclaredMethod("d").apply {
                     isAccessible = true
-                }.invoke(processor)
-            )
-            val purposeLiIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("j").apply {
+                }.invoke(processor) as? Int
+                val hasNewCampaign = processorClass.getDeclaredMethod("h").apply {
                     isAccessible = true
-                }.invoke(processor)
-            )
-            val customPurposeConsentIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("e").apply {
+                }.invoke(processor) as? Boolean ?: false
+                val createdAt = processorClass.getDeclaredField("l").apply {
                     isAccessible = true
-                }.invoke(processor)
-            )
-            val customPurposeLiIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("f").apply {
+                }.get(processor) as? Long
+                val expireDuration = processorClass.getDeclaredField("m").apply {
                     isAccessible = true
-                }.invoke(processor)
-            )
-            val specialFeatureIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("k").apply {
-                    isAccessible = true
-                }.invoke(processor)
-            )
-            val vendorConsentIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("m").apply {
-                    isAccessible = true
-                }.invoke(processor)
-            )
-            val vendorLiIds = mapSdkIdSet(
-                processorClass.getDeclaredMethod("n").apply {
-                    isAccessible = true
-                }.invoke(processor)
-            )
+                }.get(processor) as? Long
+                val purposeConsentIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("i").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val purposeLiIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("j").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val customPurposeConsentIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("e").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val customPurposeLiIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("f").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val specialFeatureIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("k").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val vendorConsentIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("m").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
+                val vendorLiIds = mapSdkIdSet(
+                    processorClass.getDeclaredMethod("n").apply {
+                        isAccessible = true
+                    }.invoke(processor)
+                )
 
-            val hasMaterialState = !currentTcString.isNullOrBlank() ||
-                campaignId != null ||
-                purposeConsentIds.isNotEmpty() ||
-                purposeLiIds.isNotEmpty() ||
-                customPurposeConsentIds.isNotEmpty() ||
-                customPurposeLiIds.isNotEmpty() ||
-                specialFeatureIds.isNotEmpty() ||
-                vendorConsentIds.isNotEmpty() ||
-                vendorLiIds.isNotEmpty()
-            if (!hasMaterialState) {
-                return null
-            }
+                val hasMaterialState = !currentTcString.isNullOrBlank() ||
+                    campaignId != null ||
+                    purposeConsentIds.isNotEmpty() ||
+                    purposeLiIds.isNotEmpty() ||
+                    customPurposeConsentIds.isNotEmpty() ||
+                    customPurposeLiIds.isNotEmpty() ||
+                    specialFeatureIds.isNotEmpty() ||
+                    vendorConsentIds.isNotEmpty() ||
+                    vendorLiIds.isNotEmpty()
+                if (!hasMaterialState) {
+                    return@synchronized null
+                }
 
-            SilentConsentSeed(
-                actionType = actionType,
-                campaignId = campaignId,
-                campaignBeanString = gson.toJson(gvlBean),
-                currentTcString = currentTcString,
-                tcStringCreateTime = createdAt,
-                tcStringExpireTime = expireDuration,
-                hasNewCampaign = hasNewCampaign,
-                purposeConsentIds = purposeConsentIds,
-                purposeLiIds = purposeLiIds,
-                customPurposeConsentIds = customPurposeConsentIds,
-                customPurposeLiIds = customPurposeLiIds,
-                specialFeatureIds = specialFeatureIds,
-                vendorConsentIds = vendorConsentIds,
-                vendorLiIds = vendorLiIds,
-                gvlBean = gvlBean
-            )
-        }.onFailure { error ->
-            Log.w(TAG, "静默同意链路：通过 SDK Processor 读取本地 consent 失败，准备回退文件解析", error)
-            reportCmpTrace(
-                eventType = "CMP_LOCAL_STATE_INVALID",
-                eventMessage = "reason=sdk_processor_load_fail,error=${error.message ?: "unknown"}"
-            )
-        }.getOrNull()
+                SilentConsentSeed(
+                    actionType = actionType,
+                    campaignId = campaignId,
+                    campaignBeanString = gson.toJson(gvlBean),
+                    currentTcString = currentTcString,
+                    tcStringCreateTime = createdAt,
+                    tcStringExpireTime = expireDuration,
+                    hasNewCampaign = hasNewCampaign,
+                    purposeConsentIds = purposeConsentIds,
+                    purposeLiIds = purposeLiIds,
+                    customPurposeConsentIds = customPurposeConsentIds,
+                    customPurposeLiIds = customPurposeLiIds,
+                    specialFeatureIds = specialFeatureIds,
+                    vendorConsentIds = vendorConsentIds,
+                    vendorLiIds = vendorLiIds,
+                    gvlBean = gvlBean
+                )
+            }.onFailure { error ->
+                Log.w(TAG, "静默同意链路：通过 SDK Processor 读取本地 consent 失败，准备回退文件解析", error)
+                reportCmpTrace(
+                    eventType = "CMP_LOCAL_STATE_INVALID",
+                    eventMessage = "reason=sdk_processor_load_fail,error=${error.message ?: "unknown"}"
+                )
+            }.getOrNull()
+        }
     }
 
-    private fun loadSilentConsentSeedFromFile(context: Context): SilentConsentSeed? {
+    private fun loadSilentConsentSeedFromFile(
+        context: Context,
+        fallbackSeed: SilentConsentSeed? = null
+    ): SilentConsentSeed? {
         val consentFile = resolveSdkConsentFile(context)
         if (!consentFile.exists()) {
             return null
@@ -1782,20 +1978,22 @@ object Hq008CmpManager {
             )
             return null
         }
-        val campaignBeanString = root.stringOrNull("campaign_bean_string") ?: return null
-        val gvlBean = runCatching {
-            gson.fromJson(campaignBeanString, GvlBean::class.java).also { it?.makeUpData() }
-        }.getOrElse { error ->
-            Log.e(TAG, "静默同意链路：解析本地 campaign_bean_string 失败", error)
-            reportCmpTrace(
-                eventType = "CMP_LOCAL_STATE_INVALID",
-                eventMessage = "reason=campaign_bean_parse_fail,error=${error.message ?: "unknown"}"
-            )
-            return null
-        } ?: return null
+        val localCampaignBeanString = root.stringOrNull("campaign_bean_string")
+        val campaignBeanString = localCampaignBeanString ?: fallbackSeed?.campaignBeanString ?: return null
+        val gvlBean = localCampaignBeanString?.let { rawCampaignBean ->
+            runCatching {
+                gson.fromJson(rawCampaignBean, GvlBean::class.java).also { it?.makeUpData() }
+            }.onFailure { error ->
+                Log.e(TAG, "静默同意链路：解析本地 campaign_bean_string 失败", error)
+                reportCmpTrace(
+                    eventType = "CMP_LOCAL_STATE_INVALID",
+                    eventMessage = "reason=campaign_bean_parse_fail,error=${error.message ?: "unknown"}"
+                )
+            }.getOrNull()
+        } ?: fallbackSeed?.gvlBean ?: return null
 
         return SilentConsentSeed(
-            actionType = root.stringOrNull("action_type") ?: SILENT_ACCEPT_ALL_ACTION,
+            actionType = root.stringOrNull("action_type") ?: fallbackSeed?.actionType ?: SILENT_ACCEPT_ALL_ACTION,
             campaignId = root.intOrNull("campaign_id"),
             campaignBeanString = campaignBeanString,
             currentTcString = root.stringOrNull("cmp_tc_string"),
@@ -2645,6 +2843,8 @@ object Hq008CmpManager {
             val actionIntentClass = Class.forName(intentClassName)
             val cmpViewModelClass = Class.forName("com.tcl.ff.component.oversea.e.a")
             val cmpViewModel = cmpViewModelClass.getDeclaredConstructor().newInstance()
+            val beforeActionSeed = loadSilentConsentSeedFromFile(context, seed)
+                ?: loadSilentConsentSeedViaSdk(context)
             val actionIntent = actionIntentClass.getDeclaredConstructor(
                 GvlBean::class.java,
                 CmpConfigParams::class.java,
@@ -2660,39 +2860,165 @@ object Hq008CmpManager {
                 isAccessible = true
             }
             Log.i(TAG, "静默同意链路：开始尝试通过反射触发 SDK 原生 $actionName")
-            processIntentMethod.invoke(cmpViewModel, actionIntent)
-            waitForReflectiveSdkActionResult(context, seed)
+            synchronized(sdkConsentProcessorLock) {
+                prepareSdkConsentProcessorForReflectiveAction(seed)
+                processIntentMethod.invoke(cmpViewModel, actionIntent)
+                waitForReflectiveSdkActionResult(
+                    context = context,
+                    expectedSeed = seed,
+                    baselineSeed = beforeActionSeed
+                )
+            }
         }.onFailure { error ->
             Log.e(TAG, "静默同意链路：反射触发 SDK 原生 $actionName 失败", error)
         }.getOrNull()
     }
 
+    private fun prepareSdkConsentProcessorForReflectiveAction(seed: SilentConsentSeed) {
+        if (seed.actionType != SILENT_SAVE_SETTINGS_ACTION) {
+            return
+        }
+        val processorClass = Class.forName("com.tcl.ff.component.oversea.model.CMPConsentDataProcessor")
+        val processor = resolveSdkConsentDataProcessor(processorClass)
+        val clearConsentMethod = processorClass.getDeclaredMethod("b").apply { isAccessible = true }
+        val setGvlBeanMethod = processorClass.getDeclaredMethod("b", GvlBean::class.java).apply { isAccessible = true }
+        clearConsentMethod.invoke(processor)
+        applySeedToSdkConsentProcessor(processorClass, processor, seed)
+        setGvlBeanMethod.invoke(processor, seed.gvlBean)
+        Log.i(
+            TAG,
+            "静默同意链路：已在反射 SaveSettings 前预置 SDK 勾选状态，purpose=${seed.purposeConsentIds.size}，vendor=${seed.vendorConsentIds.size}"
+        )
+    }
+
     private fun waitForReflectiveSdkActionResult(
         context: Context,
         expectedSeed: SilentConsentSeed,
-        timeoutMs: Long = 4_000L
+        baselineSeed: SilentConsentSeed?,
+        timeoutMs: Long = 1_500L
     ): ReflectiveSdkActionResult? {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Log.w(TAG, "静默同意链路：反射状态轮询运行在主线程，跳过轮询避免阻塞与高频本地读文件")
+            return null
+        }
         return runCatching {
             val startedAt = SystemClock.elapsedRealtime()
+            var lastObservedSeed: SilentConsentSeed? = null
             while (SystemClock.elapsedRealtime() - startedAt < timeoutMs) {
-                val observedSeed = loadSilentConsentSeedViaSdk(context)
+                val fileObservedSeed = loadSilentConsentSeedFromFile(context, expectedSeed)
+                val observedSeed = fileObservedSeed ?: loadSilentConsentSeedViaSdk(context)
+                val observedSource = when {
+                    fileObservedSeed != null -> "file"
+                    observedSeed != null -> "sdk"
+                    else -> "none"
+                }
+                lastObservedSeed = observedSeed
+                if (expectedSeed.actionType == SILENT_SAVE_SETTINGS_ACTION &&
+                    observedSeed?.actionType != SILENT_SAVE_SETTINGS_ACTION
+                ) {
+                    if (observedSeed != null) {
+                        Log.i(
+                            TAG,
+                            "静默同意链路：SaveSettings 轮询命中中间态，source=$observedSource，observedActionType=${observedSeed.actionType}，继续等待最终 SAVE_AND_EXIT，consentLength=${observedSeed.currentTcString?.length ?: 0}"
+                        )
+                    }
+                    SystemClock.sleep(100)
+                    continue
+                }
                 if (isReflectiveSdkActionStateCompatible(observedSeed, expectedSeed)) {
                     val tcString = observedSeed?.currentTcString?.takeIf { it.isNotBlank() }
                     Log.i(
                         TAG,
-                        "静默同意链路：反射链路已检测到 SDK 状态落地，actionType=${expectedSeed.actionType}，consentLength=${tcString?.length ?: 0}"
+                        "静默同意链路：反射链路已检测到 SDK 状态落地，source=$observedSource，actionType=${expectedSeed.actionType}，consentLength=${tcString?.length ?: 0}"
                     )
                     return ReflectiveSdkActionResult(
                         tcString = tcString,
                         persistedSeed = observedSeed
                     )
                 }
-                Thread.sleep(50)
+                if (isReflectiveSdkActionStateAdvanced(
+                        observedSeed = observedSeed,
+                        baselineSeed = baselineSeed,
+                        expectedSeed = expectedSeed
+                    )) {
+                    val tcString = observedSeed?.currentTcString?.takeIf { it.isNotBlank() }
+                    Log.i(
+                        TAG,
+                        "静默同意链路：反射链路已检测到 SDK 状态增量落地，source=$observedSource，campaignId=${observedSeed?.campaignId}，actionType=${observedSeed?.actionType}，consentLength=${tcString?.length ?: 0}"
+                    )
+                    return ReflectiveSdkActionResult(
+                        tcString = tcString,
+                        persistedSeed = observedSeed
+                    )
+                }
+                if (isReflectiveSdkActionStateObserved(
+                        observedSeed = observedSeed,
+                        baselineSeed = baselineSeed,
+                        expectedSeed = expectedSeed
+                    )) {
+                    val tcString = observedSeed?.currentTcString?.takeIf { it.isNotBlank() }
+                    Log.i(
+                        TAG,
+                        "静默同意链路：反射链路已检测到 SDK 原生写入的部分状态，source=$observedSource，后续补齐元数据，campaignId=${observedSeed?.campaignId}，actionType=${observedSeed?.actionType}，consentLength=${tcString?.length ?: 0}"
+                    )
+                    return ReflectiveSdkActionResult(
+                        tcString = tcString,
+                        persistedSeed = observedSeed
+                    )
+                }
+                SystemClock.sleep(100)
             }
+            Log.w(
+                TAG,
+                "静默同意链路：等待反射链路落地 SDK 状态超时，baseline=${summarizeSeed(baselineSeed)}，last=${summarizeSeed(lastObservedSeed)}"
+            )
             null
         }.onFailure { error ->
             Log.e(TAG, "静默同意链路：等待反射链路落地 SDK 状态失败", error)
         }.getOrNull()
+    }
+
+    private fun isReflectiveSdkActionStateObserved(
+        observedSeed: SilentConsentSeed?,
+        baselineSeed: SilentConsentSeed?,
+        expectedSeed: SilentConsentSeed
+    ): Boolean {
+        observedSeed ?: return false
+        val tcString = observedSeed.currentTcString?.takeIf { it.isNotBlank() } ?: return false
+        val hasConsentData = observedSeed.purposeConsentIds.isNotEmpty() ||
+            observedSeed.purposeLiIds.isNotEmpty() ||
+            observedSeed.customPurposeConsentIds.isNotEmpty() ||
+            observedSeed.customPurposeLiIds.isNotEmpty() ||
+            observedSeed.specialFeatureIds.isNotEmpty() ||
+            observedSeed.vendorConsentIds.isNotEmpty() ||
+            observedSeed.vendorLiIds.isNotEmpty()
+        if (!hasConsentData) {
+            return false
+        }
+        val baselineTcString = baselineSeed?.currentTcString?.takeIf { it.isNotBlank() }
+        val tcChanged = baselineTcString != tcString
+        val createdAtChanged = observedSeed.tcStringCreateTime != null &&
+            observedSeed.tcStringCreateTime != baselineSeed?.tcStringCreateTime
+        val campaignMatched = observedSeed.campaignId == expectedSeed.campaignId
+        val campaignUnknown = observedSeed.campaignId == null || observedSeed.campaignId <= 0
+        return (tcChanged || createdAtChanged) && (campaignMatched || campaignUnknown)
+    }
+
+    private fun isReflectiveSdkActionStateAdvanced(
+        observedSeed: SilentConsentSeed?,
+        baselineSeed: SilentConsentSeed?,
+        expectedSeed: SilentConsentSeed
+    ): Boolean {
+        observedSeed ?: return false
+        val tcString = observedSeed.currentTcString?.takeIf { it.isNotBlank() } ?: return false
+        val baselineTcString = baselineSeed?.currentTcString?.takeIf { it.isNotBlank() }
+        val tcChanged = baselineTcString != tcString
+        val createdAtChanged = observedSeed.tcStringCreateTime != null &&
+            observedSeed.tcStringCreateTime != baselineSeed?.tcStringCreateTime
+        val campaignMatched = observedSeed.campaignId == expectedSeed.campaignId
+        val campaignUnknown = observedSeed.campaignId == null || observedSeed.campaignId <= 0
+        return (tcChanged || createdAtChanged || campaignMatched) &&
+            (campaignMatched || campaignUnknown)
     }
 
     private fun isReflectiveSdkActionStateCompatible(
@@ -2852,8 +3178,12 @@ object Hq008CmpManager {
     }
 
     private fun sanitizeIds(input: List<Int>, allowed: List<Int>?): List<Int> {
-        val allowedSet = allowed?.toSet() ?: return emptyList()
-        return input.distinct().filter { allowedSet.contains(it) }
+        val distinctInput = input.distinct()
+        val allowedSet = allowed?.toSet().orEmpty()
+        if (allowedSet.isEmpty()) {
+            return distinctInput
+        }
+        return distinctInput.filter { allowedSet.contains(it) }
     }
 
     private fun reportConsentResult(
@@ -3032,6 +3362,90 @@ object Hq008CmpManager {
             .edit()
             .remove(KEY_PENDING_CONSENT_REPORT_STATE)
             .apply()
+    }
+
+    private fun persistMaybeLaterCooldownState(
+        context: Context,
+        state: MaybeLaterCooldownState
+    ) {
+        val payload = JsonObject().apply {
+            state.cycleKey?.let { addProperty("cycle_key", it) }
+            addProperty("upload_hash", state.uploadHash)
+            addProperty("recorded_at_ms", state.recordedAtMs)
+        }
+        context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_MAYBE_LATER_COOLDOWN_STATE, gson.toJson(payload))
+            .apply()
+    }
+
+    private fun loadMaybeLaterCooldownState(context: Context): MaybeLaterCooldownState? {
+        val raw = context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_MAYBE_LATER_COOLDOWN_STATE, null)
+            ?: return null
+        return runCatching {
+            val root = JsonParser.parseString(raw).asJsonObject
+            MaybeLaterCooldownState(
+                cycleKey = root.stringOrNull("cycle_key"),
+                uploadHash = root.stringOrNull("upload_hash")
+                    ?: error("missing upload_hash"),
+                recordedAtMs = root.longOrNull("recorded_at_ms")
+                    ?: error("missing recorded_at_ms")
+            )
+        }.onFailure { error ->
+            Log.e(TAG, "静默同意链路：解析 MAYBE_LATER 冷却状态失败，已清理脏数据", error)
+            reportCmpTrace(
+                eventType = "MAYBE_LATER_COOLDOWN_INVALID",
+                eventMessage = "error=${error.message ?: "unknown"}"
+            )
+            clearMaybeLaterCooldownState(context)
+        }.getOrNull()
+    }
+
+    private fun clearMaybeLaterCooldownState(context: Context) {
+        context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_MAYBE_LATER_COOLDOWN_STATE)
+            .apply()
+    }
+
+    private fun isMaybeLaterCoolingDown(
+        context: Context,
+        cycleKey: String,
+    ): Pair<Boolean, Long?> {
+        val state = loadMaybeLaterCooldownState(context) ?: return false to null
+        if (state.cycleKey != cycleKey) {
+            return false to null
+        }
+        val elapsedMs = System.currentTimeMillis() - state.recordedAtMs
+        if (elapsedMs < 0L) {
+            return false to null
+        }
+        if (elapsedMs >= MAYBE_LATER_COOLDOWN_MS) {
+            clearMaybeLaterCooldownState(context)
+            return false to elapsedMs
+        }
+        return true to elapsedMs
+    }
+
+    private fun isMaybeLaterCoolingDown(
+        context: Context,
+        cycleKey: String,
+        uploadHash: String
+    ): Pair<Boolean, Long?> {
+        val state = loadMaybeLaterCooldownState(context) ?: return false to null
+        if (state.cycleKey != cycleKey || state.uploadHash != uploadHash) {
+            return false to null
+        }
+        val elapsedMs = System.currentTimeMillis() - state.recordedAtMs
+        if (elapsedMs < 0L) {
+            return false to null
+        }
+        if (elapsedMs >= MAYBE_LATER_COOLDOWN_MS) {
+            clearMaybeLaterCooldownState(context)
+            return false to elapsedMs
+        }
+        return true to elapsedMs
     }
 
     private fun resolveReportAction(actionType: String): String {

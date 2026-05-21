@@ -26,8 +26,8 @@ class Hq008CmpCampaignNoActivityResponseTest {
 
         assertTrue(
             "需要拉 campaign 但未拿到有效 seed 时，必须进入缺失种子分支",
-            source.contains("val campaignSeedAvailable = refreshedSeed != null") &&
-                source.contains("val missingRequiredSeed = needsDecisionFlow && !suppressDecisionFlow && !campaignSeedAvailable")
+            source.contains("val shouldFetchCampaign = remoteConsentStatus?.hasNewCampaign == true") &&
+                source.contains("val missingRequiredSeed = shouldFetchCampaign && !suppressDecisionFlow && !campaignSeedAvailable")
         )
         assertTrue(
             "缺少 campaign seed 时应明确上报并阻断后续 popup 决策",
@@ -35,11 +35,13 @@ class Hq008CmpCampaignNoActivityResponseTest {
         )
         assertTrue(
             "远端已存在统一记录时应直接跳过 popup，并走本地恢复",
-            source.contains("remoteRecoveryEligible -> \"remote_already_decided\"")
+            source.contains("shouldRecoverFromRemoteConsent")
         )
         assertTrue(
             "广告门禁补校验只有在已拿到有效 campaign seed 且远端未决策时才允许继续 popup 决策",
-            source.contains("campaignSeedAvailable &&") && source.contains("!remoteRecoveryEligible")
+            source.contains("decisionEligible = needsDecisionFlow &&") &&
+                source.contains("!suppressDecisionFlow") &&
+                source.contains("campaignSeedAvailable")
         )
     }
 

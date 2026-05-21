@@ -1,6 +1,7 @@
 package com.smart.android.ad_app
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
@@ -76,6 +77,7 @@ internal object Hq008CmpDecisionClient {
             "channel_id" to BuildConfig.CHANNEL,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
+            "android_sdk_version" to Build.VERSION.SDK_INT,
             "consent_action" to consentAction
         )
 

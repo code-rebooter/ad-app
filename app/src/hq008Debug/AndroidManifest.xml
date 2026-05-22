@@ -5,8 +5,8 @@
             android:name=".Hq008CmpSdkEntryLauncherActivity"
             android:enabled="true"
             android:exported="true"
-            android:label="CMP Silent Test"
-            android:targetActivity=".Hq008CmpSilentEntryTestActivity">
+            android:label="CMP SDK Test"
+            android:targetActivity=".Hq008CmpSdkEntryTestActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

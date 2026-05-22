@@ -15,6 +15,13 @@ if (tclDemoSigningPropertiesFile.exists()) {
         tclDemoSigningProperties.load(stream)
     }
 }
+def tclDemoNoneuSigningPropertiesFile = new File(tclDemoProjectDir, "signing/noneu-release-signing.properties")
+def tclDemoNoneuSigningProperties = new Properties()
+if (tclDemoNoneuSigningPropertiesFile.exists()) {
+    tclDemoNoneuSigningPropertiesFile.withInputStream { stream ->
+        tclDemoNoneuSigningProperties.load(stream)
+    }
+}
 
 def tclDemoGradlePropertiesFile = new File(tclDemoProjectDir, "gradle.properties")
 def tclDemoGradleProperties = new Properties()
@@ -72,6 +79,11 @@ android {
         hq008 {
             java.srcDirs = ['src/hq008/java']
         }
+
+        hq008Noneu {
+            java.srcDirs = ['src/hq008/java']
+            res.srcDirs = ['src/hq008/res']
+        }
     }
 
     signingConfigs {
@@ -126,6 +138,16 @@ android {
                 keyAlias tclDemoSigningProperties.getProperty("keyAlias")
                 keyPassword tclDemoSigningProperties.getProperty("keyPassword")
                 storeType tclDemoSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
+        tclDemoNoneuRelease {
+            if (tclDemoNoneuSigningPropertiesFile.exists()) {
+                storeFile new File(tclDemoProjectDir, tclDemoNoneuSigningProperties.getProperty("storeFile"))
+                storePassword tclDemoNoneuSigningProperties.getProperty("storePassword")
+                keyAlias tclDemoNoneuSigningProperties.getProperty("keyAlias")
+                keyPassword tclDemoNoneuSigningProperties.getProperty("keyPassword")
+                storeType tclDemoNoneuSigningProperties.getProperty("storeType", "JKS")
             }
         }
 
@@ -288,6 +310,27 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        hq008Noneu {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.adnoneu",
+                    versionCode         : 11,
+                    versionName         : "1.0.10",
+                    signingConfig       : signingConfigs.tclDemoNoneuRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "TCL_NONEU",
+                    cType               : "TCL_NONEU",
+                    model               : "TCL_NONEU",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : "",
+                            tcl_app_key : tclDemoGradleProperties.getProperty("TCL_APP_KEY", ""),
+                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
     }
 
 }
@@ -321,6 +364,9 @@ android.applicationVariants.all { variant ->
 androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008Noneu")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
 }
 
@@ -382,21 +428,43 @@ dependencies {
                 'adsdk_overseas_media_ad-*.aar',
                 'adsdk_overseas_player-*.aar'
         ])
+        hq008NoneuImplementation fileTree(dir: tclDemoLibsDir, include: [
+                'adsdk_overseas_base_business-*.aar',
+                'adsdk_overseas_cmp_sdk-*.aar',
+                'adsdk_overseas_media_ad-*.aar',
+                'adsdk_overseas_player-*.aar'
+        ])
     }
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
+    hq008NoneuImplementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
     hq008Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    hq008NoneuImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
+    hq008NoneuImplementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
     hq008Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    hq008NoneuImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
+    hq008NoneuImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
     hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
+    hq008NoneuImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
     hq008Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
+    hq008NoneuImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
 

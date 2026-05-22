@@ -23,7 +23,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="这页只走文档里的原生接法：loadPopState + loadCmpPrivacy(CMP_POP)。正式静默链路没有改。"
+            android:text="这页只演示 SDK 的正常接入流程：loadPopState -> loadCmpPrivacy(CMP_POP) -> 必要时 showCmpPop。"
             android:textColor="#A7B0BA"
             android:textSize="14sp" />
 
@@ -84,7 +84,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:orientation="horizontal">
 
             <Button
@@ -110,57 +110,6 @@
                 android:layout_weight="1"
                 android:text="手动 showCmpPop" />
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/refresh_local_snapshot_button"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:text="刷新本地快照" />
-
-            <Button
-                android:id="@+id/reset_local_consent_button"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:text="删除本地 consent" />
-
-            <Button
-                android:id="@+id/clear_log_button"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:text="清空日志" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="本地 consent 快照"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/local_snapshot_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="#18202A"
-            android:padding="12dp"
-            android:textColor="#D8E1EA"
-            android:textIsSelectable="true"
-            android:textSize="13sp"
-            android:typeface="monospace" />
 
         <TextView
             android:layout_width="match_parent"

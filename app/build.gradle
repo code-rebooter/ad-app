@@ -323,9 +323,9 @@ android {
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
                             share_uid   : "",
-                            tcl_app_key : tclDemoGradleProperties.getProperty("TCL_APP_KEY", ""),
+                            tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4ozBQ9R7s+c9YKNfnDXO7YU6HQyXLqbQmkuewfQq+iHr3sCPstyoNJvxaWzBWH12JaA==",
                             partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
-                            project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
+                            project_id  : "190"
                     ]
             ])
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""

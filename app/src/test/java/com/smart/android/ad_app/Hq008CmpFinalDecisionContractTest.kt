@@ -33,6 +33,29 @@ class Hq008CmpFinalDecisionContractTest {
         assertTrue("动作种子构建失败时，应回退 MAYBE_LATER", source.contains("reason = \"decision_build_failed\""))
     }
 
+    @Test
+    fun `hq008 reflective sdk action success should not replay user action`() {
+        val source = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008CmpManager.kt")
+
+        val reflectiveMarker = "eventMessage = \"reportAction=\$reportAction,path=reflective"
+        val reflectiveStart = source.indexOf(reflectiveMarker)
+        assertTrue("应存在反射执行路径标记", reflectiveStart >= 0)
+
+        val reflectiveEndMarker = "if (dynamicTcString.isNullOrBlank())"
+        val reflectiveEnd = source.indexOf(reflectiveEndMarker, reflectiveStart)
+        assertTrue("应能定位反射分支结束位置", reflectiveEnd > reflectiveStart)
+
+        val reflectiveSegment = source.substring(reflectiveStart, reflectiveEnd)
+        assertFalse(
+            "反射路径成功后不应再补发 SDK user/action",
+            reflectiveSegment.contains("syncSdkUserAction(")
+        )
+        assertTrue(
+            "反射路径成功后应直接进入 consent-report 链路",
+            reflectiveSegment.contains("enqueueOrReportConsentResult(")
+        )
+    }
+
     private fun readProjectFile(relativePath: String): String {
         val workingDir = File(System.getProperty("user.dir") ?: ".")
         val projectRoot = generateSequence(workingDir) { it.parentFile }

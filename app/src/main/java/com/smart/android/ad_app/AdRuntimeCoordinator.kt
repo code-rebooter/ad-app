@@ -22,7 +22,7 @@ object AdRuntimeCoordinator {
 
     fun start(context: Context) {
         val appContext = context.applicationContext
-        if (BuildConfig.FLAVOR == "hq008") {
+        if (BuildFlavor.isHq008Family()) {
             Hq008LocalSchedulePolicy.initialize(appContext)
         }
         Log.i(TAG, "正式链路：开始启动广告运行协调器，flavor=${BuildConfig.FLAVOR}，package=${appContext.packageName}")

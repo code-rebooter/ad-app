@@ -360,7 +360,7 @@ object Hq008CmpManager {
     }
 
     fun init(context: Context) {
-        if (BuildConfig.FLAVOR != "hq008") {
+        if (!BuildFlavor.isHq008()) {
             return
         }
 
@@ -447,7 +447,7 @@ object Hq008CmpManager {
         timeoutMs: Long = CONSENT_READY_TIMEOUT_MS,
         onReady: () -> Unit
     ) {
-        if (BuildConfig.FLAVOR != "hq008") {
+        if (!BuildFlavor.isHq008()) {
             onReady()
             return
         }
@@ -1573,16 +1573,15 @@ object Hq008CmpManager {
                     return
                 }
                 terminalStatePersisted = true
-                syncSdkUserAction(
+                reportCmpTrace(
+                    eventType = "SDK_ACTION_USER_ACTION_REPLAY_SKIPPED",
+                    eventMessage = "reportAction=$reportAction,path=reflective,cmpCycleKey=$cycleKey,uploadHash=$uploadHash"
+                )
+                enqueueOrReportConsentResult(
                     context = context,
-                    state = PendingSdkSyncState(
-                        cycleKey = cycleKey,
-                        reportAction = reportAction,
-                        seed = seed,
-                        uploadHash = uploadHash
-                    ),
-                    onCompleted = onCompleted,
-                    onFailure = { onCompleted?.invoke() }
+                    cycleKey = cycleKey,
+                    actionType = reportAction,
+                    onCompleted = onCompleted
                 )
                 return
             }
@@ -1742,16 +1741,15 @@ object Hq008CmpManager {
                 eventType = "CMP_MAYBE_LATER_PATH",
                 eventMessage = "path=reflective,cmpCycleKey=$cycleKey,uploadHash=$uploadHash"
             )
-            syncSdkUserAction(
+            reportCmpTrace(
+                eventType = "SDK_ACTION_USER_ACTION_REPLAY_SKIPPED",
+                eventMessage = "reportAction=$REMOTE_MAYBE_LATER_ACTION,path=reflective,cmpCycleKey=$cycleKey,uploadHash=$uploadHash"
+            )
+            enqueueOrReportConsentResult(
                 context = context,
-                state = PendingSdkSyncState(
-                    cycleKey = cycleKey,
-                    reportAction = REMOTE_MAYBE_LATER_ACTION,
-                    seed = maybeLaterSeed,
-                    uploadHash = uploadHash
-                ),
-                onCompleted = onCompleted,
-                onFailure = { onCompleted?.invoke() }
+                cycleKey = cycleKey,
+                actionType = REMOTE_MAYBE_LATER_ACTION,
+                onCompleted = onCompleted
             )
             return
         }

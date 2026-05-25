@@ -24,11 +24,11 @@ object AdDisplayConfig {
         if (prefs == null) {
             prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
-        if (BuildConfig.FLAVOR == "hq008") {
+        if (BuildFlavor.isHq008Family()) {
             prefs?.edit()
                 ?.putBoolean(KEY_LOCAL_HIDDEN, true)
                 ?.commit()
-            Log.i(TAG, "Force hidden mode for hq008. local=${isLocalHiddenMode()}")
+            Log.i(TAG, "Force hidden mode for hq008-family. local=${isLocalHiddenMode()}")
         }
     }
 
@@ -111,7 +111,7 @@ object AdDisplayConfig {
     }
 
     fun isHiddenMode(): Boolean {
-        if (BuildConfig.FLAVOR == "hq008") {
+        if (BuildFlavor.isHq008Family()) {
             return if (isRemoteConfigSet()) {
                 isRemoteHiddenMode()
             } else {

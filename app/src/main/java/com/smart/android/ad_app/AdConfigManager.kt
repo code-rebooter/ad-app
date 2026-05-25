@@ -15,7 +15,7 @@ object AdConfigManager {
     private const val POPUP_FALLBACK_ACTION = "MAYBE_LATER"
 
     init {
-        if (BuildConfig.FLAVOR == "hq008") {
+        if (BuildFlavor.isHq008()) {
             Hq008CmpManager.setRemoteDecisionProvider { _, onResult ->
                 fun fallbackPopupAction(reason: String) {
                     Log.w(
@@ -136,15 +136,20 @@ object AdConfigManager {
             "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${BuildConfig.CHANNEL}，hidden=${AdDisplayConfig.isHiddenMode()}"
         )
 
-        if (BuildConfig.FLAVOR == "hq008" && adType == AdType.FLOATING) {
-            // AD_FLOW hq008 waiting consent gate
+        if (BuildFlavor.isHq008Family() && adType == AdType.FLOATING) {
+            val skipCmp = BuildFlavor.isHq008Noneu()
+            val flavorTag = if (skipCmp) "hq008Noneu" else "hq008"
             Log.i(
                 TAG,
-                "广告链路：hq008 先等待 CMP 同意门禁，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
+                if (skipCmp) {
+                    "广告链路：$flavorTag 先走 flow-control，CMP 链路跳过，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
+                } else {
+                    "广告链路：$flavorTag 先等待 CMP 同意门禁，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
+                }
             )
             Hq008ConsentLogReporter.report(
                 eventType = "CMP_GATE_START",
-                eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()}"
+                eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()},skipCmp=$skipCmp"
             )
             Hq008SdkFlowControlClient.request(
                 context = appContext,
@@ -168,6 +173,12 @@ object AdConfigManager {
                         eventType = "CMP_GATE_STOP",
                         eventMessage = "reason=flow_control_disabled"
                     )
+                    return@request
+                }
+
+                if (skipCmp) {
+                    Log.i(TAG, "广告链路：flow-control 允许继续，hq008Noneu 跳过 CMP，直接请求授权接口")
+                    requestHq008Authorize()
                     return@request
                 }
 
@@ -204,7 +215,7 @@ object AdConfigManager {
             return
         }
 
-        val url = if (BuildConfig.FLAVOR == "hq008") {
+        val url = if (BuildFlavor.isHq008Family()) {
             "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/delivery"
         } else {
             "${BuildConfig.BASE_URL}api/v2/ad/delivery"
@@ -217,7 +228,7 @@ object AdConfigManager {
                 put("channel", BuildConfig.CHANNEL)
                 put("macAddress", getMacAddress() ?: "")
                 put("adType", adType.value)
-                if (BuildConfig.FLAVOR == "hq008") {
+                if (BuildFlavor.isHq008Family()) {
                     put("ad_version", BuildConfig.VERSION_CODE)
                 }
             },
@@ -347,7 +358,7 @@ object AdConfigManager {
         }
 
         "上报广告状态".printLog()
-        val url = if (BuildConfig.FLAVOR == "hq008") {
+        val url = if (BuildFlavor.isHq008Family()) {
             "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/task/report"
         } else {
             "${BuildConfig.BASE_URL}api/v2/ad/task/report"
@@ -362,7 +373,7 @@ object AdConfigManager {
                 put("status", statusStr)
                 put("result", errorInfo)
                 put("adId", resolvedAdId)
-                if (BuildConfig.FLAVOR == "hq008") {
+                if (BuildFlavor.isHq008Family()) {
                     put("ad_version", BuildConfig.VERSION_CODE)
                 }
             },

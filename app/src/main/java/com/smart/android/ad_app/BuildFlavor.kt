@@ -6,7 +6,7 @@ internal object BuildFlavor {
     }
 
     fun isHq008Noneu(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008Noneu"
+        return flavor == "hq008Noneu" || flavor == "hq008Noneuc2"
     }
 
     fun isHq008Family(flavor: String = BuildConfig.FLAVOR): Boolean {

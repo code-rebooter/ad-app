@@ -138,7 +138,7 @@ object AdConfigManager {
 
         if (BuildFlavor.isHq008Family() && adType == AdType.FLOATING) {
             val skipCmp = BuildFlavor.isHq008Noneu()
-            val flavorTag = if (skipCmp) "hq008Noneu" else "hq008"
+            val flavorTag = BuildConfig.FLAVOR
             Log.i(
                 TAG,
                 if (skipCmp) {
@@ -177,7 +177,7 @@ object AdConfigManager {
                 }
 
                 if (skipCmp) {
-                    Log.i(TAG, "广告链路：flow-control 允许继续，hq008Noneu 跳过 CMP，直接请求授权接口")
+                    Log.i(TAG, "广告链路：flow-control 允许继续，$flavorTag 跳过 CMP，直接请求授权接口")
                     requestHq008Authorize()
                     return@request
                 }

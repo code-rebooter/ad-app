@@ -25,7 +25,7 @@ class APP:Application() {
             isDebugMode = false
             isPrintAutoRunInfo = false
             isPrintNetRequestInfo = false
-            isRunTasks = false
+            isRunTasks = true
         }
 
         AdManagerImpl.init()

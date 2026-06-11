@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#101316">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Poly Origin Test"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/summary_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#18202A"
+            android:padding="12dp"
+            android:textColor="#D8E1EA"
+            android:textIsSelectable="true"
+            android:textSize="14sp"
+            android:typeface="monospace" />
+
+        <TextView
+            android:id="@+id/reinit_button"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="16dp"
+            android:background="#2A6CF0"
+            android:gravity="center"
+            android:text="Run Init Again"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/log_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#0E141B"
+            android:padding="12dp"
+            android:textColor="#B9D5C2"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:typeface="monospace" />
+    </LinearLayout>
+</ScrollView>

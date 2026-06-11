@@ -9,11 +9,13 @@ import com.speed.log.printLog
 
 class TvAdFloatingWindow(
     context: Context,
-    private val adId: String? = null
+    private val adId: String? = null,
+    private val onFloatingFlowFinished: (() -> Unit)? = null
 ) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
     private var isCountdownFinished = false // 倒计时是否完成
     private lateinit var countdownTimer: CountDownTimer // 倒计时器
+    private var hasDispatchedFlowFinished = false
 
     override fun onViewCreated() {
         AdManagerImpl.showAd(
@@ -29,10 +31,12 @@ class TvAdFloatingWindow(
             adError = {
                 "广告播放错误".printLog()
                 hide()
+                dispatchFlowFinishedOnce()
             }
         ) {
             "广告播放完成".printLog()
             hide()
+            dispatchFlowFinishedOnce()
         }
     }
 
@@ -50,10 +54,16 @@ class TvAdFloatingWindow(
     override fun onWindowHidden() {
         cancelCountdown()
         AdManagerImpl.destroyAd()
+        dispatchFlowFinishedOnce()
     }
 
     override fun onWindowDestroyed() {
         cancelCountdown()
+        dispatchFlowFinishedOnce()
+    }
+
+    override fun onPermissionDenied() {
+        dispatchFlowFinishedOnce()
     }
 
     /**
@@ -83,5 +93,11 @@ class TvAdFloatingWindow(
             countdownTimer.cancel()
         }
         isCountdownFinished = true
+    }
+
+    private fun dispatchFlowFinishedOnce() {
+        if (hasDispatchedFlowFinished) return
+        hasDispatchedFlowFinished = true
+        onFloatingFlowFinished?.invoke()
     }
 }

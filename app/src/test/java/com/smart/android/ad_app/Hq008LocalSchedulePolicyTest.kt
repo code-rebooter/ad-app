@@ -50,28 +50,40 @@ class Hq008LocalSchedulePolicyTest {
     }
 
     @Test
-    fun `hq008 should ignore server next_request_seconds and use local schedule policy`() {
+    fun `hq008 should apply server next_request_seconds through local schedule policy`() {
         val adConfigManagerSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdConfigManager.kt")
         val scheduleManagerSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/ScheduleManagerImpl.kt")
         val schedulerSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/HandlerAdTaskScheduler.kt")
         val runtimeCoordinatorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdRuntimeCoordinator.kt")
         val policySource = readProjectFile("app/src/main/java/com/smart/android/ad_app/Hq008LocalSchedulePolicy.kt")
 
-        assertFalse(
-            "hq008 不应继续直接消费服务端 next_request_seconds",
-            adConfigManagerSource.contains("HandlerAdTaskScheduler.startOrUpdateTask(dto.next_request_seconds)")
+        assertTrue(
+            "hq008 authorize 回调应接入服务端 next_request_seconds",
+            adConfigManagerSource.contains("dto.next_request_seconds")
         )
         assertTrue(
-            "ScheduleManagerImpl 应该对 hq008 使用本地策略",
-            scheduleManagerSource.contains("Hq008LocalSchedulePolicy")
+            "hq008 authorize 回调应把 next_request_seconds 写入本地调度策略",
+            adConfigManagerSource.contains("Hq008LocalSchedulePolicy.updateServerPollingSeconds")
         )
         assertTrue(
-            "ScheduleManagerImpl 应该对 hq008 做单独分支",
-            scheduleManagerSource.contains("BuildConfig.FLAVOR == \"hq008\"")
+            "hq008 authorize 回调应动态更新当前 scheduler 间隔",
+            adConfigManagerSource.contains("HandlerAdTaskScheduler.startOrUpdateTask")
+        )
+        assertTrue(
+            "ScheduleManagerImpl 应该继续通过 Hq008LocalSchedulePolicy 读取 hq008 轮询间隔",
+            scheduleManagerSource.contains("Hq008LocalSchedulePolicy.pollingSeconds()")
+        )
+        assertTrue(
+            "ScheduleManagerImpl 应该对 hq008 family 做单独分支",
+            scheduleManagerSource.contains("BuildFlavor.isHq008Family()")
         )
         assertTrue(
             "hq008 本地策略应持久化最近一次 floating 轮询时间",
             policySource.contains("last_floating_poll_at_ms")
+        )
+        assertTrue(
+            "hq008 本地策略应具备服务端轮询时间持久化能力",
+            policySource.contains("server_polling_seconds")
         )
         assertTrue(
             "AdRuntimeCoordinator 应在启动时初始化 hq008 本地调度策略",

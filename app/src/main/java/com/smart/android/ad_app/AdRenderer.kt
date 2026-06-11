@@ -49,8 +49,11 @@ object AdRenderer {
         }
     }
 
-    fun showFloatingAd(dto: AdConfigDto) {
-        val window = TvAdFloatingWindow(appContext, dto.adId)
+    fun showFloatingAd(
+        dto: AdConfigDto,
+        onFloatingFlowFinished: (() -> Unit)? = null
+    ) {
+        val window = TvAdFloatingWindow(appContext, dto.adId, onFloatingFlowFinished)
         val renderConfig = resolveRenderConfig(
             defaultWidth = dto.floatingWidth,
             defaultHeight = dto.floatingHeight,
@@ -74,6 +77,8 @@ object AdRenderer {
 
         if (window.hasOverlayPermission()) {
             window.show()
+        } else {
+            onFloatingFlowFinished?.invoke()
         }
     }
 

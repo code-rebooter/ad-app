@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".poly.PolyGammaTestEntryActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity-alias
+            android:name=".PolyGammaTestLauncherActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Poly Origin Test"
+            android:targetActivity=".poly.PolyGammaTestEntryActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+
+</manifest>

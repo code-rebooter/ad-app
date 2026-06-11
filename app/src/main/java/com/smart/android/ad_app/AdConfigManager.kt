@@ -137,6 +137,15 @@ object AdConfigManager {
         )
 
         if (BuildFlavor.isHq008Family() && adType == AdType.FLOATING) {
+            val flowToken = Hq008FloatingFlowGuard.tryEnter(BuildConfig.CHANNEL)
+            if (flowToken == null) {
+                Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${BuildConfig.CHANNEL}")
+                Hq008ConsentLogReporter.report(
+                    eventType = "FLOATING_FLOW_SKIPPED",
+                    eventMessage = "reason=in_flight,adType=$adType"
+                )
+                return
+            }
             val skipCmp = BuildFlavor.isHq008Noneu()
             val flavorTag = BuildConfig.FLAVOR
             Log.i(
@@ -162,6 +171,7 @@ object AdConfigManager {
                         eventType = "CMP_GATE_STOP",
                         eventMessage = "reason=flow_control_fail"
                     )
+                    finishHq008FloatingFlow(flowToken, "flow_control_fail")
                     return@request
                 }
                 if (!enabled) {
@@ -173,12 +183,13 @@ object AdConfigManager {
                         eventType = "CMP_GATE_STOP",
                         eventMessage = "reason=flow_control_disabled"
                     )
+                    finishHq008FloatingFlow(flowToken, "flow_control_disabled")
                     return@request
                 }
 
                 if (skipCmp) {
                     Log.i(TAG, "广告链路：flow-control 允许继续，$flavorTag 跳过 CMP，直接请求授权接口")
-                    requestHq008Authorize()
+                    requestHq008Authorize(flowToken)
                     return@request
                 }
 
@@ -201,7 +212,7 @@ object AdConfigManager {
                             TAG,
                             "广告链路：CMP 决策流程已结束，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始请求授权接口"
                         )
-                        requestHq008Authorize()
+                        requestHq008Authorize(flowToken)
                     }
                 }
             }
@@ -256,15 +267,19 @@ object AdConfigManager {
     }
 
 
-    private fun dispatchAd(adType: AdType, dto: AdConfigDto) {
+    private fun dispatchAd(
+        adType: AdType,
+        dto: AdConfigDto,
+        onFloatingFlowFinished: (() -> Unit)? = null
+    ) {
         Log.i(TAG, "dispatchAd adType=$adType adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()}")
         when (adType) {
             AdType.SPLASH -> AdRenderer.showSplashAd(dto)
-            AdType.FLOATING -> AdRenderer.showFloatingAd(dto)
+            AdType.FLOATING -> AdRenderer.showFloatingAd(dto, onFloatingFlowFinished)
         }
     }
 
-    private fun requestHq008Authorize() {
+    private fun requestHq008Authorize(flowToken: Hq008FloatingFlowGuard.Token) {
         Hq008SdkAuthorizeClient.request(
             context = appContext,
             channelId = BuildConfig.CHANNEL
@@ -275,6 +290,7 @@ object AdConfigManager {
                     eventType = "AUTHORIZE_CALLBACK_FAIL",
                     eventMessage = error
                 )
+                finishHq008FloatingFlow(flowToken, "authorize_fail")
                 return@request
             }
             if (dto == null) {
@@ -282,6 +298,7 @@ object AdConfigManager {
                     eventType = "AUTHORIZE_CALLBACK_EMPTY",
                     eventMessage = "dto=null"
                 )
+                finishHq008FloatingFlow(flowToken, "authorize_empty")
                 return@request
             }
 
@@ -295,6 +312,14 @@ object AdConfigManager {
                     "next_request_seconds=${dto.next_request_seconds}"
             )
             AdDisplayConfig.setRemoteHiddenMode(effectiveHiddenMode)
+            val nextPollingSeconds = Hq008LocalSchedulePolicy.normalizeServerPollingSeconds(dto.next_request_seconds)
+            if (nextPollingSeconds != null) {
+                Hq008LocalSchedulePolicy.updateServerPollingSeconds(BuildConfig.CHANNEL, nextPollingSeconds)
+                HandlerAdTaskScheduler.startOrUpdateTask(nextPollingSeconds)
+            } else {
+                Hq008LocalSchedulePolicy.clearServerPollingSeconds(BuildConfig.CHANNEL)
+                HandlerAdTaskScheduler.startOrUpdateTask(ScheduleManagerImpl.handlerScheduleTime())
+            }
 
             if (!effectiveAuthorized) {
                 Log.i(
@@ -305,6 +330,7 @@ object AdConfigManager {
                     eventType = "AUTHORIZE_DENIED",
                     eventMessage = "requestId=${dto.request_id}"
                 )
+                finishHq008FloatingFlow(flowToken, "authorize_denied")
                 return@request
             }
 
@@ -342,9 +368,17 @@ object AdConfigManager {
                     isCountdownVisible = false,
                     position = 0,
                     videoUrl = null
-                )
+                ),
+                onFloatingFlowFinished = {
+                    finishHq008FloatingFlow(flowToken, "floating_ad_finished")
+                }
             )
         }
+    }
+
+    private fun finishHq008FloatingFlow(flowToken: Hq008FloatingFlowGuard.Token, reason: String) {
+        Log.i(TAG, "广告链路：hq008 悬浮广告流程结束，reason=$reason")
+        Hq008FloatingFlowGuard.finish(flowToken, reason)
     }
 
     fun setCurrentAdId(adId: String) {

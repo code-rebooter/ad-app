@@ -52,11 +52,13 @@ internal object Hq008SdkFlowControlClient {
 
             Log.i(
                 TAG,
-                "flow-control：请求成功，enabled=${response?.enabled}"
+                "flow-control：请求成功，enabled=${response?.enabled}，popup_log_enabled=${response?.popup_log_enabled}"
             )
+            val popupLogEnabled = response?.popup_log_enabled != false
+            Hq008ConsentLogReporter.updatePopupLogEnabled(popupLogEnabled)
             Hq008ConsentLogReporter.report(
                 eventType = "FLOW_CONTROL_RESULT",
-                eventMessage = "enabled=${response?.enabled == true}"
+                eventMessage = "enabled=${response?.enabled == true},popupLogEnabled=$popupLogEnabled"
             )
             onResult(response, null)
         }
@@ -75,5 +77,7 @@ internal object Hq008SdkFlowControlClient {
 @Keep
 internal data class Hq008SdkFlowControlData(
     @field:SerializedName("enabled")
-    val enabled: Boolean = false
+    val enabled: Boolean = false,
+    @field:SerializedName("popup_log_enabled")
+    val popup_log_enabled: Boolean = true
 )

@@ -345,6 +345,10 @@ object AdConfigManager {
                 eventType = "AUTHORIZE_ALLOWED",
                 eventMessage = "requestId=${dto.request_id},hidden=$effectiveHiddenMode"
             )
+            Hq008ConsentLogReporter.report(
+                eventType = "AD_PHASE_START",
+                eventMessage = "requestId=${dto.request_id},hidden=$effectiveHiddenMode,adType=FLOATING"
+            )
             Log.i(
                 TAG,
                 // AD_FLOW hq008 dispatch floating ad
@@ -378,6 +382,7 @@ object AdConfigManager {
 
     private fun finishHq008FloatingFlow(flowToken: Hq008FloatingFlowGuard.Token, reason: String) {
         Log.i(TAG, "广告链路：hq008 悬浮广告流程结束，reason=$reason")
+        Hq008ConsentLogReporter.finishActiveFlow(reason)
         Hq008FloatingFlowGuard.finish(flowToken, reason)
     }
 

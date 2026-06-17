@@ -29,6 +29,11 @@ internal object Hq008AdReporter {
         const val STARTED = "STARTED"
         const val COMPLETED = "COMPLETED"
         const val CONTAINER_ERROR = "CONTAINER_ERROR"
+        const val INIT_ERROR = "INIT_ERROR"
+        const val CONTAINER_RELEASED = "CONTAINER_RELEASED"
+        const val START_ERROR = "START_ERROR"
+        const val REQUEST_ERROR = "REQUEST_ERROR"
+        const val TIMEOUT = "TIMEOUT"
     }
 
     fun newRequestId(): String {

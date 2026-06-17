@@ -24,13 +24,13 @@
 - `hq008`：欧美正式渠道
 - `hq008Noneu`：非欧美正式渠道
 - `hq008Noneuc2`：基于 noneu 派生的额外渠道
-- `hq008poly`：同样复用 noneu 家族行为的额外渠道
+- `tcl_poly`：同样复用 noneu 家族行为的额外渠道
 
 其中：
 
 - `app/build.gradle` 负责 `sourceSets`、`productFlavors`、签名、版本、BuildConfig 字段和正式包命名
 - `BuildFlavor.isHq008Noneu()` 与 `BuildFlavor.isHq008Family()` 决定运行时是否走 `hq008 noneu` / `hq008 family` 共享逻辑
-- 现有测试已经用 flavor contract test 锁定 `hq008Noneuc2` 与 `hq008poly` 的家族归属和关键配置
+- 现有测试已经用 flavor contract test 锁定 `hq008Noneuc2` 与 `tcl_poly` 的家族归属和关键配置
 
 ## Chosen Approach
 
@@ -39,7 +39,7 @@
 原因：
 
 - 不影响现有 `hq008Noneu` 渠道发包
-- 与 `hq008Noneuc2`、`hq008poly` 的扩展模式一致
+- 与 `hq008Noneuc2`、`tcl_poly` 的扩展模式一致
 - 改动集中、回归面小
 - 能确保新包继续走当前 `hq008 noneu` 的正式链路逻辑
 
@@ -83,7 +83,7 @@
 
 - 让新渠道继续走 `hq008 noneu` 分支
 - 复用现有 `hq008 family` 的浮窗广告、调度、隐藏模式和启动初始化逻辑
-- 保持与 `hq008Noneuc2`、`hq008poly` 的归类方式一致
+- 保持与 `hq008Noneuc2`、`tcl_poly` 的归类方式一致
 
 如果不加入该判断，新 flavor 虽然复用了 `src/hq008` 代码，但运行时会错过一部分 `hq008 noneu` / `hq008 family` 专用逻辑。
 
@@ -101,7 +101,7 @@
 
 ## Out of Scope
 
-- 不修改现有 `hq008Noneu`、`hq008Noneuc2`、`hq008poly` 的既有配置
+- 不修改现有 `hq008Noneu`、`hq008Noneuc2`、`tcl_poly` 的既有配置
 - 不调整 `hq008` 主链路代码行为
 - 不新增新的 SDK、接口域名、签名或资源目录
 - 不在本次设计中变更 `applicationId` 命名策略，除非实现阶段发现正式打包存在明确冲突

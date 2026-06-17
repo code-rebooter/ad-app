@@ -90,9 +90,9 @@ android {
             res.srcDirs = ['src/hq008/res']
         }
 
-        hq008poly {
-            java.srcDirs = ['src/hq008/java', 'src/hq008poly/java']
-            res.srcDirs = ['src/hq008/res', 'src/hq008poly/res']
+        tcl_poly {
+            java.srcDirs = ['src/hq008/java', 'src/tcl_poly/java']
+            res.srcDirs = ['src/hq008/res', 'src/tcl_poly/res']
         }
     }
 
@@ -302,8 +302,8 @@ android {
         hq008 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adffa",
-                    versionCode         : 15,
-                    versionName         : "1.0.14",
+                    versionCode         : 17,
+                    versionName         : "1.0.16",
                     signingConfig       : signingConfigs.tclDemoRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_FFA",
@@ -362,7 +362,7 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
-        hq008poly {
+        tcl_poly {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adpoly",
                     versionCode         : 1,
@@ -423,7 +423,7 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008Noneuc2")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008poly")) { variant ->
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "tcl_poly")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
 }
@@ -436,7 +436,7 @@ dependencies {
 
     //noinspection UseTomlInstead
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
-    implementation files('libs/lib_autorun-release-202604211956.aar')
+    implementation files('libs/lib_autorun-release-202606041646.aar')
 
     //noinspection UseTomlInstead
     hq001Implementation ('com.google.guava:guava:33.5.0-android')
@@ -498,7 +498,7 @@ dependencies {
                 'adsdk_overseas_media_ad-*.aar',
                 'adsdk_overseas_player-*.aar'
         ])
-        hq008polyImplementation fileTree(dir: tclDemoLibsDir, include: [
+        tcl_polyImplementation fileTree(dir: tclDemoLibsDir, include: [
                 'adsdk_overseas_base_business-*.aar',
                 'adsdk_overseas_cmp_sdk-*.aar',
                 'adsdk_overseas_media_ad-*.aar',
@@ -512,7 +512,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'com.google.guava:guava:31.1-android'
+    tcl_polyImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -520,7 +520,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'androidx.appcompat:appcompat:1.7.1'
+    tcl_polyImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
@@ -528,7 +528,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'androidx.leanback:leanback:1.0.0'
+    tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -536,7 +536,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    tcl_polyImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
@@ -544,7 +544,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    tcl_polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -552,7 +552,7 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
-    hq008polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    tcl_polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     hq008Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
@@ -566,11 +566,11 @@ dependencies {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
-    hq008polyImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
+    tcl_polyImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
-    hq008polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'
+    tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'
 
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'

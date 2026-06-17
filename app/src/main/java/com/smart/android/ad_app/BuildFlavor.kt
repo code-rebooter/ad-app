@@ -6,11 +6,11 @@ internal object BuildFlavor {
     }
 
     fun isHq008Noneu(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008Noneu" || flavor == "hq008Noneuc2" || isHq008Poly(flavor)
+        return flavor == "hq008Noneu" || flavor == "hq008Noneuc2" || isTclPoly(flavor)
     }
 
-    fun isHq008Poly(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008poly"
+    fun isTclPoly(flavor: String = BuildConfig.FLAVOR): Boolean {
+        return flavor == "tcl_poly"
     }
 
     fun isHq008Family(flavor: String = BuildConfig.FLAVOR): Boolean {

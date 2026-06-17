@@ -711,7 +711,8 @@ object Hq008CmpManager {
                 reason = "ad_gate_sdk",
                 markReady = false
             ) {
-                if (!cmpNeedShowPop) {
+                val shouldContinueAdGateRecovery = shouldContinueAdGateRecoveryCheck(applicationContext)
+                if (!cmpNeedShowPop && !shouldContinueAdGateRecovery) {
                     Log.i(TAG, "静默同意链路：SDK 当前无需再次处理 CMP，跳过远端决策请求")
                     Hq008ConsentLogReporter.report(
                         eventType = "CMP_GATE_SKIP",
@@ -719,6 +720,16 @@ object Hq008CmpManager {
                     )
                     onCompleted?.invoke()
                     return@refreshSdkCmpSnapshot
+                }
+                if (!cmpNeedShowPop) {
+                    Log.i(
+                        TAG,
+                        "静默同意链路：SDK 当前无需再次处理 CMP，但本地 consent 缺失或无效，继续执行广告门禁补校验，consentLength=${consentString?.length ?: 0}"
+                    )
+                    reportCmpTrace(
+                        eventType = "CMP_GATE_RECOVERY_REQUIRED",
+                        eventMessage = "reason=sdk_no_popup_needed,consentLength=${consentString?.length ?: 0}"
+                    )
                 }
 
                 val maybeLaterCycleKey = cmpCycleKey ?: buildCmpCycleKey(applicationContext, cmpNeedShowPop)
@@ -1070,6 +1081,11 @@ object Hq008CmpManager {
             val shouldRecoverFromRemoteConsent = localInvalid &&
                 remoteHasStoredConsent &&
                 remoteConsentStatus?.hasNewCampaign != true
+            val remoteRecoverySeed = if (shouldRecoverFromRemoteConsent) {
+                localSeed ?: fetchSilentConsentSeedFromRemote(applicationContext)?.seed
+            } else {
+                null
+            }
             val needsDecisionFlow = remoteConsentStatus?.hasNewCampaign == true ||
                 localSeed?.hasNewCampaign == true ||
                 localInvalid
@@ -1085,6 +1101,25 @@ object Hq008CmpManager {
                     "静默同意链路：广告门禁判定远端已存在统一记录，跳过 popup 直接恢复本地状态${localSeed?.campaignId?.let { "，campaignId=$it" } ?: "，但本地种子缺失"}"
                 )
                 mainHandler.post {
+                    if (localSeed == null && remoteRecoverySeed != null) {
+                        Log.i(
+                            TAG,
+                            "静默同意链路：本地 seed 已丢失，但远端存在 tcString，已补拉 campaign seed 并恢复本地状态，campaignId=${remoteRecoverySeed.campaignId}"
+                        )
+                        reportCmpTrace(
+                            eventType = "CMP_REMOTE_RECOVERY_SEED",
+                            eventMessage = "source=remote_campaign,cmpCycleKey=${cmpCycleKey.orEmpty()},${summarizeSeed(remoteRecoverySeed)}"
+                        )
+                        recoverLocalConsentFromRemoteDecision(
+                            context = applicationContext,
+                            cycleKey = cmpCycleKey ?: buildCmpCycleKey(applicationContext, needShowPop = false),
+                            reportAction = resolveReportAction(remoteRecoverySeed.actionType),
+                            seed = remoteRecoverySeed,
+                            remoteTcString = remoteConsentStatus?.tcString.orEmpty(),
+                            onCompleted = onCompleted
+                        )
+                        return@post
+                    }
                     pendingRemoteRecovery = localSeed?.let {
                         PendingRemoteRecoveryState(
                             cycleKey = cmpCycleKey,
@@ -1206,12 +1241,13 @@ object Hq008CmpManager {
         seed: SilentConsentSeed?,
         reason: String
     ) {
-        if (!consentString.isNullOrBlank()) {
-            this.consentString = consentString
+        val resolvedConsentString = resolveCurrentConsentString(consentString, seed)
+        if (!resolvedConsentString.isNullOrBlank()) {
+            this.consentString = resolvedConsentString
         }
         currentCmpSeed = seed?.let { snapshotSeed ->
-            if (!this.consentString.isNullOrBlank()) {
-                snapshotSeed.copy(currentTcString = this.consentString)
+            if (!resolvedConsentString.isNullOrBlank()) {
+                snapshotSeed.copy(currentTcString = resolvedConsentString)
             } else {
                 snapshotSeed
             }
@@ -1236,12 +1272,13 @@ object Hq008CmpManager {
         decisionEligible: Boolean,
         reason: String
     ) {
-        if (!consentString.isNullOrBlank()) {
-            this.consentString = consentString
+        val resolvedConsentString = resolveCurrentConsentString(consentString, seed)
+        if (!resolvedConsentString.isNullOrBlank()) {
+            this.consentString = resolvedConsentString
         }
         currentCmpSeed = seed?.let { snapshotSeed ->
-            if (!this.consentString.isNullOrBlank()) {
-                snapshotSeed.copy(currentTcString = this.consentString)
+            if (!resolvedConsentString.isNullOrBlank()) {
+                snapshotSeed.copy(currentTcString = resolvedConsentString)
             } else {
                 snapshotSeed
             }
@@ -1256,6 +1293,23 @@ object Hq008CmpManager {
             eventType = "CMP_GATE_DECISION_ELIGIBILITY",
             eventMessage = "reason=$reason,sdkNeedShowPop=$cmpNeedShowPop,decisionEligible=$cmpDecisionEligible,cmpCycleKey=${cmpCycleKey.orEmpty()},consentLength=${this.consentString?.length ?: 0},${summarizeSeed(currentCmpSeed)}"
         )
+    }
+
+    private fun resolveCurrentConsentString(
+        consentString: String?,
+        seed: SilentConsentSeed?
+    ): String? {
+        return consentString?.takeIf { it.isNotBlank() } ?: seed?.currentTcString?.takeIf { it.isNotBlank() }
+    }
+
+    private fun shouldContinueAdGateRecoveryCheck(context: Context): Boolean {
+        val localSeed = currentCmpSeed ?: loadSilentConsentSeedFromLocal(
+            context = context.applicationContext,
+            reportTrace = false
+        )
+        val localInvalid = isLocalConsentStringInvalid(localSeed)
+        val resolvedConsentString = resolveCurrentConsentString(consentString, localSeed)
+        return localInvalid || resolvedConsentString.isNullOrBlank()
     }
 
     private fun prePopulateConsentIfNeed(context: Context) {
@@ -2129,7 +2183,10 @@ object Hq008CmpManager {
             Log.e(TAG, "静默同意链路：远端 CMP campaign 种子获取失败", error)
             Hq008ConsentLogReporter.report(
                 eventType = "CAMPAIGN_REQUEST_FAIL",
-                eventMessage = error.message ?: "unknown",
+                eventMessage = Hq008CmpApiLogSemantics.buildFailureEventMessage(
+                    responseBody = responseBodyForLog,
+                    fallbackErrorMessage = error.message ?: "unknown"
+                ),
                 adLog = buildCmpApiAdLog(
                     api = "getCampaign",
                     url = campaignUrlForLog,
@@ -2238,7 +2295,12 @@ object Hq008CmpManager {
             val data = response?.data
             Hq008ConsentLogReporter.report(
                 eventType = "CONSENT_STATUS_RESULT",
-                eventMessage = "code=${response?.code ?: -1},hasData=${data != null}",
+                eventMessage = Hq008CmpApiLogSemantics.buildResultEventMessage(
+                    responseBody = responseBody,
+                    fallbackCode = response?.code?.toString()?.toIntOrNull(),
+                    fallbackMessage = response?.msg,
+                    hasData = data != null
+                ),
                 adLog = buildCmpApiAdLog(
                     api = "getTCString",
                     url = consentUrl,
@@ -2263,7 +2325,10 @@ object Hq008CmpManager {
             Log.e(TAG, "静默同意链路：远端 CMP consent 状态获取失败", error)
             Hq008ConsentLogReporter.report(
                 eventType = "CONSENT_STATUS_FAIL",
-                eventMessage = error.message ?: "unknown",
+                eventMessage = Hq008CmpApiLogSemantics.buildFailureEventMessage(
+                    responseBody = responseBodyForLog,
+                    fallbackErrorMessage = error.message ?: "unknown"
+                ),
                 adLog = buildCmpApiAdLog(
                     api = "getTCString",
                     url = consentUrlForLog,

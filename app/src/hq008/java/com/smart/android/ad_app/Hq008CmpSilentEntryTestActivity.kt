@@ -319,10 +319,14 @@ class Hq008CmpSilentEntryTestActivity : FragmentActivity() {
 
     private fun isTerminalFlowEvent(eventType: String): Boolean {
         return eventType == "CMP_GATE_STOP" ||
-            eventType == "AUTHORIZE_ALLOWED" ||
             eventType == "AUTHORIZE_DENIED" ||
             eventType == "AUTHORIZE_CALLBACK_FAIL" ||
-            eventType == "AUTHORIZE_CALLBACK_EMPTY"
+            eventType == "AUTHORIZE_CALLBACK_EMPTY" ||
+            eventType == "AD_PHASE_COMPLETED" ||
+            eventType == "AD_PHASE_ERROR" ||
+            eventType == "AD_PHASE_TIMEOUT" ||
+            eventType == "AD_PHASE_CANCELLED" ||
+            eventType == "FLOW_GUARD_FINISH"
     }
 
     private fun appendLog(message: String) {

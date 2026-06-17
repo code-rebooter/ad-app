@@ -13,7 +13,7 @@ class Hq008CmpAdGateContractTest {
         val cmpManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008CmpManager.kt")
 
         assertTrue("广告请求前应先进入 CMP 远端决策门禁", adConfigManagerSource.contains("applyRemoteCmpDecisionIfNeeded"))
-        assertTrue("CMP 决策完成后才应继续授权接口", adConfigManagerSource.contains("requestHq008Authorize()"))
+        assertTrue("CMP 决策完成后才应继续授权接口", adConfigManagerSource.contains("requestHq008Authorize(flowToken)"))
         assertTrue("CMP 管理器应暴露异步完成回调，供广告轮询复用", cmpManagerSource.contains("onCompleted: (() -> Unit)? = null"))
         assertTrue("广告门禁进入时应先刷新 SDK 当前 CMP 状态", cmpManagerSource.contains("refreshSdkCmpSnapshot("))
         assertTrue("广告门禁第一阶段应先刷新 SDK 当前 CMP 状态", cmpManagerSource.contains("reason = \"ad_gate_sdk\""))

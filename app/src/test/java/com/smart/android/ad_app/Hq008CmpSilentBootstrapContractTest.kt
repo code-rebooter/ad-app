@@ -18,7 +18,7 @@ class Hq008CmpSilentBootstrapContractTest {
         assertTrue("应优先尝试反射触发 SDK 原生 AcceptAll", source.contains("tryReflectiveAcceptAllIfPossible"))
         assertTrue("应反射使用 SDK 原生 CMPIntent.AcceptAll", source.contains("com.tcl.ff.component.oversea.b.a\$a"))
         assertTrue("应反射使用 SDK 原生 CMPViewModel", source.contains("com.tcl.ff.component.oversea.e.a"))
-        assertTrue("应实现静默 user/action 去重", source.contains("KEY_LAST_SILENT_USER_ACTION_HASH"))
+        assertTrue("应实现静默 user/action 去重", source.contains("buildSilentUserActionHash("))
         assertTrue("应使用 SDK 的 user action 请求模型", source.contains("CmpUserActionRequestParams"))
         assertTrue("应有独立的静默 user/action 上报方法", source.contains("uploadSilentUserActionIfNeeded"))
     }

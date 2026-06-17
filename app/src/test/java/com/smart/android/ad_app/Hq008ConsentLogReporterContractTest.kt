@@ -1,34 +1,35 @@
 package com.smart.android.ad_app
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
 
 class Hq008ConsentLogReporterContractTest {
 
     @Test
-    fun `hq008 consent log reporter should batch full cmp trace and upload once at terminal event`() {
+    fun `hq008 consent log reporter should batch a whole floating flow into one trace upload`() {
         val source = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentLogReporter.kt")
 
-        assertTrue("应缓存待上报的流程步骤", source.contains("private val pendingSteps = mutableListOf<TraceStep>()"))
-        assertTrue("非终态事件不应立即触发网络上报", source.contains("if (!isTerminalEvent(eventType))"))
-        assertTrue("终态事件应统一构建汇总 payload", source.contains("buildUploadPayloadLocked("))
-        assertTrue("上报内容应包含完整 steps 时间线", source.contains("\"steps\" to stepsForUpload.map"))
-        assertTrue("终态上报前应补充 CMP_FLOW_SUMMARY 汇总步骤", source.contains("private const val FLOW_SUMMARY_EVENT = \"CMP_FLOW_SUMMARY\""))
-        assertTrue("首次进入广告门禁前的 CMP 初始化步骤不应被提前清空", source.contains("pendingSteps.any { it.eventType == \"CMP_GATE_START\" }"))
-        assertTrue("广告门禁停止应作为单次上报终态", source.contains("eventType == \"CMP_GATE_STOP\""))
-        assertTrue("授权允许应作为单次上报终态", source.contains("eventType == \"AUTHORIZE_ALLOWED\""))
-        assertTrue("授权拒绝应作为单次上报终态", source.contains("eventType == \"AUTHORIZE_DENIED\""))
-        assertTrue("超长压缩时应优先保留 user/action 原始日志", source.contains("private val criticalAdLogEvents = setOf("))
-        assertTrue("超长压缩时应先退化为仅保留关键 adLog", source.contains("traceCompactedMode\", \"critical_ad_log_only\""))
-        assertTrue("超长压缩兜底时才应退化为纯 steps", source.contains("traceCompactedMode\", \"steps_only\""))
+        assertTrue("reporter 应托管单轮流程 trace 会话", source.contains("private val traceSession = Hq008ConsentTraceSession("))
+        assertTrue("总流程结束时应支持兜底收口未完成批次", source.contains("fun finishActiveFlow("))
+        assertTrue("流程守卫兜底结束应作为新的上报终态", source.contains("FLOW_GUARD_FINISH"))
+        assertTrue("非终态事件不应立即触发网络上报", source.contains("uploadPayload == null"))
+        assertTrue("终态上报内容应包含完整 steps 时间线", source.contains("\"steps\" to stepsForUpload.map"))
+        assertTrue("整轮 trace 应继续保留广告阶段单独汇总，方便排查卡点", source.contains("private fun buildAdFlowSummaryStep("))
+        assertTrue("flow-control 结果应能更新 popup log 开关", source.contains("fun updatePopupLogEnabled(enabled: Boolean)"))
+        assertTrue("终态发送前应检查 popup log 开关", source.contains("if (!payload.popupLogEnabled)"))
+        assertTrue("流程结束后应重置 popup log 开关，避免污染下一轮", source.contains("traceSession.resetPopupLogEnabled()"))
+        assertTrue("gdpr consent 注入日志应被视为关键 adLog 事件", source.contains("\"AD_GDPR_CONSENT_ATTACHED\""))
     }
 
     private fun readProjectFile(relativePath: String): String {
         val workingDir = File(System.getProperty("user.dir") ?: ".")
         val projectRoot = generateSequence(workingDir) { it.parentFile }
             .firstOrNull { File(it, relativePath).exists() }
-            ?: error("无法定位项目根目录: ${workingDir.absolutePath}")
+        if (projectRoot == null) {
+            fail("无法定位项目根目录: ${workingDir.absolutePath}")
+        }
         return File(projectRoot, relativePath).readText()
     }
 }

@@ -40,7 +40,7 @@ class APP:Application() {
     }
 
     private fun initializePolyGammaOriginIfNeeded() {
-        if (!BuildFlavor.isHq008Poly() || !isMainProcess()) {
+        if (!BuildFlavor.isTclPoly() || !isMainProcess()) {
             return
         }
 

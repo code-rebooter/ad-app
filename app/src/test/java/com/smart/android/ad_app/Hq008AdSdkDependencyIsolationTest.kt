@@ -14,8 +14,8 @@ class Hq008AdSdkDependencyIsolationTest {
         assertTrue(buildGradle.contains("hq008Implementation fileTree(dir: tclDemoLibsDir"))
         assertTrue(buildGradle.contains("hq008NoneuImplementation fileTree(dir: tclDemoLibsDir"))
         assertTrue(buildGradle.contains("hq008Noneuc2Implementation fileTree(dir: tclDemoLibsDir"))
-        assertTrue(buildGradle.contains("hq008polyImplementation fileTree(dir: tclDemoLibsDir"))
-        assertTrue(buildGradle.contains("hq008polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'"))
+        assertTrue(buildGradle.contains("tcl_polyImplementation fileTree(dir: tclDemoLibsDir"))
+        assertTrue(buildGradle.contains("tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'"))
 
         assertNoPublicDependency(buildGradle, "implementation\\s+fileTree\\(dir: tclDemoLibsDir")
         assertNoPublicDependency(buildGradle, "implementation\\s+'org\\.poly-gamma\\.android\\.origin:origin:")

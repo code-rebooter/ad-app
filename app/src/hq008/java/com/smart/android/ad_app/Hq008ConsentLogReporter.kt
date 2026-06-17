@@ -19,7 +19,10 @@ internal object Hq008ConsentLogReporter {
     private const val MAX_TRACE_STEPS = 80
     private const val MAX_TRACE_LOG_LENGTH = 24_000
     private const val FLOW_SUMMARY_EVENT = "CMP_FLOW_SUMMARY"
+    private const val AD_FLOW_SUMMARY_EVENT = "AD_FLOW_SUMMARY"
     private val criticalAdLogEvents = setOf(
+        "AD_GDPR_CONSENT_ATTACHED",
+        "AD_SDK_HTTP_CAPTURE",
         "USER_ACTION_START",
         "USER_ACTION_SUCCESS",
         "USER_ACTION_FAIL"
@@ -27,9 +30,10 @@ internal object Hq008ConsentLogReporter {
     private val consentLogUrl = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/consent-log-report"
     private val gson = Gson()
     private val lock = Any()
-    private val pendingSteps = mutableListOf<TraceStep>()
+    private val traceSession = Hq008ConsentTraceSession(
+        maxTraceSteps = MAX_TRACE_STEPS
+    )
     private val debugTraceListeners = linkedSetOf<DebugTraceListener>()
-    private var traceStartedElapsedMs: Long = 0L
 
     fun addDebugTraceListener(listener: DebugTraceListener) {
         synchronized(lock) {
@@ -43,6 +47,36 @@ internal object Hq008ConsentLogReporter {
         }
     }
 
+    fun updatePopupLogEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            traceSession.updatePopupLogEnabled(enabled)
+        }
+        Log.i(TAG, "consent-log-report 开关更新，popupLogEnabled=$enabled")
+    }
+
+    fun hasActiveFlow(): Boolean {
+        return synchronized(lock) {
+            traceSession.hasPendingSteps()
+        }
+    }
+
+    fun finishActiveFlow(reason: String) {
+        val uploadPayload = synchronized(lock) {
+            val payload = traceSession.forceFinish(
+                nowMs = SystemClock.elapsedRealtime(),
+                eventType = "FLOW_GUARD_FINISH",
+                rawEventMessage = "reason=$reason",
+                eventMessage = localizeEventMessage("FLOW_GUARD_FINISH", "reason=$reason"),
+                adLog = null
+            )?.let(::buildUploadPayload)
+            if (payload == null) {
+                traceSession.resetPopupLogEnabled()
+            }
+            payload
+        }
+        uploadPayload?.let { send(it) }
+    }
+
     fun report(
         eventType: String,
         eventMessage: String,
@@ -50,36 +84,15 @@ internal object Hq008ConsentLogReporter {
     ) {
         val rawMessage = eventMessage.take(MAX_MESSAGE_LENGTH)
         val localizedMessage = localizeEventMessage(eventType, rawMessage)
-        val (upload, listenersSnapshot) = synchronized(lock) {
-            if (shouldResetForNewFlow(eventType)) {
-                Log.w(TAG, "consent-log-report 丢弃未完成旧流程，newStart=$eventType")
-                resetLocked()
-            }
-
-            if (pendingSteps.isEmpty()) {
-                traceStartedElapsedMs = SystemClock.elapsedRealtime()
-            }
-
-            pendingSteps += TraceStep(
-                index = pendingSteps.size + 1,
-                elapsedMs = SystemClock.elapsedRealtime() - traceStartedElapsedMs,
+        val (uploadPayload, listenersSnapshot) = synchronized(lock) {
+            val uploadPayload = traceSession.record(
+                nowMs = SystemClock.elapsedRealtime(),
                 eventType = eventType,
                 rawEventMessage = rawMessage,
                 eventMessage = localizedMessage,
-                adLog = adLog?.takeIf { it.isNotBlank() }
-            )
-            trimStepsLocked()
-
-            val upload = if (!isTerminalEvent(eventType)) {
-                null
-            } else {
-                buildUploadPayloadLocked(
-                    finalEventType = eventType
-                ).also {
-                    resetLocked()
-                }
-            }
-            upload to debugTraceListeners.toList()
+                adLog = adLog
+            )?.let(::buildUploadPayload)
+            uploadPayload to debugTraceListeners.toList()
         }
 
         listenersSnapshot.forEach { listener ->
@@ -88,10 +101,20 @@ internal object Hq008ConsentLogReporter {
                     Log.w(TAG, "debug trace listener failed eventType=$eventType error=${error.message}")
                 }
         }
-        upload?.let { send(it) }
+        if (uploadPayload == null) {
+            return
+        }
+        send(uploadPayload)
     }
 
     private fun send(payload: ConsentLogUploadPayload) {
+        if (!payload.popupLogEnabled) {
+            Log.i(
+                TAG,
+                "consent-log-report 开关关闭，本轮不上报 finalEventType=${payload.eventType}"
+            )
+            return
+        }
         NetworkHelper.makeRequest<EmptyData>(
             url = consentLogUrl,
             method = RequestMethod.POST,
@@ -112,16 +135,18 @@ internal object Hq008ConsentLogReporter {
         }
     }
 
-    private fun buildUploadPayloadLocked(
-        finalEventType: String
+    private fun buildUploadPayload(
+        snapshot: Hq008ConsentTraceSession.TraceSnapshot
     ): ConsentLogUploadPayload {
-        val stepsForUpload = buildStepsForUploadLocked(finalEventType)
-        val summaryStep = stepsForUpload.lastOrNull { it.eventType == FLOW_SUMMARY_EVENT }
-        val finalStep = stepsForUpload.lastOrNull { it.eventType == finalEventType }
+        val stepsForUpload = buildStepsForUpload(snapshot)
+        val summaryStep = stepsForUpload.lastOrNull {
+            it.eventType == FLOW_SUMMARY_EVENT || it.eventType == AD_FLOW_SUMMARY_EVENT
+        }
+        val finalStep = stepsForUpload.lastOrNull { it.eventType == snapshot.finalEventType }
         val finalEventMessage = finalStep?.eventMessage.orEmpty()
         val summaryStepMessage = summaryStep?.eventMessage.orEmpty()
         val traceSummary = buildTraceSummary(
-            finalEventType = finalEventType,
+            finalEventType = snapshot.finalEventType,
             finalEventMessage = finalEventMessage,
             stepsForUpload = stepsForUpload
         )
@@ -129,7 +154,7 @@ internal object Hq008ConsentLogReporter {
         var adLogPayload = gson.toJson(traceSummary)
         if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
             val compactedTraceSummary = buildTraceSummary(
-                finalEventType = finalEventType,
+                finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
                 stepsForUpload = stepsForUpload,
                 includeAdLog = { step -> step.eventType in criticalAdLogEvents }
@@ -141,7 +166,7 @@ internal object Hq008ConsentLogReporter {
         }
         if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
             val compactedTraceSummary = buildTraceSummary(
-                finalEventType = finalEventType,
+                finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
                 stepsForUpload = stepsForUpload,
                 includeAdLog = { false }
@@ -154,7 +179,7 @@ internal object Hq008ConsentLogReporter {
 
         val summaryMessage = buildString {
             append("终态=")
-            append(describeTerminalEvent(finalEventType))
+            append(describeTerminalEvent(snapshot.finalEventType))
             append("，步骤数=")
             append(stepsForUpload.size)
             val conclusion = summaryStepMessage.ifBlank { finalEventMessage }
@@ -165,9 +190,10 @@ internal object Hq008ConsentLogReporter {
         }.take(MAX_MESSAGE_LENGTH)
 
         return ConsentLogUploadPayload(
-            eventType = finalEventType,
+            eventType = snapshot.finalEventType,
             eventMessage = summaryMessage,
-            adLog = adLogPayload
+            adLog = adLogPayload,
+            popupLogEnabled = snapshot.popupLogEnabled
         )
     }
 
@@ -197,31 +223,148 @@ internal object Hq008ConsentLogReporter {
         )
     }
 
-    private fun buildStepsForUploadLocked(finalEventType: String): List<TraceStep> {
-        if (pendingSteps.isEmpty()) {
+    private fun buildStepsForUpload(
+        snapshot: Hq008ConsentTraceSession.TraceSnapshot
+    ): List<TraceStep> {
+        if (snapshot.steps.isEmpty()) {
             return emptyList()
         }
-        val summaryStep = buildFlowSummaryStepLocked(finalEventType)
-        return if (summaryStep != null) {
-            pendingSteps + summaryStep
+        val steps = snapshot.steps.map {
+            TraceStep(
+                index = it.index,
+                elapsedMs = it.elapsedMs,
+                eventType = it.eventType,
+                rawEventMessage = it.rawEventMessage,
+                eventMessage = it.eventMessage,
+                adLog = it.adLog
+            )
+        }
+        val summaryStep = if (isAdPhaseFlow(steps)) {
+            buildAdFlowSummaryStep(steps, snapshot.finalEventType)
         } else {
-            pendingSteps.toList()
+            buildFlowSummaryStep(steps, snapshot.finalEventType)
+        }
+        return if (summaryStep != null) {
+            steps + summaryStep
+        } else {
+            steps
         }
     }
 
-    private fun buildFlowSummaryStepLocked(finalEventType: String): TraceStep? {
-        if (pendingSteps.isEmpty()) {
+    private fun isAdPhaseFlow(steps: List<TraceStep>): Boolean {
+        return steps.any { step ->
+            step.eventType == "AD_PHASE_START" ||
+                step.eventType == "AD_REQUESTED" ||
+                step.eventType == "AD_LOADED" ||
+                step.eventType == "AD_STARTED" ||
+                step.eventType == "AD_PHASE_COMPLETED" ||
+                step.eventType == "AD_PHASE_ERROR" ||
+                step.eventType == "AD_PHASE_TIMEOUT" ||
+                step.eventType == "AD_PHASE_CANCELLED" ||
+                step.eventType == "FLOW_GUARD_FINISH"
+        }
+    }
+
+    private fun buildAdFlowSummaryStep(
+        steps: List<TraceStep>,
+        finalEventType: String
+    ): TraceStep? {
+        if (steps.isEmpty()) {
             return null
         }
-        val popupNeedShow = findLastValue("CMP_SNAPSHOT_LOAD_RESULT", "needShowPop")
-        val decisionEligible = findLastValue("CMP_GATE_DECISION_ELIGIBILITY", "decisionEligible")
-            ?: findLastValue("CMP_GATE_EVALUATED", "decisionEligible")
-        val gateSkipReason = findLastValue("CMP_GATE_SKIP", "reason")
-        val triggerReasons = buildTriggerReasons()
+        val requestId = findLastValue(steps, "AD_PHASE_START", "requestId")
+            ?: findLastValue(steps, "AD_REQUESTED", "requestId")
+        val hidden = findLastValue(steps, "AD_PHASE_START", "hidden")
+            ?: findLastValue(steps, "AD_REQUESTED", "hidden")
+        val stage = findLastValue(steps, "AD_PHASE_ERROR", "stage")
+            ?: findLastValue(steps, "AD_PHASE_TIMEOUT", "stage")
+            ?: findLastValue(steps, "AD_PHASE_CANCELLED", "stage")
+        val errorCode = findLastValue(steps, "AD_PHASE_ERROR", "errorCode")
+        val reason = findLastValue(steps, "AD_PHASE_ERROR", "reason")
+            ?: findLastValue(steps, "AD_PHASE_TIMEOUT", "reason")
+            ?: findLastValue(steps, "AD_PHASE_CANCELLED", "reason")
+            ?: findLastValue(steps, "FLOW_GUARD_FINISH", "reason")
+        val error = findLastValue(steps, "AD_PHASE_ERROR", "error")
+
+        val requestedSummary = if (hasEvent(steps, "AD_REQUESTED")) "播放请求=已发起" else "播放请求=未发起"
+        val loadedSummary = if (hasEvent(steps, "AD_LOADED")) "素材加载=已完成" else "素材加载=未完成"
+        val startedSummary = if (hasEvent(steps, "AD_STARTED")) "开始播放=已回调" else "开始播放=未回调"
+        val hiddenSummary = hidden?.let { "隐藏模式=${translateBooleanToken(it)}" }
+        val requestSummary = requestId?.let { "请求ID=$it" }
+        val stageSummary = stage?.let { "阶段=${translateStageToken(it)}" }
+        val reasonSummary = reason?.let { "原因=${translateReasonToken(it)}" }
+        val rawErrorDetails = buildList {
+            errorCode
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?.let { add("错误码=$it") }
+            error
+                ?.takeIf {
+                    it.isNotBlank() &&
+                        !it.equals("unknown", ignoreCase = true) &&
+                        !it.equals("unknown error", ignoreCase = true)
+                }
+                ?.let { add("错误=${normalizeErrorToken(it)}") }
+        }
+        val terminalSummary = buildString {
+            append("终态=")
+            append(describeTerminalEvent(finalEventType))
+            if (!stageSummary.isNullOrBlank()) {
+                append("（")
+                append(stageSummary)
+                if (rawErrorDetails.isNotEmpty()) {
+                    append("，")
+                    append(rawErrorDetails.joinToString("，"))
+                } else if (!reasonSummary.isNullOrBlank()) {
+                    append("，")
+                    append(reasonSummary)
+                }
+                append("）")
+            } else if (rawErrorDetails.isNotEmpty()) {
+                append("（")
+                append(rawErrorDetails.joinToString("，"))
+                append("）")
+            } else if (!reasonSummary.isNullOrBlank()) {
+                append("（")
+                append(reasonSummary)
+                append("）")
+            }
+        }
+        val summaryMessage = listOfNotNull(
+            "广告阶段=已进入",
+            requestSummary,
+            hiddenSummary,
+            requestedSummary,
+            loadedSummary,
+            startedSummary,
+            terminalSummary
+        ).joinToString("，").take(MAX_MESSAGE_LENGTH)
+        val lastElapsed = steps.lastOrNull()?.elapsedMs ?: 0L
+        return TraceStep(
+            index = steps.size + 1,
+            elapsedMs = lastElapsed,
+            eventType = AD_FLOW_SUMMARY_EVENT,
+            rawEventMessage = summaryMessage,
+            eventMessage = summaryMessage,
+            adLog = null
+        )
+    }
+
+    private fun buildFlowSummaryStep(
+        steps: List<TraceStep>,
+        finalEventType: String
+    ): TraceStep? {
+        if (steps.isEmpty()) {
+            return null
+        }
+        val popupNeedShow = findLastValue(steps, "CMP_SNAPSHOT_LOAD_RESULT", "needShowPop")
+        val decisionEligible = findLastValue(steps, "CMP_GATE_DECISION_ELIGIBILITY", "decisionEligible")
+            ?: findLastValue(steps, "CMP_GATE_EVALUATED", "decisionEligible")
+        val gateSkipReason = findLastValue(steps, "CMP_GATE_SKIP", "reason")
+        val triggerReasons = buildTriggerReasons(steps)
         val popupSummary = when {
-            hasEvent("POPUP_CALLBACK_FAIL") -> "popup请求=请求失败"
-            hasEvent("POPUP_REQUEST_SUCCESS") -> "popup请求=已请求并返回动作"
-            hasEvent("POPUP_REQUEST_START") -> "popup请求=已请求，等待返回"
+            hasEvent(steps, "POPUP_CALLBACK_FAIL") -> "popup请求=请求失败"
+            hasEvent(steps, "POPUP_REQUEST_SUCCESS") -> "popup请求=已请求并返回动作"
+            hasEvent(steps, "POPUP_REQUEST_START") -> "popup请求=已请求，等待返回"
             gateSkipReason != null || popupNeedShow == "false" -> "popup请求=未触发"
             else -> "popup请求=未触发"
         }
@@ -236,11 +379,11 @@ internal object Hq008ConsentLogReporter {
             "false" -> "SDK判定=无需CMP弹窗"
             else -> "SDK判定=未知"
         }
-        val decisionAction = resolveDecisionActionSummary()
-        val actionExecution = resolveActionExecutionSummary()
-        val userActionSummary = resolveUserActionSummary()
-        val consentReportSummary = resolveConsentReportSummary()
-        val authorizeSummary = "授权结果=${describeTerminalEvent(finalEventType)}"
+        val decisionAction = resolveDecisionActionSummary(steps)
+        val actionExecution = resolveActionExecutionSummary(steps)
+        val userActionSummary = resolveUserActionSummary(steps)
+        val consentReportSummary = resolveConsentReportSummary(steps)
+        val authorizeSummary = buildFlowTerminalSummary(steps, finalEventType)
         val summaryMessage = listOfNotNull(
             popupNeedSummary,
             gateSummary,
@@ -252,9 +395,9 @@ internal object Hq008ConsentLogReporter {
             consentReportSummary,
             authorizeSummary
         ).joinToString("，").take(MAX_MESSAGE_LENGTH)
-        val lastElapsed = pendingSteps.lastOrNull()?.elapsedMs ?: 0L
+        val lastElapsed = steps.lastOrNull()?.elapsedMs ?: 0L
         return TraceStep(
-            index = pendingSteps.size + 1,
+            index = steps.size + 1,
             elapsedMs = lastElapsed,
             eventType = FLOW_SUMMARY_EVENT,
             rawEventMessage = summaryMessage,
@@ -263,18 +406,45 @@ internal object Hq008ConsentLogReporter {
         )
     }
 
-    private fun buildTriggerReasons(): String? {
+    private fun buildFlowTerminalSummary(
+        steps: List<TraceStep>,
+        finalEventType: String
+    ): String {
+        val terminalLabel = describeTerminalEvent(finalEventType)
+        val finalStep = steps.lastOrNull { it.eventType == finalEventType }
+        val detail = when (finalEventType) {
+            "CMP_GATE_STOP",
+            "AUTHORIZE_CALLBACK_FAIL",
+            "AUTHORIZE_CALLBACK_EMPTY" -> finalStep?.rawEventMessage
+                ?.takeIf { it.isNotBlank() }
+                ?.let { raw ->
+                    if (raw.contains("=")) {
+                        localizeEventMessage(finalEventType, raw)
+                    } else {
+                        localizeFreeText(finalEventType, raw)
+                    }
+                }
+            else -> null
+        }
+        return if (detail.isNullOrBlank()) {
+            "授权结果=$terminalLabel"
+        } else {
+            "授权结果=$terminalLabel（$detail）"
+        }
+    }
+
+    private fun buildTriggerReasons(steps: List<TraceStep>): String? {
         val reasons = mutableListOf<String>()
-        if (findLastValue("CMP_GATE_EVALUATED", "localInvalid") == "true") {
+        if (findLastValue(steps, "CMP_GATE_EVALUATED", "localInvalid") == "true") {
             reasons += "本地同意状态无效"
         }
-        if (findLastValue("CMP_GATE_EVALUATED", "remoteHasNewCampaign") == "true") {
+        if (findLastValue(steps, "CMP_GATE_EVALUATED", "remoteHasNewCampaign") == "true") {
             reasons += "远端有新活动"
         }
-        if (findLastValue("CMP_GATE_EVALUATED", "remoteRecoveryEligible") == "true") {
+        if (findLastValue(steps, "CMP_GATE_EVALUATED", "remoteRecoveryEligible") == "true") {
             reasons += "可直接恢复远端同意状态"
         }
-        if (findLastValue("CMP_GATE_EVALUATED", "missingRequiredSeed") == "true") {
+        if (findLastValue(steps, "CMP_GATE_EVALUATED", "missingRequiredSeed") == "true") {
             reasons += "缺少活动种子"
         }
         return reasons.takeIf { it.isNotEmpty() }
@@ -282,10 +452,10 @@ internal object Hq008ConsentLogReporter {
             ?.let { "触发原因=$it" }
     }
 
-    private fun resolveDecisionActionSummary(): String {
-        val action = findLastValue("CMP_DECISION_START", "action")
-            ?: findLastPopupAction()
-            ?: findLastValue("CMP_DECISION_SKIPPED", "action")
+    private fun resolveDecisionActionSummary(steps: List<TraceStep>): String {
+        val action = findLastValue(steps, "CMP_DECISION_START", "action")
+            ?: findLastPopupAction(steps)
+            ?: findLastValue(steps, "CMP_DECISION_SKIPPED", "action")
         return if (action.isNullOrBlank()) {
             "远端动作=未下发"
         } else {
@@ -293,53 +463,53 @@ internal object Hq008ConsentLogReporter {
         }
     }
 
-    private fun findLastPopupAction(): String? {
-        return pendingSteps.asReversed()
+    private fun findLastPopupAction(steps: List<TraceStep>): String? {
+        return steps.asReversed()
             .firstOrNull { step -> step.eventType.startsWith("POPUP_ACTION_") }
             ?.eventType
             ?.removePrefix("POPUP_ACTION_")
     }
 
-    private fun resolveActionExecutionSummary(): String {
-        if (hasEvent("CMP_DECISION_FALLBACK")) {
+    private fun resolveActionExecutionSummary(steps: List<TraceStep>): String {
+        if (hasEvent(steps, "CMP_DECISION_FALLBACK")) {
             return "动作执行=回退稍后再说"
         }
-        findLastValue("SDK_ACTION_PATH", "path")?.let { path ->
+        findLastValue(steps, "SDK_ACTION_PATH", "path")?.let { path ->
             return "动作执行=${translatePathToken(path)}"
         }
-        findLastValue("CMP_MAYBE_LATER_PATH", "path")?.let { path ->
+        findLastValue(steps, "CMP_MAYBE_LATER_PATH", "path")?.let { path ->
             return "动作执行=${translatePathToken(path)}"
         }
-        if (hasEvent("CMP_REMOTE_RECOVERY")) {
+        if (hasEvent(steps, "CMP_REMOTE_RECOVERY")) {
             return "动作执行=恢复远端已有同意状态"
         }
-        if (hasEvent("CMP_DECISION_BUILD_FAIL")) {
+        if (hasEvent(steps, "CMP_DECISION_BUILD_FAIL")) {
             return "动作执行=构建动作种子失败"
         }
-        if (hasEvent("CMP_SEED_MISSING")) {
+        if (hasEvent(steps, "CMP_SEED_MISSING")) {
             return "动作执行=缺少活动种子，无法执行"
         }
-        if (hasEvent("CMP_DECISION_SKIPPED")) {
+        if (hasEvent(steps, "CMP_DECISION_SKIPPED")) {
             return "动作执行=已跳过"
         }
         return "动作执行=未触发"
     }
 
-    private fun resolveUserActionSummary(): String {
+    private fun resolveUserActionSummary(steps: List<TraceStep>): String {
         return when {
-            hasEvent("USER_ACTION_SUCCESS") -> "user/action=成功"
-            hasEvent("USER_ACTION_FAIL") -> "user/action=失败"
-            hasEvent("USER_ACTION_START") -> "user/action=已发起"
-            hasEvent("PENDING_USER_ACTION_FOUND") || hasEvent("PENDING_SDK_SYNC_STORED") -> "user/action=待补发"
+            hasEvent(steps, "USER_ACTION_SUCCESS") -> "user/action=成功"
+            hasEvent(steps, "USER_ACTION_FAIL") -> "user/action=失败"
+            hasEvent(steps, "USER_ACTION_START") -> "user/action=已发起"
+            hasEvent(steps, "PENDING_USER_ACTION_FOUND") || hasEvent(steps, "PENDING_SDK_SYNC_STORED") -> "user/action=待补发"
             else -> "user/action=未触发"
         }
     }
 
-    private fun resolveConsentReportSummary(): String {
+    private fun resolveConsentReportSummary(steps: List<TraceStep>): String {
         return when {
-            hasEvent("CONSENT_REPORT_SUCCESS") -> "consent-report=成功"
-            hasEvent("CONSENT_REPORT_FAIL") -> "consent-report=失败"
-            hasEvent("CONSENT_REPORT_ENQUEUED") -> "consent-report=已入队待补发"
+            hasEvent(steps, "CONSENT_REPORT_SUCCESS") -> "consent-report=成功"
+            hasEvent(steps, "CONSENT_REPORT_FAIL") -> "consent-report=失败"
+            hasEvent(steps, "CONSENT_REPORT_ENQUEUED") -> "consent-report=已入队待补发"
             else -> "consent-report=未触发"
         }
     }
@@ -357,45 +527,12 @@ internal object Hq008ConsentLogReporter {
             ?: raw
     }
 
-    private fun trimStepsLocked() {
-        if (pendingSteps.size <= MAX_TRACE_STEPS) {
-            return
-        }
-        val first = pendingSteps.first()
-        val tail = pendingSteps.takeLast(MAX_TRACE_STEPS - 1)
-        pendingSteps.clear()
-        pendingSteps += first.copy(
-            rawEventMessage = "${first.rawEventMessage} [已裁剪]",
-            eventMessage = "${first.eventMessage} [已裁剪]"
-        )
-        pendingSteps += tail.mapIndexed { index, step -> step.copy(index = index + 2) }
+    private fun hasEvent(steps: List<TraceStep>, eventType: String): Boolean {
+        return steps.any { it.eventType == eventType }
     }
 
-    private fun shouldResetForNewFlow(eventType: String): Boolean {
-        return pendingSteps.isNotEmpty() &&
-            eventType == "CMP_GATE_START" &&
-            pendingSteps.any { it.eventType == "CMP_GATE_START" }
-    }
-
-    private fun isTerminalEvent(eventType: String): Boolean {
-        return eventType == "CMP_GATE_STOP" ||
-            eventType == "AUTHORIZE_ALLOWED" ||
-            eventType == "AUTHORIZE_DENIED" ||
-            eventType == "AUTHORIZE_CALLBACK_FAIL" ||
-            eventType == "AUTHORIZE_CALLBACK_EMPTY"
-    }
-
-    private fun resetLocked() {
-        pendingSteps.clear()
-        traceStartedElapsedMs = 0L
-    }
-
-    private fun hasEvent(eventType: String): Boolean {
-        return pendingSteps.any { it.eventType == eventType }
-    }
-
-    private fun findLastValue(eventType: String, key: String): String? {
-        return pendingSteps.asReversed()
+    private fun findLastValue(steps: List<TraceStep>, eventType: String, key: String): String? {
+        return steps.asReversed()
             .firstOrNull { it.eventType == eventType }
             ?.rawEventMessage
             ?.let { extractValue(it, key) }
@@ -447,17 +584,53 @@ internal object Hq008ConsentLogReporter {
         if (segments.isEmpty()) {
             return localizeFreeText(eventType, rawEventMessage)
         }
-        val localized = segments.map { segment ->
+        val suppressGenericExecutionReason = shouldSuppressGenericExecutionReason(segments)
+        val localized = segments.mapNotNull { segment ->
             val index = segment.indexOf('=')
             if (index <= 0) {
                 localizeFreeText(eventType, segment)
             } else {
                 val key = segment.substring(0, index).trim()
                 val value = segment.substring(index + 1).trim()
-                "${translateKey(key)}=${translateValue(key, value)}"
+                if (suppressGenericExecutionReason && key == "reason" && value == "execution_error") {
+                    null
+                } else {
+                    "${translateKey(key)}=${translateValue(key, value)}"
+                }
             }
         }.joinToString("，")
         return localized.take(MAX_MESSAGE_LENGTH)
+    }
+
+    private fun shouldSuppressGenericExecutionReason(segments: List<String>): Boolean {
+        val reason = extractValueFromSegments(segments, "reason")
+        if (reason != "execution_error") {
+            return false
+        }
+        val errorCode = extractValueFromSegments(segments, "errorCode")
+        if (!errorCode.isNullOrBlank() && !errorCode.equals("none", ignoreCase = true)) {
+            return true
+        }
+        val error = extractValueFromSegments(segments, "error")
+        return !error.isNullOrBlank() &&
+            !error.equals("unknown", ignoreCase = true) &&
+            !error.equals("unknown error", ignoreCase = true)
+    }
+
+    private fun extractValueFromSegments(segments: List<String>, key: String): String? {
+        return segments.firstNotNullOfOrNull { segment ->
+            val index = segment.indexOf('=')
+            if (index <= 0) {
+                null
+            } else {
+                val currentKey = segment.substring(0, index).trim()
+                if (currentKey == key) {
+                    segment.substring(index + 1).trim()
+                } else {
+                    null
+                }
+            }
+        }
     }
 
     private fun translateKey(key: String): String {
@@ -490,6 +663,7 @@ internal object Hq008ConsentLogReporter {
             "campaignVersion" -> "活动版本"
             "vendorListVersion" -> "供应商列表版本"
             "code" -> "返回码"
+            "message" -> "返回信息"
             "hasData" -> "有返回数据"
             "uploadHash" -> "上传哈希"
             "path" -> "执行路径"
@@ -498,12 +672,17 @@ internal object Hq008ConsentLogReporter {
             "adType" -> "广告类型"
             "hidden" -> "隐藏模式"
             "requestId" -> "请求ID"
+            "consentPreview" -> "同意串预览"
+            "consentSuffix" -> "同意串尾段"
             "authorized" -> "授权结果"
             "enabled" -> "总开关开启"
             "forcePopup" -> "强制弹窗"
+            "popupLogEnabled" -> "日志上报开启"
             "cycleKey" -> "轮次"
             "actionType" -> "动作类型"
             "error" -> "错误"
+            "errorCode" -> "错误码"
+            "stage" -> "阶段"
             "channelId" -> "渠道ID"
             "payload" -> "载荷"
             "payloadPresent" -> "带载荷"
@@ -539,6 +718,7 @@ internal object Hq008ConsentLogReporter {
             "missingRequiredSeed",
             "authorized",
             "enabled",
+            "popupLogEnabled",
             "payloadPresent",
             "payload",
             "hasData",
@@ -553,6 +733,7 @@ internal object Hq008ConsentLogReporter {
             "fallback" -> translateActionToken(value)
             "reason" -> translateReasonToken(value)
             "path" -> translatePathToken(value)
+            "stage" -> translateStageToken(value)
             "storage" -> translateStorageToken(value)
             "source" -> translateSourceToken(value)
             "error" -> normalizeErrorToken(value)
@@ -615,9 +796,34 @@ internal object Hq008ConsentLogReporter {
             value == "payload_missing" -> "缺少必要载荷"
             value == "execution_error" -> "执行动作异常"
             value == "frequency_control" -> "命中投放频控"
+            value == "sdk_init_failed" -> "广告 SDK 初始化失败"
+            value == "container_released" -> "广告容器已释放"
+            value == "controller_start_failed" -> "调用 controller.start 失败"
+            value == "ad_request_failed" -> "广告请求抛出异常"
+            value == "callback_timeout" -> "等待广告回调超时"
+            value == "window_hidden" -> "窗口提前隐藏"
+            value == "floating_ad_finished" -> "悬浮广告流程完成"
+            value == "authorize_denied" -> "授权拒绝后结束"
+            value == "authorize_fail" -> "授权失败后结束"
+            value == "authorize_empty" -> "授权返回为空后结束"
             value.startsWith("campaign_") -> "活动侧${translateReasonToken(value.removePrefix("campaign_"))}"
             value.startsWith("request_error:") -> "请求失败:${normalizeErrorToken(value.removePrefix("request_error:"))}"
             value.startsWith("unknown_action:") -> "未知动作:${translateActionToken(value.removePrefix("unknown_action:"))}"
+            else -> translateGenericToken(value)
+        }
+    }
+
+    private fun translateStageToken(value: String): String {
+        return when (value) {
+            "sdk_init" -> "SDK 初始化"
+            "container_prepare" -> "容器准备"
+            "container_post" -> "容器投递"
+            "controller_start" -> "开始播放"
+            "ad_request" -> "广告请求"
+            "sdk_callback" -> "SDK 回调"
+            "container_size" -> "容器尺寸"
+            "callback_timeout" -> "回调等待"
+            "window_destroy" -> "窗口销毁"
             else -> translateGenericToken(value)
         }
     }
@@ -692,6 +898,12 @@ internal object Hq008ConsentLogReporter {
             "AUTHORIZE_DENIED" -> "授权拒绝"
             "AUTHORIZE_CALLBACK_FAIL" -> "授权回调失败"
             "AUTHORIZE_CALLBACK_EMPTY" -> "授权回调为空"
+            "AD_PHASE_COMPLETED" -> "广告播放完成"
+            "AD_PHASE_ERROR" -> "广告播放失败"
+            "AD_PHASE_TIMEOUT" -> "广告播放超时"
+            "AD_PHASE_CANCELLED" -> "广告流程提前结束"
+            "FLOATING_FLOW_SKIPPED" -> "广告流程已跳过"
+            "FLOW_GUARD_FINISH" -> "广告流程守卫收口"
             else -> eventType
         }
     }
@@ -717,6 +929,7 @@ internal object Hq008ConsentLogReporter {
     private data class ConsentLogUploadPayload(
         val eventType: String,
         val eventMessage: String,
-        val adLog: String
+        val adLog: String,
+        val popupLogEnabled: Boolean
     )
 }

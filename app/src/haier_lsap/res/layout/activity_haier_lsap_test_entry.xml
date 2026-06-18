@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#101316">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haier LSAP Test"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/summary_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#18202A"
+            android:padding="12dp"
+            android:textColor="#D8E1EA"
+            android:textIsSelectable="true"
+            android:textSize="14sp"
+            android:typeface="monospace" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/init_button"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/haier_lsap_debug_init_button_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:nextFocusRight="@id/attach_button"
+                android:text="Init"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/attach_button"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:background="@drawable/haier_lsap_debug_attach_button_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:nextFocusLeft="@id/init_button"
+                android:nextFocusRight="@id/detach_button"
+                android:text="Attach"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/detach_button"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:background="@drawable/haier_lsap_debug_detach_button_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:nextFocusLeft="@id/attach_button"
+                android:text="Detach"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/ad_container"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginTop="16dp"
+            android:background="#0E141B" />
+
+        <TextView
+            android:id="@+id/log_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#0E141B"
+            android:padding="12dp"
+            android:textColor="#B9D5C2"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:typeface="monospace" />
+    </LinearLayout>
+</ScrollView>

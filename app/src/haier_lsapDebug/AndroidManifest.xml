@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name=".haier.HaierLsapDebugEntryActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity-alias
+            android:name=".HaierLsapTestLauncherActivity"
+            android:banner="@drawable/haier_lsap_tv_banner"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Haier LSAP Test"
+            android:targetActivity=".haier.HaierLsapDebugEntryActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+
+</manifest>

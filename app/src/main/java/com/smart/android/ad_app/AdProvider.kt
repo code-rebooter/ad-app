@@ -16,6 +16,8 @@ import com.speed.log.printLog
 class AdProvider : ContentProvider() {
     private companion object {
         private const val TAG = "AdProvider"
+        private const val HQ008_CMP_DEBUG_ACTIVITY_CLASS =
+            "com.smart.android.ad_app.Hq008CmpDebugActivity"
     }
 
     override fun onCreate(): Boolean {
@@ -92,11 +94,7 @@ class AdProvider : ContentProvider() {
         if (isDebugShowCmp) {
             Log.i(TAG, "调试链路：命中 showCmp 触发，callerUid=$callerUid，准备拉起 CMP 调试页面")
             Handler(Looper.getMainLooper()).post {
-                context?.startActivity(
-                    Intent(context, Hq008CmpDebugActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
+                startActivityIfExists(HQ008_CMP_DEBUG_ACTIVITY_CLASS)
             }
             return MatrixCursor(arrayOf("triggered")).apply {
                 addRow(arrayOf<Any>(1))
@@ -117,6 +115,21 @@ class AdProvider : ContentProvider() {
             }
         }
         return MatrixCursor(arrayOf("result"))
+    }
+
+    private fun startActivityIfExists(className: String) {
+        val appContext = context ?: return
+        runCatching {
+            Class.forName(className).asSubclass(android.app.Activity::class.java)
+        }.onSuccess { activityClass ->
+            appContext.startActivity(
+                Intent(appContext, activityClass).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        }.onFailure { error ->
+            Log.w(TAG, "调试链路：目标调试页面不存在，className=$className，error=${error.message}")
+        }
     }
 
     override fun getType(uri: Uri): String? = null

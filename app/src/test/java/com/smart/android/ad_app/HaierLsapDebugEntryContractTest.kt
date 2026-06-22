@@ -14,16 +14,32 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(buildGradle.contains("haier_lsap {"))
         assertTrue(buildGradle.contains("java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']"))
         assertTrue(buildGradle.contains("res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']"))
-        assertTrue(buildGradle.contains("haier_lsapImplementation files('libs/haier_lsap/lsapsdk-release_v1.1.8.jar')"))
+        assertTrue(buildGradle.contains("kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'"))
+        assertTrue(buildGradle.contains("kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'"))
+        assertTrue(buildGradle.contains("kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'"))
+        assertTrue(buildGradle.contains("compileHaier_lsapDebugKotlin"))
+        assertTrue(buildGradle.contains("haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)"))
+        assertTrue(buildGradle.contains("haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar')"))
+        assertTrue(!buildGradle.contains("lsapsdk-release_v1.1.8.jar"))
+        assertTrue(!buildGradle.contains("haier_lsapImplementation fileTree(dir: tclDemoLibsDir"))
+        assertTrue(!buildGradle.contains("haier_lsapImplementation('com.thoughtworks.xstream:xstream"))
+        assertTrue(buildGradle.contains("haierLsapRelease {"))
+        assertTrue(buildGradle.contains("signingConfig       : signingConfigs.haierLsapRelease"))
+        assertTrue(buildGradle.contains("variant.signingConfig.setConfig(android.signingConfigs.getByName(\"haierLsapRelease\"))"))
         assertTrue(buildGradle.contains("channel             : \"HAIER_LSAP\"") || buildGradle.contains("channel               : \"HAIER_LSAP\""))
         assertTrue(buildGradle.contains("cType               : \"HAIER_LSAP\"") || buildGradle.contains("cType                 : \"HAIER_LSAP\""))
         assertTrue(buildGradle.contains("model               : \"HAIER_LSAP\"") || buildGradle.contains("model                 : \"HAIER_LSAP\""))
+        val projectRoot = findProjectRoot("app/build.gradle")
+        assertTrue(File(projectRoot, "app/signing_files/haier_lsap_release.jks").exists())
+        assertTrue(File(projectRoot, "app/libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar").exists())
+        assertTrue(!File(projectRoot, "app/libs/haier_lsap/lsapsdk-release_v1.1.8.jar").exists())
     }
 
     @Test
     fun `haier_lsap debug manifest should expose launcher test activity`() {
         val flavorManifest = readProjectFile("app/src/haier_lsap/AndroidManifest.xml")
         val debugManifest = readProjectFile("app/src/haier_lsapDebug/AndroidManifest.xml")
+        val projectRoot = findProjectRoot("app/build.gradle")
 
         assertTrue(flavorManifest.contains("android.software.leanback"))
         assertTrue(flavorManifest.contains("android:banner=\"@drawable/haier_lsap_tv_banner\""))
@@ -31,12 +47,20 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(debugManifest.contains("Haier LSAP Test"))
         assertTrue(debugManifest.contains("android.intent.category.LAUNCHER"))
         assertTrue(debugManifest.contains("android.intent.category.LEANBACK_LAUNCHER"))
+        assertTrue(
+            "debug Activity 不能编进 haier_lsap 正式 source set",
+            !File(projectRoot, "app/src/haier_lsap/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt").exists()
+        )
+        assertTrue(
+            "debug Activity 必须只放在 haier_lsapDebug source set",
+            File(projectRoot, "app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt").exists()
+        )
     }
 
     @Test
     fun `haier_lsap debug controls should be focusable for tv remote navigation`() {
-        val layoutSource = readProjectFile("app/src/haier_lsap/res/layout/activity_haier_lsap_test_entry.xml")
-        val activitySource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
+        val layoutSource = readProjectFile("app/src/haier_lsapDebug/res/layout/activity_haier_lsap_test_entry.xml")
+        val activitySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
 
         assertTrue(layoutSource.contains("android:id=\"@+id/init_button\""))
         assertTrue(layoutSource.contains("android:id=\"@+id/attach_button\""))
@@ -51,29 +75,78 @@ class HaierLsapDebugEntryContractTest {
 
     @Test
     fun `haier_lsap debug activity should init sdk and attach vast player to a container`() {
-        val activitySource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
+        val activitySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
 
-        assertTrue(activitySource.contains("LSAPAPI.init("))
-        assertTrue(activitySource.contains("LSAPAPI.requestAd("))
-        assertTrue(activitySource.contains("VastAdPlayer.attach("))
-        assertTrue(activitySource.contains("onAdLoaded("))
-        assertTrue(activitySource.contains("onAdFailed("))
-        assertTrue(activitySource.contains("setOnPreparedListener"))
-        assertTrue(activitySource.contains("setOnCompletionListener"))
-        assertTrue(activitySource.contains("setOnErrorListener"))
+        assertTrue(activitySource.contains("UnifiedAdSdk.init("))
+        assertTrue(activitySource.contains("UnifiedAdConfig.Builder()"))
+        assertTrue(activitySource.contains(".lsapAppKey(APP_KEY)"))
+        assertTrue(activitySource.contains("UnifiedAdSdk.requestAd("))
+        assertTrue(activitySource.contains("UnifiedAdRequestCallbacks"))
+        assertTrue(activitySource.contains("onAdLoading("))
+        assertTrue(activitySource.contains("onAdPlayStarted("))
+        assertTrue(activitySource.contains("onAdPlayEnded("))
+        assertTrue(activitySource.contains("onRequestFinished("))
         assertTrue(activitySource.contains("handleKeyEvent("))
         assertTrue(activitySource.contains("detach()"))
         assertTrue(activitySource.contains("510000001301"))
-        assertTrue(activitySource.contains("com.ctv.hetv"))
+        assertTrue(activitySource.contains("com.atv.chhlauncher"))
+        assertTrue(!activitySource.contains("LSAPAPI"))
+        assertTrue(!activitySource.contains("VastAdPlayer"))
+    }
+
+    @Test
+    fun `haier_lsap formal chain should reuse common shell with dedicated lsap manager`() {
+        val buildGradle = readProjectFile("app/build.gradle")
+        val buildFlavorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
+        val commonManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt")
+        val managerSource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt")
+        val adProviderSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdProvider.kt")
+        val proguardRules = readProjectFile("app/proguard-rules.pro")
+
+        assertTrue(BuildFlavor.isHq008Noneu("haier_lsap"))
+        assertTrue(BuildFlavor.isHq008Family("haier_lsap"))
+        assertTrue(buildFlavorSource.contains("fun isHaierLsap("))
+        assertTrue(buildGradle.contains("java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']"))
+        assertTrue(commonManagerSource.contains("BuildFlavor.isHaierLsap()"))
+        assertTrue(commonManagerSource.contains("HaierLsapAdManagerBridge"))
+        assertTrue(commonManagerSource.contains("\"com.smart.android.ad_app.HaierLsapAdManager\""))
+        assertTrue(managerSource.contains("@Keep"))
+        assertTrue(managerSource.contains("object HaierLsapAdManager : IAdManager"))
+        assertTrue(managerSource.contains("UnifiedAdSdk.init("))
+        assertTrue(managerSource.contains("UnifiedAdConfig.Builder()"))
+        assertTrue(managerSource.contains(".lsapAppKey(APP_KEY)"))
+        assertTrue(managerSource.contains("UnifiedAdSdk.requestAd("))
+        assertTrue(managerSource.contains("UnifiedAdRequestCallbacks"))
+        assertTrue(managerSource.contains("UnifiedAdSession"))
+        assertTrue(managerSource.contains("onAdLoading("))
+        assertTrue(managerSource.contains("onAdPlayStarted("))
+        assertTrue(managerSource.contains("onAdPlayEnded("))
+        assertTrue(managerSource.contains("onRequestFinished("))
+        assertTrue(managerSource.contains("adStart?.invoke()"))
+        assertTrue(managerSource.contains("adError?.invoke()"))
+        assertTrue(managerSource.contains("adComplete.invoke()"))
+        assertTrue(managerSource.contains("detach()"))
+        assertTrue(managerSource.contains("510000001301"))
+        assertTrue(managerSource.contains("com.atv.chhlauncher"))
+        assertTrue(!managerSource.contains("LSAPAPI"))
+        assertTrue(!managerSource.contains("VastAdPlayer"))
+        assertTrue(adProviderSource.contains("startActivityIfExists(HQ008_CMP_DEBUG_ACTIVITY_CLASS)"))
+        assertTrue(adProviderSource.contains("Class.forName(className)"))
+        assertTrue(!adProviderSource.contains("Hq008CmpDebugActivity::class.java"))
+        assertTrue(proguardRules.contains("-keep class com.smart.android.ad_app.HaierLsapAdManager { *; }"))
+        assertTrue(proguardRules.contains("-keep class com.spctv.** { *; }"))
+        assertTrue(proguardRules.contains("-keep class com.itv.component.unified.** { *; }"))
+        assertTrue(proguardRules.contains("-dontwarn com.google.android.exoplayer2.database.DatabaseProvider"))
     }
 
     private fun readProjectFile(relativePath: String): String {
+        return File(findProjectRoot(relativePath), relativePath).readText()
+    }
+
+    private fun findProjectRoot(relativePath: String): File {
         val workingDir = File(System.getProperty("user.dir") ?: ".")
         val projectRoot = generateSequence(workingDir) { it.parentFile }
             .firstOrNull { File(it, relativePath).exists() }
-        if (projectRoot == null) {
-            fail("无法定位项目根目录: ${workingDir.absolutePath}")
-        }
-        return File(projectRoot, relativePath).readText()
+        return projectRoot ?: throw AssertionError("无法定位项目根目录: ${workingDir.absolutePath}")
     }
 }

@@ -108,6 +108,11 @@
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
 
+# Haier LSAP SDK
+-keep class com.smart.android.ad_app.HaierLsapAdManager { *; }
+-keep class com.spctv.** { *; }
+-keep class com.itv.component.unified.** { *; }
+
 
 #Sad1.0.9的混淆
 -keep class com.seraphic.ad.** { *; }
@@ -138,6 +143,10 @@
 -dontwarn com.tcl.ff.component.uniplayer.data.TclAdInfo
 -dontwarn com.tcl.uniplayer.cache.Proxy
 -dontwarn com.tcl.uniplayer.cache.cache.CacheConfig$Builder
+-dontwarn com.google.android.exoplayer2.core.R$string
+-dontwarn com.google.android.exoplayer2.database.DatabaseIOException
+-dontwarn com.google.android.exoplayer2.database.DatabaseProvider
+-dontwarn com.google.android.exoplayer2.database.VersionTable
 -dontwarn jcifs.CIFSContext
 -dontwarn jcifs.Configuration
 -dontwarn jcifs.config.PropertyConfiguration

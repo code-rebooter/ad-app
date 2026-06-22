@@ -20,6 +20,10 @@ import java.util.Locale
 
 object AdManagerImpl : IAdManager {
     override fun init() {
+        if (BuildFlavor.isHaierLsap()) {
+            HaierLsapAdManagerBridge.init()
+            return
+        }
         Hq008TclVideoAd.init()
     }
 
@@ -30,6 +34,16 @@ object AdManagerImpl : IAdManager {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
+        if (BuildFlavor.isHaierLsap()) {
+            HaierLsapAdManagerBridge.showAd(
+                flRoot = flRoot,
+                adId = adId,
+                adStart = adStart,
+                adError = adError,
+                adComplete = adComplete
+            )
+            return
+        }
         Hq008TclVideoAd.showAd(
             flRoot = flRoot,
             adId = adId,
@@ -40,7 +54,45 @@ object AdManagerImpl : IAdManager {
     }
 
     override fun destroyAd() {
+        if (BuildFlavor.isHaierLsap()) {
+            HaierLsapAdManagerBridge.destroyAd()
+            return
+        }
         Hq008TclVideoAd.destroyAd()
+    }
+}
+
+private object HaierLsapAdManagerBridge : IAdManager {
+    private const val CLASS_NAME = "com.smart.android.ad_app.HaierLsapAdManager"
+
+    private val delegate: IAdManager by lazy {
+        Class.forName(CLASS_NAME)
+            .getField("INSTANCE")
+            .get(null) as IAdManager
+    }
+
+    override fun init() {
+        delegate.init()
+    }
+
+    override fun showAd(
+        flRoot: ViewGroup,
+        adId: String?,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit
+    ) {
+        delegate.showAd(
+            flRoot = flRoot,
+            adId = adId,
+            adStart = adStart,
+            adError = adError,
+            adComplete = adComplete
+        )
+    }
+
+    override fun destroyAd() {
+        delegate.destroyAd()
     }
 }
 

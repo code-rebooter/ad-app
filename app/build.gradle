@@ -93,6 +93,18 @@ android {
         haier_lsap {
             java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']
             res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
         tcl_poly {
@@ -164,6 +176,14 @@ android {
                 keyPassword tclDemoNoneuSigningProperties.getProperty("keyPassword")
                 storeType tclDemoNoneuSigningProperties.getProperty("storeType", "JKS")
             }
+        }
+
+        haierLsapRelease {
+            storeFile file("signing_files/haier_lsap_release.jks")
+            storePassword "haierlsap"
+            keyAlias "haier_lsap_release"
+            keyPassword "haierlsap"
+            storeType "JKS"
         }
 
     }
@@ -372,7 +392,7 @@ android {
                     applicationId       : "com.google.android.adhaierlsap",
                     versionCode         : 1,
                     versionName         : "1.0.1",
-                    signingConfig       : signingConfigs.tclDemoNoneuRelease,
+                    signingConfig       : signingConfigs.haierLsapRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "HAIER_LSAP",
                     cType               : "HAIER_LSAP",
@@ -450,10 +470,27 @@ androidComponents {
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "haier_lsap")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("haierLsapRelease"))
     }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "tcl_poly")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
+    }
+}
+
+def haierLsapExcludedHq008SourcePaths = [
+        file("src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpDebugActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpManager.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt").absolutePath
+] as Set
+
+tasks.matching {
+    it.name == "compileHaier_lsapDebugKotlin" || it.name == "compileHaier_lsapReleaseKotlin"
+}.configureEach { task ->
+    task.exclude { element ->
+        haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)
     }
 }
 
@@ -522,12 +559,6 @@ dependencies {
                 'adsdk_overseas_player-*.aar'
         ])
         hq008Noneuc2Implementation fileTree(dir: tclDemoLibsDir, include: [
-                'adsdk_overseas_base_business-*.aar',
-                'adsdk_overseas_cmp_sdk-*.aar',
-                'adsdk_overseas_media_ad-*.aar',
-                'adsdk_overseas_player-*.aar'
-        ])
-        haier_lsapImplementation fileTree(dir: tclDemoLibsDir, include: [
                 'adsdk_overseas_base_business-*.aar',
                 'adsdk_overseas_cmp_sdk-*.aar',
                 'adsdk_overseas_media_ad-*.aar',
@@ -613,16 +644,12 @@ dependencies {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
-    haier_lsapImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
     tcl_polyImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
     tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'
-    haier_lsapImplementation files('libs/haier_lsap/lsapsdk-release_v1.1.8.jar')
+    haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar')
 
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'

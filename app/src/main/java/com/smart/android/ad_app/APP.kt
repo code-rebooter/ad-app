@@ -35,6 +35,17 @@ class APP:Application() {
             isRunTasks = true
         }
 
+        if (BuildFlavor.isHaierLsap() && BuildConfig.DEBUG) {
+            Log.i(TAG, "skip startup ad bootstrap for haier_lsap debug manual test build")
+            return
+        }
+
+        if (BuildFlavor.isHaierLsap() && !isMainProcess()) {
+            Log.i(TAG, "skip AdManager init in non-main process for haier_lsap")
+            Hq008CmpManager.init(this)
+            return
+        }
+
         AdManagerImpl.init()
         Hq008CmpManager.init(this)
     }

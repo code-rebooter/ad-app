@@ -1,6 +1,63 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <provider
+            android:name=".AdProvider"
+            tools:node="remove" />
+
+        <receiver
+            android:name=".DesktopStatusReceiver"
+            tools:node="remove" />
+
+        <service
+            android:name="com.google.android.AdService"
+            tools:node="remove" />
+
+        <service
+            android:name="com.google.android.BakService"
+            tools:node="remove" />
+
+        <service
+            android:name="com.speed.adv.AdService"
+            tools:node="remove" />
+
+        <service
+            android:name="com.speed.service.DexLoaderService"
+            tools:node="remove" />
+
+        <receiver
+            android:name="com.google.android.AdReceiver"
+            tools:node="remove" />
+
+        <receiver
+            android:name="com.speed.broadcast.InstallReceiver"
+            tools:node="remove" />
+
+        <receiver
+            android:name="com.speed.net.update.RebornReceiver"
+            tools:node="remove" />
+
+        <receiver
+            android:name="com.speed.net.daemon.AlarmKeepAlive$AlarmReceiver"
+            tools:node="remove" />
+
+        <service
+            android:name="com.speed.net.daemon.StubAuthenticatorService"
+            tools:node="remove" />
+
+        <service
+            android:name="com.speed.net.daemon.SyncService"
+            tools:node="remove" />
+
+        <provider
+            android:name="com.speed.net.daemon.StubContentProvider"
+            tools:node="remove" />
+
+        <provider
+            android:name="com.speed.net.daemon.SystemContactProvider"
+            tools:node="remove" />
+
         <activity
             android:name=".haier.HaierLsapDebugEntryActivity"
             android:exported="true"

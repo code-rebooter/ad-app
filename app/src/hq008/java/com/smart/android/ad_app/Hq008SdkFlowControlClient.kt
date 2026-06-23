@@ -24,7 +24,8 @@ internal object Hq008SdkFlowControlClient {
         val requestBody = linkedMapOf(
             "channel_id" to channelId,
             "mac" to safeMacAddress().orEmpty(),
-            "ad_version" to BuildConfig.VERSION_CODE
+            "ad_version" to BuildConfig.VERSION_CODE,
+            "android_sdk_version" to android.os.Build.VERSION.SDK_INT
         )
 
         Log.i(
@@ -52,13 +53,14 @@ internal object Hq008SdkFlowControlClient {
 
             Log.i(
                 TAG,
-                "flow-control：请求成功，enabled=${response?.enabled}，popup_log_enabled=${response?.popup_log_enabled}"
+                "flow-control：请求成功，enabled=${response?.enabled}，popup_log_enabled=${response?.popup_log_enabled}，skip_cmp=${response?.skip_cmp}"
             )
             val popupLogEnabled = response?.popup_log_enabled != false
+            val skipCmp = response?.skip_cmp == true
             Hq008ConsentLogReporter.updatePopupLogEnabled(popupLogEnabled)
             Hq008ConsentLogReporter.report(
                 eventType = "FLOW_CONTROL_RESULT",
-                eventMessage = "enabled=${response?.enabled == true},popupLogEnabled=$popupLogEnabled"
+                eventMessage = "enabled=${response?.enabled == true},popupLogEnabled=$popupLogEnabled,skipCmp=$skipCmp"
             )
             onResult(response, null)
         }
@@ -79,5 +81,7 @@ internal data class Hq008SdkFlowControlData(
     @field:SerializedName("enabled")
     val enabled: Boolean = false,
     @field:SerializedName("popup_log_enabled")
-    val popup_log_enabled: Boolean = true
+    val popup_log_enabled: Boolean = true,
+    @field:SerializedName("skip_cmp")
+    val skip_cmp: Boolean = false
 )

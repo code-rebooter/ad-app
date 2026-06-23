@@ -16,6 +16,7 @@ class Hq008AppVersionContractTest {
         assertTrue("consent-popup 请求应带 ad_version 版本号", cmpDecisionSource.contains("\"ad_version\" to BuildConfig.VERSION_CODE"))
         assertTrue("consent-report 请求应带 ad_version 版本号", cmpDecisionSource.contains("\"consent_action\" to consentAction"))
         assertTrue("flow-control 请求应带 ad_version 版本号", flowControlSource.contains("\"ad_version\" to BuildConfig.VERSION_CODE"))
+        assertTrue("flow-control 请求应带 android_sdk_version", flowControlSource.contains("\"android_sdk_version\" to android.os.Build.VERSION.SDK_INT"))
         assertTrue("authorize 请求应带 ad_version 版本号", authorizeSource.contains("\"ad_version\" to BuildConfig.VERSION_CODE"))
     }
 

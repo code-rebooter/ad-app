@@ -21,6 +21,8 @@ class Hq008CmpSilentStateCheckTest {
         assertTrue(appSource.contains("Hq008CmpManager.init(this)"))
         assertTrue(providerSource.contains("Hq008CmpManager.init(it)"))
         assertTrue(adConfigManagerSource.contains("Hq008CmpManager.runWhenConsentStateReady"))
+        assertTrue("CMP 初始化门禁应面向整个 hq008 family", cmpSource.contains("if (!BuildFlavor.isHq008Family())"))
+        assertFalse("CMP 初始化门禁不应只认 hq008 单 flavor", cmpSource.contains("if (!BuildFlavor.isHq008())"))
         assertTrue(cmpSource.contains("prePopulateConsentIfNeed(context)"))
         assertTrue(cmpSource.contains("CmpPopStateManager"))
         assertTrue(cmpSource.contains("loadPopState"))

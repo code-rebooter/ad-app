@@ -79,13 +79,9 @@ class AdProvider : ContentProvider() {
             }
         }
         if (isDebugRequestFloating) {
-            Log.i(TAG, "调试链路：命中 requestFloating 触发，callerUid=$callerUid，准备执行完整悬浮广告请求链路")
+            Log.i(TAG, "调试链路：命中 requestFloating 触发，callerUid=$callerUid，准备在 provider 内执行正式悬浮广告请求链路")
             Handler(Looper.getMainLooper()).post {
-                context?.startActivity(
-                    Intent(context, Hq008FloatingDebugActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
+                AdConfigManager.getAdConfig(AdType.FLOATING)
             }
             return MatrixCursor(arrayOf("triggered")).apply {
                 addRow(arrayOf<Any>(1))

@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -20,6 +21,8 @@ class Hq008CmpDecisionClientContractTest {
         assertTrue(clientSource.contains("@field:SerializedName(\"consent_payload\")"))
 
         assertTrue(adConfigManagerSource.contains("Hq008CmpManager.setRemoteDecisionProvider"))
+        assertTrue("远端 CMP provider 应面向整个 hq008 family 注入", adConfigManagerSource.contains("if (BuildFlavor.isHq008Family())"))
+        assertFalse("远端 CMP provider 不应只对 hq008 单 flavor 生效", adConfigManagerSource.contains("if (BuildFlavor.isHq008())"))
         assertTrue(adConfigManagerSource.contains("Hq008CmpDecisionClient.request(appContext)"))
         assertTrue(adConfigManagerSource.contains("\"ACCEPT_ALL\" -> {"))
         assertTrue(adConfigManagerSource.contains("\"REJECT\" -> {"))

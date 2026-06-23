@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -58,6 +59,33 @@ class HaierLsapDebugEntryContractTest {
     }
 
     @Test
+    fun `haier_lsap debug build should stay manual only and avoid formal auto chain`() {
+        val debugManifest = readProjectFile("app/src/haier_lsapDebug/AndroidManifest.xml")
+        val activitySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
+        val appSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/APP.kt")
+
+        assertTrue(debugManifest.contains("xmlns:tools=\"http://schemas.android.com/tools\""))
+        assertTrue(debugManifest.contains("android:name=\".AdProvider\""))
+        assertTrue(debugManifest.contains("android:name=\".DesktopStatusReceiver\""))
+        assertTrue(debugManifest.contains("android:name=\"com.google.android.AdService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.google.android.BakService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.adv.AdService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.service.DexLoaderService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.google.android.AdReceiver\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.broadcast.InstallReceiver\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.update.RebornReceiver\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.daemon.AlarmKeepAlive\$AlarmReceiver\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.daemon.StubAuthenticatorService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.daemon.SyncService\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.daemon.StubContentProvider\""))
+        assertTrue(debugManifest.contains("android:name=\"com.speed.net.daemon.SystemContactProvider\""))
+        assertTrue(debugManifest.contains("tools:node=\"remove\""))
+        assertTrue(appSource.contains("if (BuildFlavor.isHaierLsap() && BuildConfig.DEBUG)"))
+        assertTrue(appSource.contains("skip startup ad bootstrap for haier_lsap debug manual test build"))
+        assertFalse(activitySource.contains("initializeSdk()\n        adContainer.post {\n            attachPlayer()\n        }"))
+    }
+
+    @Test
     fun `haier_lsap debug controls should be focusable for tv remote navigation`() {
         val layoutSource = readProjectFile("app/src/haier_lsapDebug/res/layout/activity_haier_lsap_test_entry.xml")
         val activitySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
@@ -100,6 +128,7 @@ class HaierLsapDebugEntryContractTest {
         val buildFlavorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
         val commonManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt")
         val managerSource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt")
+        val appSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/APP.kt")
         val adProviderSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdProvider.kt")
         val proguardRules = readProjectFile("app/proguard-rules.pro")
 
@@ -130,6 +159,8 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(managerSource.contains("com.atv.chhlauncher"))
         assertTrue(!managerSource.contains("LSAPAPI"))
         assertTrue(!managerSource.contains("VastAdPlayer"))
+        assertTrue(appSource.contains("if (BuildFlavor.isHaierLsap() && !isMainProcess())"))
+        assertTrue(appSource.contains("skip AdManager init in non-main process for haier_lsap"))
         assertTrue(adProviderSource.contains("startActivityIfExists(HQ008_CMP_DEBUG_ACTIVITY_CLASS)"))
         assertTrue(adProviderSource.contains("Class.forName(className)"))
         assertTrue(!adProviderSource.contains("Hq008CmpDebugActivity::class.java"))
@@ -137,6 +168,15 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(proguardRules.contains("-keep class com.spctv.** { *; }"))
         assertTrue(proguardRules.contains("-keep class com.itv.component.unified.** { *; }"))
         assertTrue(proguardRules.contains("-dontwarn com.google.android.exoplayer2.database.DatabaseProvider"))
+    }
+
+    @Test
+    fun `haier_lsap provider debug request should trigger formal floating flow instead of activity`() {
+        val adProviderSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdProvider.kt")
+
+        assertTrue(adProviderSource.contains("uri.lastPathSegment == \"requestFloating\""))
+        assertTrue(adProviderSource.contains("AdConfigManager.getAdConfig(AdType.FLOATING)"))
+        assertTrue(!adProviderSource.contains("Intent(context, Hq008FloatingDebugActivity::class.java)"))
     }
 
     private fun readProjectFile(relativePath: String): String {

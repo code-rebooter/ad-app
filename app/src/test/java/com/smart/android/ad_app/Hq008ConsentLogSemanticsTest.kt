@@ -94,8 +94,8 @@ class Hq008ConsentLogSemanticsTest {
                 1,
                 0L,
                 "CMP_GATE_START",
-                "adType=FLOATING,hidden=true,skipCmp=false",
-                "广告类型=FLOATING，隐藏模式=是，skipCmp=否",
+                "adType=FLOATING,hidden=true,skipCmp=false,skipCmpSource=flow_control",
+                "广告类型=FLOATING，隐藏模式=是，skipCmp=否，skipCmp来源=流控接口",
                 null
             ),
             constructor.newInstance(

@@ -360,7 +360,7 @@ object Hq008CmpManager {
     }
 
     fun init(context: Context) {
-        if (!BuildFlavor.isHq008()) {
+        if (!BuildFlavor.isHq008Family()) {
             return
         }
 
@@ -447,7 +447,7 @@ object Hq008CmpManager {
         timeoutMs: Long = CONSENT_READY_TIMEOUT_MS,
         onReady: () -> Unit
     ) {
-        if (!BuildFlavor.isHq008()) {
+        if (!BuildFlavor.isHq008Family()) {
             onReady()
             return
         }

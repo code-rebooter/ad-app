@@ -80,6 +80,11 @@ android {
             java.srcDirs = ['src/hq008/java']
         }
 
+        hq008XHSX {
+            java.srcDirs = ['src/hq008/java']
+            res.srcDirs = ['src/hq008/res']
+        }
+
         hq008Noneu {
             java.srcDirs = ['src/hq008/java']
             res.srcDirs = ['src/hq008/res']
@@ -166,6 +171,14 @@ android {
                 keyPassword tclDemoSigningProperties.getProperty("keyPassword")
                 storeType tclDemoSigningProperties.getProperty("storeType", "JKS")
             }
+        }
+
+        hq008XhsxRelease {
+            storeFile file("signing_files/hq008_xhsx_release.jks")
+            storePassword "xhsx2026"
+            keyAlias "hq008_xhsx_release"
+            keyPassword "xhsx2026"
+            storeType "JKS"
         }
 
         tclDemoNoneuRelease {
@@ -345,6 +358,27 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        hq008XHSX {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.adxhsx",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.hq008XhsxRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "hq008XHSX",
+                    cType               : "hq008XHSX",
+                    model               : "hq008XHSX",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : "",
+                            tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4o1SQ1d07BhIs/JKPvfJNzXyOaaicCHs/Hkq+SueLLlZu9utcc6L7VtXArniSHijRXQ==",
+                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            project_id  : "206"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
         hq008Noneu {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adnoneu",
@@ -463,6 +497,9 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008XHSX")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("hq008XhsxRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "hq008Noneu")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
@@ -552,6 +589,12 @@ dependencies {
                 'adsdk_overseas_media_ad-*.aar',
                 'adsdk_overseas_player-*.aar'
         ])
+        hq008XHSXImplementation fileTree(dir: tclDemoLibsDir, include: [
+                'adsdk_overseas_base_business-*.aar',
+                'adsdk_overseas_cmp_sdk-*.aar',
+                'adsdk_overseas_media_ad-*.aar',
+                'adsdk_overseas_player-*.aar'
+        ])
         hq008NoneuImplementation fileTree(dir: tclDemoLibsDir, include: [
                 'adsdk_overseas_base_business-*.aar',
                 'adsdk_overseas_cmp_sdk-*.aar',
@@ -574,6 +617,8 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
+    hq008XHSXImplementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
     hq008NoneuImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.google.guava:guava:31.1-android'
@@ -583,6 +628,8 @@ dependencies {
     tcl_polyImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    hq008XHSXImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     hq008NoneuImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -594,6 +641,8 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
+    hq008XHSXImplementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
     hq008NoneuImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'androidx.leanback:leanback:1.0.0'
@@ -603,6 +652,8 @@ dependencies {
     tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    hq008XHSXImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     hq008NoneuImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -614,6 +665,8 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
+    hq008XHSXImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
     hq008NoneuImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.github.bumptech.glide:glide:4.11.0'
@@ -624,6 +677,8 @@ dependencies {
     //noinspection UseTomlInstead
     hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
+    hq008XHSXImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
     hq008NoneuImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     hq008Noneuc2Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
@@ -633,6 +688,10 @@ dependencies {
     tcl_polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     hq008Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
+    hq008XHSXImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead

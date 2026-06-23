@@ -52,10 +52,6 @@ class HaierLsapDebugEntryActivity : Activity() {
         initButton.post {
             initButton.requestFocus()
         }
-        initializeSdk()
-        adContainer.post {
-            attachPlayer()
-        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

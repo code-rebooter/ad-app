@@ -15,7 +15,7 @@ object AdConfigManager {
     private const val POPUP_FALLBACK_ACTION = "MAYBE_LATER"
 
     init {
-        if (BuildFlavor.isHq008()) {
+        if (BuildFlavor.isHq008Family()) {
             Hq008CmpManager.setRemoteDecisionProvider { _, onResult ->
                 fun fallbackPopupAction(reason: String) {
                     Log.w(
@@ -146,19 +146,14 @@ object AdConfigManager {
                 )
                 return
             }
-            val skipCmp = BuildFlavor.isHq008Noneu()
             val flavorTag = BuildConfig.FLAVOR
             Log.i(
                 TAG,
-                if (skipCmp) {
-                    "广告链路：$flavorTag 先走 flow-control，CMP 链路跳过，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
-                } else {
-                    "广告链路：$flavorTag 先等待 CMP 同意门禁，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
-                }
+                "广告链路：$flavorTag 先走 flow-control，再根据服务端 skip_cmp 决定是否跳过 CMP，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
             )
             Hq008ConsentLogReporter.report(
                 eventType = "CMP_GATE_START",
-                eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()},skipCmp=$skipCmp"
+                eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()},skipCmp=false,skipCmpSource=flow_control"
             )
             Hq008SdkFlowControlClient.request(
                 context = appContext,
@@ -187,17 +182,22 @@ object AdConfigManager {
                     return@request
                 }
 
+                val skipCmp = dto?.skip_cmp == true
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_GATE_READY",
+                    eventMessage = "skipCmp=$skipCmp,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                )
                 if (skipCmp) {
-                    Log.i(TAG, "广告链路：flow-control 允许继续，$flavorTag 跳过 CMP，直接请求授权接口")
+                    Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=true，本轮跳过 CMP，直接请求授权接口")
                     requestHq008Authorize(flowToken)
                     return@request
                 }
 
-                Log.i(TAG, "广告链路：flow-control 允许继续，开始进入 CMP/授权/广告流程")
+                Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=false，开始进入 CMP/授权/广告流程")
                 Hq008CmpManager.runWhenConsentStateReady {
                     Hq008ConsentLogReporter.report(
                         eventType = "CMP_GATE_READY",
-                        eventMessage = "consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                        eventMessage = "skipCmp=false,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
                     )
                     Log.i(
                         TAG,

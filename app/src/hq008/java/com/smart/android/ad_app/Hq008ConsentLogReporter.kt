@@ -671,6 +671,8 @@ internal object Hq008ConsentLogReporter {
             "storage" -> "存储方式"
             "adType" -> "广告类型"
             "hidden" -> "隐藏模式"
+            "skipCmp" -> "跳过CMP"
+            "skipCmpSource" -> "跳过CMP来源"
             "requestId" -> "请求ID"
             "consentPreview" -> "同意串预览"
             "consentSuffix" -> "同意串尾段"
@@ -719,6 +721,7 @@ internal object Hq008ConsentLogReporter {
             "authorized",
             "enabled",
             "popupLogEnabled",
+            "skipCmp",
             "payloadPresent",
             "payload",
             "hasData",
@@ -735,7 +738,8 @@ internal object Hq008ConsentLogReporter {
             "path" -> translatePathToken(value)
             "stage" -> translateStageToken(value)
             "storage" -> translateStorageToken(value)
-            "source" -> translateSourceToken(value)
+            "source",
+            "skipCmpSource" -> translateSourceToken(value)
             "error" -> normalizeErrorToken(value)
             else -> translateGenericToken(value)
         }
@@ -853,6 +857,7 @@ internal object Hq008ConsentLogReporter {
             value.startsWith("reflective_") -> "SDK原生反射-${translateActionToken(value.removePrefix("reflective_").uppercase())}"
             value.startsWith("explicit_") -> "显式静默注入-${translateActionToken(value.removePrefix("explicit_").uppercase())}"
             value.startsWith("remote_recovery_") -> "远端状态恢复-${translateActionToken(value.removePrefix("remote_recovery_").uppercase())}"
+            value == "flow_control" -> "流控接口"
             else -> translateGenericToken(value)
         }
     }

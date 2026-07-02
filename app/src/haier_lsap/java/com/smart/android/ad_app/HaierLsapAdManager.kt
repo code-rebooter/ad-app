@@ -43,7 +43,7 @@ private object HaierLsapFormalAd {
     private const val TAG = "HaierLsapFormalAd"
     private const val APP_KEY = "com.atv.chhlauncher"
     private const val TAG_ID = "510000001301"
-    private const val REQUEST_TIMEOUT_MS = 60_000L
+    private const val REQUEST_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var currentSession: UnifiedAdSession? = null

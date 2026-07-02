@@ -98,7 +98,9 @@ private object HaierLsapAdManagerBridge : IAdManager {
 
 private object Hq008TclVideoAd {
     private const val TAG = "Hq008TclVideoAd"
-    private const val AD_CALLBACK_TIMEOUT_MS = 60_000L
+    private const val AD_CALLBACK_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
+    private const val SDK_APP_CATEGORY = "app"
+    private const val SDK_CONTENT_TITLE = "App Content"
 
     private val initLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -480,17 +482,21 @@ private object Hq008TclVideoAd {
     }
 
     private fun buildRequestParams(): RequestParams {
+        val channelName = AdChannelResolver.currentChannel()
         val builder = RequestParams.Builder()
-            .setAppCat("demo")
+            .setAppCat(SDK_APP_CATEGORY)
             .setAppDomain(appContext.packageName)
-            .setArea("DE")
-            .setChannelName("sdk-demo")
+            .setChannelName(channelName)
             .setContentLanguage(Locale.getDefault().language)
-            .setContentTitle("TCL SDK demo")
+            .setContentTitle(SDK_CONTENT_TITLE)
             .setDevice("android")
             .setDeviceLanguage(Locale.getDefault().toLanguageTag())
             .setDeviceMake(Build.MANUFACTURER.orEmpty())
             .setDeviceModel(Build.MODEL.orEmpty())
+
+        resolveSdkArea()?.let { area ->
+            builder.setArea(area)
+        }
 
         Hq008CmpManager.getConsentString()
             ?.takeIf { it.isNotBlank() }
@@ -505,9 +511,18 @@ private object Hq008TclVideoAd {
         return builder.build().also {
             Log.i(
                 TAG,
-                "播放链路：已构建广告请求参数，appDomain=${appContext.packageName}，area=DE，deviceMake=${Build.MANUFACTURER.orEmpty()}，deviceModel=${Build.MODEL.orEmpty()}，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                "播放链路：已构建广告请求参数，appDomain=${appContext.packageName}，area=${resolveSdkArea().orEmpty()}，channelName=$channelName，appCat=$SDK_APP_CATEGORY，contentTitle=$SDK_CONTENT_TITLE，deviceMake=${Build.MANUFACTURER.orEmpty()}，deviceModel=${Build.MODEL.orEmpty()}，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
             )
         }
+    }
+
+    private fun resolveSdkArea(): String? {
+        return Locale.getDefault()
+            .country
+            .orEmpty()
+            .trim()
+            .uppercase(Locale.US)
+            .takeIf { it.length == 2 }
     }
 
     private fun logGdprConsentAttached(consent: String) {

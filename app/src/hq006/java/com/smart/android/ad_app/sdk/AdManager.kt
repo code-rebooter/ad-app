@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import com.google.gson.Gson
+import com.smart.android.ad_app.AdChannelResolver
 import com.smart.android.ad_app.BuildConfig
 import com.speed.log.printLog
 import com.speed.net.NetworkHelper
@@ -38,7 +39,7 @@ object AdManager {
         val ifa = getGoogleAdId(context) ?: getAndroidIdAsUuid(context)
 
         val requestBody = mapOf(
-            "channel_id"  to BuildConfig.CHANNEL,
+            "channel_id"  to AdChannelResolver.currentChannel(),
             "app_id"      to context.packageName,                                     // 1
             "app_name"    to "launcher",                                              // 2  按文档示例写死
             "bundle"      to context.packageName,                                     // 3

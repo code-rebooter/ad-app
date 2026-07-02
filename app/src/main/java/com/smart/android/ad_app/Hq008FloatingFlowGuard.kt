@@ -22,7 +22,7 @@ object Hq008FloatingFlowGuard {
     private var activeFlow: ActiveFlow? = null
     private var nextTokenId = 1L
 
-    fun tryEnter(channelId: String = BuildConfig.CHANNEL): Token? {
+    fun tryEnter(channelId: String = AdChannelResolver.currentChannel()): Token? {
         return tryEnter(
             channelId = channelId,
             nowMs = System.currentTimeMillis(),

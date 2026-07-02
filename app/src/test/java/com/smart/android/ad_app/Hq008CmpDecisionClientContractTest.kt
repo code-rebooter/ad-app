@@ -14,7 +14,8 @@ class Hq008CmpDecisionClientContractTest {
         val adConfigManagerSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdConfigManager.kt")
 
         assertTrue(clientSource.contains("api/v2/ad/consent-popup"))
-        assertTrue(clientSource.contains("\"channel_id\" to BuildConfig.CHANNEL"))
+        assertTrue(clientSource.contains("val channelId = AdChannelResolver.currentChannel()"))
+        assertTrue(clientSource.contains("\"channel_id\" to channelId"))
         assertTrue(clientSource.contains("\"mac\" to"))
         assertTrue(clientSource.contains("\"consent_expired\" to Hq008CmpManager.isConsentExpired(context)"))
         assertTrue(clientSource.contains("@field:SerializedName(\"consent_action\")"))

@@ -9,6 +9,7 @@ class Hq008FlowLoggingContractTest {
 
     @Test
     fun `hq008 cmp and ad flow should expose traceable logs for testing`() {
+        val timeoutPolicySource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdPlaybackPolicy.kt")
         val cmpManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008CmpManager.kt")
         val adConfigManagerSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdConfigManager.kt")
         val authorizeClientSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008SdkAuthorizeClient.kt")
@@ -35,6 +36,9 @@ class Hq008FlowLoggingContractTest {
         assertTrue(authorizeClientSource.contains("eventType = \"AUTHORIZE_RESULT\""))
         assertTrue(authorizeClientSource.contains("request_id"))
 
+        assertTrue(timeoutPolicySource.contains("object AdPlaybackPolicy"))
+        assertTrue(timeoutPolicySource.contains("const val CALLBACK_TIMEOUT_MS = 180_000L"))
+
         assertTrue(adManagerSource.contains("PLAY_FLOW showAd entry"))
         assertTrue(adManagerSource.contains("PLAY_FLOW startAd begin"))
         assertTrue(adManagerSource.contains("PLAY_FLOW onAdFinished"))
@@ -45,6 +49,8 @@ class Hq008FlowLoggingContractTest {
         assertTrue(adManagerSource.contains("eventType = \"AD_PHASE_ERROR\""))
         assertTrue(adManagerSource.contains("eventType = \"AD_PHASE_TIMEOUT\""))
         assertTrue(adManagerSource.contains("AD_CALLBACK_TIMEOUT_MS"))
+        assertTrue(adManagerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
+        assertTrue(!adManagerSource.contains("AD_CALLBACK_TIMEOUT_MS = 180_000L"))
         assertTrue(adManagerSource.contains(".setGdprConsent(consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsent\", consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsentLength\", consent.length)"))

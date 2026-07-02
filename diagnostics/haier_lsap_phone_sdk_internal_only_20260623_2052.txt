@@ -1,0 +1,18 @@
+06-23 20:42:54.333 D/spctv   (18520): init ctx:com.smart.android.ad_app.APP@5225700, appkey: com.atv.chhlauncher
+06-23 20:42:54.336 D/spctv   (18520): init end
+06-23 20:42:54.336 I/UnifiedAdSdk(18520): 跳过 AdInit.init
+06-23 20:42:54.339 D/AdService(18520): start
+06-23 20:42:54.343 D/AdService(18520): onStartCommand
+06-23 20:42:54.361 D/AdService(18520): onStartCommand
+06-23 20:42:54.370 I/KeepAliveWorker(18520): WorkManager periodic heartbeat scheduled
+06-23 20:42:54.371 I/AlarmKeepAlive(18520): Alarm scheduled in 300s
+06-23 20:42:54.422 D/AdService(18520): onStartCommand
+06-23 20:42:54.436 D/AdService(18520): onStartCommand
+06-23 20:42:54.458 I/DaemonKeeper(18520): Successfully bound to guard target: ComponentInfo{com.google.android.adhaierlsap/com.google.android.BakService}
+06-23 20:42:54.465 I/AlarmKeepAlive(18520): Alarm scheduled in 300s
+06-23 20:42:54.475 D/AdService(18520): onStartCommand
+06-23 20:42:56.358 I/UnifiedAdSdk(18520): startLsapOnly 
+06-23 20:42:56.422 D/spctv   (18520): requestAd tagid:510000001301, listener:com.spctv.vast.VastAdPlayer$c@65eaf87
+06-23 20:43:14.359 D/DeviceUtil(18520): getResolution :2190*1080
+06-23 20:43:14.426 D/ratelcfg(18520): get param ok
+06-23 20:43:16.471 W/SingleShotLsapPlayer(18520): first ad start timeout, tagId=510000001301

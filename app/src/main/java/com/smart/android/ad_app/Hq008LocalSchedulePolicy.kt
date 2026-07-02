@@ -25,7 +25,7 @@ object Hq008LocalSchedulePolicy {
         appContext = context.applicationContext
     }
 
-    fun initialDelayMs(channelId: String = BuildConfig.CHANNEL): Long {
+    fun initialDelayMs(channelId: String = AdChannelResolver.currentChannel()): Long {
         val context = appContext ?: return INITIAL_DELAY_MS
         val lastPollAtMs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getLong(lastFloatingPollKey(channelId), 0L)
@@ -37,7 +37,7 @@ object Hq008LocalSchedulePolicy {
         )
     }
 
-    fun pollingSeconds(channelId: String = BuildConfig.CHANNEL): Long {
+    fun pollingSeconds(channelId: String = AdChannelResolver.currentChannel()): Long {
         return resolveEffectivePollingSeconds(channelId) ?: randomizedPollingSeconds
     }
 
@@ -58,7 +58,7 @@ object Hq008LocalSchedulePolicy {
             .apply()
     }
 
-    fun markFloatingPollTriggered(channelId: String = BuildConfig.CHANNEL, timestampMs: Long = System.currentTimeMillis()) {
+    fun markFloatingPollTriggered(channelId: String = AdChannelResolver.currentChannel(), timestampMs: Long = System.currentTimeMillis()) {
         val context = appContext ?: return
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

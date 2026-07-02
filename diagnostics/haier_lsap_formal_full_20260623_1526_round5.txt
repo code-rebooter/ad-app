@@ -1,0 +1,345 @@
+--------- beginning of main
+06-23 09:18:45.235 D/WificondControl( 2075): Scan result ready event
+06-23 09:18:46.531 I/WifiService( 2075): startScan uid=1000
+06-23 09:18:48.027 D/WificondControl( 2075): Scan result ready event
+06-23 09:18:48.046 D/WificondScannerImpl( 2075): Filtering out 3 scan results.
+06-23 09:18:56.542 I/WifiService( 2075): startScan uid=1000
+06-23 09:18:58.045 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:06.551 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:08.078 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:16.561 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:18.119 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:26.565 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:28.075 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:36.576 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:38.088 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:42.632 W/Conscrypt( 3498): Could not set socket write timeout: java.net.SocketException: Socket closed
+06-23 09:19:42.633 W/Conscrypt( 3498): 	at com.google.android.gms.org.conscrypt.Platform.setSocketWriteTimeout(:com.google.android.gms@214857085@21.48.57 (080306-424705839):2)
+06-23 09:19:42.633 W/Conscrypt( 3498): 	at com.google.android.gms.org.conscrypt.ConscryptFileDescriptorSocket.setSoWriteTimeout(:com.google.android.gms@214857085@21.48.57 (080306-424705839):0)
+06-23 09:19:46.586 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:48.107 D/WificondControl( 2075): Scan result ready event
+06-23 09:19:50.701 W/Conscrypt( 3498): Could not set socket write timeout: java.net.SocketException: Socket closed
+06-23 09:19:50.702 W/Conscrypt( 3498): 	at com.google.android.gms.org.conscrypt.Platform.setSocketWriteTimeout(:com.google.android.gms@214857085@21.48.57 (080306-424705839):2)
+06-23 09:19:50.702 W/Conscrypt( 3498): 	at com.google.android.gms.org.conscrypt.ConscryptFileDescriptorSocket.setSoWriteTimeout(:com.google.android.gms@214857085@21.48.57 (080306-424705839):0)
+06-23 09:19:56.594 I/WifiService( 2075): startScan uid=1000
+06-23 09:19:58.192 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:06.604 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:08.095 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:16.611 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:18.136 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:26.617 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:28.166 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:28.179 D/WificondScannerImpl( 2075): Filtering out 1 scan results.
+06-23 09:20:36.626 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:38.142 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:46.634 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:48.131 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:56.645 I/WifiService( 2075): startScan uid=1000
+06-23 09:20:58.171 D/WificondControl( 2075): Scan result ready event
+06-23 09:20:58.856 I/FD655_Demo( 2948): type=1400 audit(0.0:1108): avc: denied { net_raw } for capability=13 scontext=u:r:shell:s0 tcontext=u:r:shell:s0 tclass=capability permissive=1
+06-23 09:21:06.651 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:08.255 D/WificondControl( 2075): Scan result ready event
+06-23 09:21:14.273 I/Thread-193( 3498): type=1400 audit(0.0:1109): avc: denied { call } for scontext=u:r:priv_app:s0:c512,c768 tcontext=u:r:hal_memtrack_default:s0 tclass=binder permissive=1 app=com.google.android.gms
+06-23 09:21:16.654 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:18.139 D/WificondControl( 2075): Scan result ready event
+--------- beginning of system
+06-23 09:21:25.510 I/ActivityManager( 2075): Force stopping com.google.android.adhaierlsap appid=10090 user=0: from pid 7844
+06-23 09:21:25.304 D/WificondControl( 2075): Scan result ready event
+06-23 09:21:25.520 E/PhoneInterfaceManager( 2591): [PhoneIntfMgr] getCarrierPackageNamesForIntent: No UICC
+06-23 09:21:25.520 I/ActivityManager( 2075): Force stopping com.google.android.adffa appid=10086 user=0: from pid 7846
+06-23 09:21:25.520 D/CarrierSvcBindHelper( 2591): No carrier app for: 0
+06-23 09:21:25.528 E/PhoneInterfaceManager( 2591): [PhoneIntfMgr] getCarrierPackageNamesForIntent: No UICC
+06-23 09:21:25.528 D/CarrierSvcBindHelper( 2591): No carrier app for: 0
+06-23 09:21:25.528 I/ActivityManager( 2075): Force stopping com.google.android.adxhsx appid=10091 user=0: from pid 7845
+06-23 09:21:25.536 E/PhoneInterfaceManager( 2591): [PhoneIntfMgr] getCarrierPackageNamesForIntent: No UICC
+06-23 09:21:25.536 D/CarrierSvcBindHelper( 2591): No carrier app for: 0
+06-23 09:21:26.657 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:28.174 D/WificondControl( 2075): Scan result ready event
+06-23 09:21:28.193 D/WificondScannerImpl( 2075): Filtering out 9 scan results.
+06-23 09:21:36.668 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:38.264 D/WificondControl( 2075): Scan result ready event
+06-23 09:21:46.674 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:48.425 D/WificondControl( 2075): Scan result ready event
+06-23 09:21:56.681 I/WifiService( 2075): startScan uid=1000
+06-23 09:21:58.359 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:06.687 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:08.294 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:16.697 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:18.287 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:26.700 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:28.335 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:28.351 D/WificondScannerImpl( 2075): Filtering out 1 scan results.
+06-23 09:22:36.712 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:38.320 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:46.722 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:48.391 D/WificondControl( 2075): Scan result ready event
+06-23 09:22:56.729 I/WifiService( 2075): startScan uid=1000
+06-23 09:22:58.368 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:06.740 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:08.322 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:16.744 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:18.538 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:26.755 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:28.430 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:36.759 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:38.358 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:46.771 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:48.364 D/WificondControl( 2075): Scan result ready event
+06-23 09:23:56.774 I/WifiService( 2075): startScan uid=1000
+06-23 09:23:58.372 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:05.255 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:06.777 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:08.368 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:08.386 D/WificondScannerImpl( 2075): Filtering out 5 scan results.
+06-23 09:24:16.787 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:18.399 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:26.791 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:28.507 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:35.005 D/AndroidRuntime( 7871): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+06-23 09:24:35.014 I/AndroidRuntime( 7871): Using default boot image
+06-23 09:24:35.015 I/AndroidRuntime( 7871): Leaving lock profiling enabled
+06-23 09:24:35.013 I/app_process( 7871): type=1400 audit(0.0:1110): avc: denied { read } for name="u:object_r:device_config_runtime_native_boot_prop:s0" dev="tmpfs" ino=3244 scontext=u:r:shell:s0 tcontext=u:object_r:device_config_runtime_native_boot_prop:s0 tclass=file permissive=1
+06-23 09:24:35.013 I/app_process( 7871): type=1400 audit(0.0:1111): avc: denied { open } for path="/dev/__properties__/u:object_r:device_config_runtime_native_boot_prop:s0" dev="tmpfs" ino=3244 scontext=u:r:shell:s0 tcontext=u:object_r:device_config_runtime_native_boot_prop:s0 tclass=file permissive=1
+06-23 09:24:35.013 I/app_process( 7871): type=1400 audit(0.0:1112): avc: denied { getattr } for path="/dev/__properties__/u:object_r:device_config_runtime_native_boot_prop:s0" dev="tmpfs" ino=3244 scontext=u:r:shell:s0 tcontext=u:object_r:device_config_runtime_native_boot_prop:s0 tclass=file permissive=1
+06-23 09:24:35.019 E/cutils-trace( 7871): Error opening trace file: No such file or directory (2)
+06-23 09:24:35.028 I/app_process( 7871): Core platform API reporting enabled, enforcing=false
+06-23 09:24:35.257 D/ICU     ( 7871): Time zone APEX file found: /apex/com.android.tzdata/etc/icu/icu_tzdata.dat
+06-23 09:24:35.284 I/app_process( 7871): The ClassLoaderContext is a special shared library.
+06-23 09:24:35.327 W/app_process( 7871): JNI RegisterNativeMethods: attempt to register 0 native methods for android.media.AudioAttributes
+06-23 09:24:35.343 D/AndroidRuntime( 7871): Calling main entry com.android.commands.content.Content
+06-23 09:24:35.364 D/Zygote  ( 1777): Forked child process 7885
+06-23 09:24:35.368 I/ActivityManager( 2075): app.processName = com.google.android.adhaierlsap
+06-23 09:24:35.369 I/ActivityManager( 2075): Start proc 7885:com.google.android.adhaierlsap/u0a90 for content provider {com.google.android.adhaierlsap/com.smart.android.ad_app.AdProvider}
+06-23 09:24:35.370 I/Zygote  ( 7885): seccomp disabled by setenforce 0
+06-23 09:24:35.434 W/oid.adhaierlsa( 7885): Couldn't clamp region space as there are regions in use beyond growth limit.
+06-23 09:24:35.450 D/WM-WrkMgrInitializer( 7885): Initializing WorkManager with default configuration.
+06-23 09:24:35.472 D/WM-PackageManagerHelper( 7885): Skipping component enablement for androidx.work.impl.background.systemjob.SystemJobService
+06-23 09:24:35.472 D/WM-Schedulers( 7885): Created SystemJobScheduler and enabled SystemJobService
+06-23 09:24:35.480 D/WM-ForceStopRunnable( 7885): The default process name was not specified.
+06-23 09:24:35.481 D/WM-ForceStopRunnable( 7885): Performing cleanup operations.
+06-23 09:24:35.498 I/AdProvider( 7885): 正式链路：AdProvider 已创建，authority=com.google.android.adhaierlsap.adprovider，开始初始化 CMP 与广告调度器
+06-23 09:24:35.501 I/AdRuntimeCoordinator( 7885): 正式链路：开始启动广告运行协调器，flavor=haier_lsap，package=com.google.android.adhaierlsap
+06-23 09:24:35.506 I/SystemContactProvider( 7885): Provider onCreate triggered
+06-23 09:24:35.506 I/AdRuntimeCoordinator( 7885): 正式链路：启动协程已创建，开始等待网络、初始化监听与调度
+06-23 09:24:35.514 I/AdRuntimeCoordinator( 7885): 正式链路：网络已恢复可用，继续执行广告初始化任务
+06-23 09:24:35.515 I/AdRuntimeCoordinator( 7885): 正式链路：运行协调器进入主流程，flavor=haier_lsap，当前隐藏模式=true
+06-23 09:24:35.532 I/ForegroundAppWatcher( 7885): topPackage changed: null -> com.android.tv.settings
+06-23 09:24:35.532 I/AdRuntimeCoordinator( 7885): 正式链路：在启动定时调度前先等待 30000ms，避免进程刚启动就立刻请求广告
+06-23 09:24:35.535 I/AdProvider( 7885): 正式链路：AdProvider 收到查询，uri=content://com.google.android.adhaierlsap.adprovider/debug/requestFloating，pathSegments=[debug, requestFloating]
+06-23 09:24:35.536 I/AdProvider( 7885): 调试链路：命中 requestFloating 触发，callerUid=2000，准备在 provider 内执行正式悬浮广告请求链路
+06-23 09:24:35.538 I/AdDisplayConfig( 7885): Force hidden mode for hq008-family. local=true
+06-23 09:24:35.547 D/Zygote  ( 1777): Forked child process 7912
+06-23 09:24:35.552 D/WM-SystemJobScheduler( 7885): Reconciling jobs
+06-23 09:24:35.556 D/AndroidRuntime( 7871): Shutting down VM
+06-23 09:24:35.558 I/Zygote  ( 7912): seccomp disabled by setenforce 0
+06-23 09:24:35.559 I/ActivityManager( 2075): app.processName = com.google.android.adhaierlsap:bak
+06-23 09:24:35.559 I/ActivityManager( 2075): Start proc 7912:com.google.android.adhaierlsap:bak/u0a90 for service {com.google.android.adhaierlsap/com.google.android.BakService}
+06-23 09:24:35.584 D/WM-ForceStopRunnable( 7885): Found unfinished work, scheduling it.
+06-23 09:24:35.628 D/WM-SystemJobScheduler( 7885): Scheduling work ID e3f0a45c-4ebd-4d32-abc9-e8662b8c23e5Job ID 7
+06-23 09:24:35.662 D/spctv   ( 7885): init ctx:com.smart.android.ad_app.APP@811feb4, appkey: com.atv.chhlauncher
+06-23 09:24:35.662 W/adhaierlsap:ba( 7912): Couldn't clamp region space as there are regions in use beyond growth limit.
+06-23 09:24:35.673 D/spctv   ( 7885): init end
+06-23 09:24:35.674 I/AdDisplayConfig( 7912): Force hidden mode for hq008-family. local=true
+06-23 09:24:35.703 I/BiInitialization( 7885): init------
+06-23 09:24:35.707 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : checkIfLogModel, logEnable: false, logMobileEnable: false, logEnableFile: false
+06-23 09:24:35.708 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : isDebugModel: false
+06-23 09:24:35.709 I/HaierLsapFormalAd( 7885): 正式链路：已发起海尔统一广告 SDK 初始化，appKey=com.atv.chhlauncher
+06-23 09:24:35.709 I/HaierLsapFormalAd( 7885): 正式链路：海尔统一广告 SDK 初始化状态=true
+06-23 09:24:35.714 D/AdService( 7885): start
+06-23 09:24:35.715 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : gdpr value:true
+06-23 09:24:35.732 I/FileUtils( 7885): readLocalFile:/data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:35.742 D/AdService( 7885): onStartCommand
+06-23 09:24:35.744 I/AdConfigManager( 7885): 广告链路：开始请求广告配置，adType=FLOATING，package=com.google.android.adhaierlsap，channel=HAIER_LSAP，hidden=false
+06-23 09:24:35.746 I/AdConfigManager( 7885): 广告链路：haier_lsap 先走 flow-control，再根据服务端 skip_cmp 决定是否跳过 CMP，adType=FLOATING，当前隐藏模式=false
+06-23 09:24:35.756 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1113): avc: denied { search } for name="net" dev="sysfs" ino=11311 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:35.769 I/Hq008FlowControl( 7885): flow-control：开始请求，url=https://api.kytira.cc/api/v2/ad/sdk/flow-control，channel_id=HAIER_LSAP
+06-23 09:24:35.770 I/Hq008FlowControl( 7885): flow-control：请求参数={channel_id=HAIER_LSAP, mac=A2:BF:75:FD:AB:F4, ad_version=1, android_sdk_version=29}
+06-23 09:24:35.775 D/NetworkSecurityConfig( 7885): No Network Security Config specified, using platform default
+06-23 09:24:35.791 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:24:35.756 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1114): avc: denied { search } for name="eth0" dev="sysfs" ino=17112 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:sysfs_net_eth0:s0 tclass=dir permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:35.853 D/AdService( 7885): onStartCommand
+06-23 09:24:35.863 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:35.870 D/AdConfigFetcher( 7885): -> getSdkAdConfig AdOverseasDebugUtils.isDebug() == false
+06-23 09:24:35.876 I/APP     ( 7912): skip AdManager init in non-main process for haier_lsap
+06-23 09:24:35.881 I/KeepAliveWorker( 7885): WorkManager periodic heartbeat scheduled
+06-23 09:24:35.888 I/AlarmKeepAlive( 7885): Alarm scheduled in 300s
+06-23 09:24:35.756 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1117): avc: denied { getattr } for path="/sys/devices/platform/soc/gmac1/net/eth0/address" dev="sysfs" ino=17127 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:sysfs_net_eth0:s0 tclass=file permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:35.917 D/Http    ( 7885): --> GET 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266254A24422B4C63177F1664002F482D591854185B345A3C55320D6C08582A452F4A295D14704D7C4575
+06-23 09:24:35.918 D/Http    ( 7885): --> END GET
+06-23 09:24:35.923 D/AdService( 7885): onStartCommand
+06-23 09:24:35.929 I/AlarmKeepAlive( 7885): Alarm scheduled in 300s
+06-23 09:24:35.938 D/AdService( 7885): onStartCommand
+06-23 09:24:35.940 I/DaemonKeeper( 7885): Successfully bound to guard target: ComponentInfo{com.google.android.adhaierlsap/com.google.android.BakService}
+06-23 09:24:36.584 I/Hq008FlowControl( 7885): flow-control：请求成功，enabled=true，popup_log_enabled=false，skip_cmp=true
+06-23 09:24:36.584 I/Hq008ConsentLog( 7885): consent-log-report 开关更新，popupLogEnabled=false
+06-23 09:24:36.587 I/AdConfigManager( 7885): 广告链路：flow-control 允许继续，服务端 skip_cmp=true，本轮跳过 CMP，直接请求授权接口
+06-23 09:24:36.596 I/Hq008Authorize( 7885): authorize request request_id=client-1782199476588-82971de4 body={request_id=client-1782199476588-82971de4, uuid=9899e62a-e90a-47bd-85db-a09ea26e9989, channel_id=HAIER_LSAP, ad_version=1, app_id=com.google.android.adhaierlsap, app_name=hq008, bundle=com.google.android.adhaierlsap, ua=Dalvik/2.1.0 (Linux; U; Android 15; mstar Build/QP1A.191105.004), ifa=9899e62a-e90a-47bd-85db-a09ea26e9989, make=Dreamlink, model=mstar, os=Android, osv=15, language=en-US, video_w=1280, video_h=720, screen_w=1280, screen_h=720, local_ip=192.168.0.108, mac=A2:BF:75:FD:AB:F4}
+06-23 09:24:36.604 D/Http    ( 7885): <-- code = 200 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266254A24422B4C63177F1664002F482D591854185B345A3C55320D6C08582A452F4A295D14704D7C4575
+06-23 09:24:36.606 D/AdConfigFetcher( 7885): -> getSdkAdConfig response == Response{protocol=http/1.1, code=200, message=, url=https://on-euads-o.api.leiniao.com/ads/adConfig/third/getALLConfig?adProjectId=190}
+06-23 09:24:36.612 I/AdConfigFetcher( 7885): -> getSdkAdConfig responseBody == {"code":100000,"data":[{"acceptChannelSelect":false,"adCacheNum":1,"adProjectId":190,"adReqsProb":1.0,"adScreemNum":1,"adSource":1,"adType":2,"adWrapperTimeoutMs":10000,"advertiseDisplayType":1,"bannerFreshSecond":15,"beaconingType":2,"cacheTimeout":3600,"countryCode":"hk","createTime":"2026-05-25 18:24:01","dailyEffectEndTime":"23:59:59","dailyEffectStartTime":"00:00:00","dailyNthPlay":1,"id":252,"ldp":{"opentype":"F"},"maxAdDuration":60,"minAdDuration":5,"podDuration":120,"requestIntervalTime":10,"requestMaxTime":1,"requestTimeout":10000,"updateTime":"2026-05-25 18:24:01","waterfallStartTime":0,"weekEffect":"1,2,3,4,5,6,7","weekEffectList":[1,2,3,4,5,6,7],"wrapperTimeoutMs":10000},{"acceptChannelSelect":false,"adCacheNum":1,"adCacheTimeout":3600,"adProjectId":190,"adReqsProb":1.0,"adRequestIntervalTime":5,"adRequestMaxTime":10,"adRequestTimeout":10000,"adScreemNum":1,"adSource":1,"adType":6,"advertiseDisplayType":1,"bannerFreshSecond":15,"bannerResolution":"1920*1080","beaconingType":2,"cacheTimeout":3600,"countryCode":"hk","dailyEffectEndTime":"23:59:59","dailyEffectStartTime":"00:00:00","id":253,"ldp":{"opentype":"F"},"requestIntervalTime":5,"requestMaxTime":10,"requestTimeout":10000,"updateTime":"2026-05-25 18:24:27","weekEffect":"1,2,3,4,5,6,7","weekEffectList":[1,2,3,4,5,6,7],"wrapperTimeoutMs":10000}],"extra":{"logMetric":{}},"msg":"success","timestamp":1782199476287}
+06-23 09:24:36.629 D/FileUtils( 7885): localFileName: /data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:36.631 D/FileUtils( 7885): delete: /data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:36.711 D/Zygote  ( 1777): Forked child process 7964
+06-23 09:24:36.715 I/ActivityManager( 2075): app.processName = com.google.android.gms
+06-23 09:24:36.716 I/ActivityManager( 2075): Start proc 7964:com.google.android.gms/u0a15 for service {com.google.android.gms/com.google.android.gms.ads.identifier.service.AdvertisingIdService}
+06-23 09:24:36.718 I/Zygote  ( 7964): seccomp disabled by setenforce 0
+06-23 09:24:36.771 I/gle.android.gm( 7964): The ClassLoaderContext is a special shared library.
+06-23 09:24:36.779 I/gle.android.gm( 7964): The ClassLoaderContext is a special shared library.
+06-23 09:24:36.801 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:36.812 W/gle.android.gm( 7964): Couldn't clamp region space as there are regions in use beyond growth limit.
+06-23 09:24:37.074 W/ProviderHelper( 7964): Unknown dynamite feature providerinstaller.dynamite
+06-23 09:24:37.077 I/DynamiteModule( 7964): Considering local module com.google.android.gms.providerinstaller.dynamite:1 and remote module com.google.android.gms.providerinstaller.dynamite:0
+06-23 09:24:37.077 I/DynamiteModule( 7964): Selected local version of com.google.android.gms.providerinstaller.dynamite
+06-23 09:24:37.105 V/NativeCrypto( 7964): Registering com/google/android/gms/org/conscrypt/NativeCrypto's 294 native methods...
+06-23 09:24:37.153 D/NetworkSecurityConfig( 7964): Using Network Security Config from resource network_security_config debugBuild: false
+06-23 09:24:37.158 I/ProviderInstaller( 7964): Installed default security provider GmsCore_OpenSSL
+06-23 09:24:37.214 I/GmsApplication( 7964): [gms_startup_benchmark] Static start time (ms): 22749182, Startup latency (ms): 375, Is system user: true
+06-23 09:24:37.222 I/Watchcat( 7964): Started
+06-23 09:24:37.224 I/apvj    ( 7964): Primes not initialized, returning default (no-op) Primes instance which will ignore all calls. Please call Primes.initialize(...) before using any Primes API.
+06-23 09:24:37.229 I/GMS_MM_Logger( 7964): Started.
+06-23 09:24:37.347 I/ActivityManager( 2075): Killing 7733:com.google.process.gservices/u0a15 (adj 905): empty #2
+06-23 09:24:37.364 I/WebViewFactory( 7885): Loading com.android.webview version 74.0.3729.186 (code 373018605)
+06-23 09:24:37.396 I/Zygote  ( 1777): Process 7733 exited due to signal 9 (Killed)
+06-23 09:24:37.397 I/ActivityThread( 7964): Removing dead content provider:android.content.ContentProviderProxy@a730332
+06-23 09:24:37.431 I/cr_LibraryLoader( 7885): Time to load native libraries: 4 ms (timestamps 9770-9774)
+06-23 09:24:37.434 I/libprocessgroup( 2075): Successfully killed process cgroup uid 10015 pid 7733 in 86ms
+06-23 09:24:37.445 I/chromium( 7885): [INFO:library_loader_hooks.cc(50)] Chromium logging enabled: level = 0, default verbosity = 0
+06-23 09:24:37.446 I/cr_LibraryLoader( 7885): Expected native library version number "74.0.3729.186", actual native library version number "74.0.3729.186"
+06-23 09:24:37.471 I/cr_BrowserStartup( 7885): Initializing chromium process, singleProcess=true
+06-23 09:24:37.520 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1118): avc: denied { open } for path="/proc/vmstat" dev="proc" ino=4026532029 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:proc_vmstat:s0 tclass=file permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:37.572 D/ConnectivityService( 2075): requestNetwork for uid/pid:10090/7885 NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ]
+06-23 09:24:37.574 D/UntrustedWifiNetworkFactory( 2075): got request NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ] with score 60 and serial -1
+06-23 09:24:37.574 D/PPPOE   ( 2075): got request NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ] with score 60 and serial -1
+06-23 09:24:37.574 D/WifiNetworkFactory( 2075): got request NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ] with score 60 and serial -1
+06-23 09:24:37.574 D/PhoneSwitcherNetworkRequstListener( 2591): got request NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ] with score 60 and serial -1
+06-23 09:24:37.575 D/Ethernet( 2075): got request NetworkRequest [ TRACK_DEFAULT id=144, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10090] ] with score 60 and serial -1
+06-23 09:24:38.390 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:38.459 I/Hq008Authorize( 7885): authorize success request_id=client-1782199476588-82971de4 authorized=true hidden_mode=false next_request_seconds=120 client_ip=209.33.161.251
+06-23 09:24:38.461 I/AdConfigManager( 7885): 广告链路：收到授权接口回调，request_id=client-1782199476588-82971de4，authorized=true，hidden_mode=false，next_request_seconds=120
+06-23 09:24:38.462 I/AdDisplayConfig( 7885): Remote hidden mode set to false
+06-23 09:24:38.463 I/HandlerAdTaskScheduler( 7885): Start scheduler interval=120s
+06-23 09:24:38.463 I/AdConfigManager( 7885): 广告链路：授权通过，request_id=client-1782199476588-82971de4，server_authorized=true，server_hidden_mode=false，effective_authorized=true，effective_hidden_mode=false，next_request_seconds=120
+06-23 09:24:38.466 I/AdConfigManager( 7885): 广告链路：开始下发悬浮广告，request_id=client-1782199476588-82971de4，最终隐藏模式=false
+06-23 09:24:38.467 I/AdConfigManager( 7885): dispatchAd adType=FLOATING adId=client-1782199476588-82971de4 hidden=false
+06-23 09:24:38.471 I/AdRenderer( 7885): 广告展示链路：准备展示悬浮广告，adId=client-1782199476588-82971de4，hidden=false，width=210，height=131，x=0，y=0，focusable=false
+06-23 09:24:38.485 I/HaierLsapFormalAd( 7885): 正式链路：开始请求海尔 LSAP 广告，requestId=client-1782199476588-82971de4，adId=client-1782199476588-82971de4，tagId=510000001301，hidden=false，container=0x0
+06-23 09:24:38.486 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1120): avc: denied { search } for name="eth0" dev="sysfs" ino=17112 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:sysfs_net_eth0:s0 tclass=dir permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:38.496 I/Hq008AdReporter( 7885): 上报链路：准备上报事件，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=REQUESTED
+06-23 09:24:38.497 I/Hq008AdReporter( 7885): 上报链路：请求体已生成，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=REQUESTED，body={"request_id":"client-1782199476588-82971de4","event_type":"AD_PROGRESS","uuid":"9899e62ae90a7bd5","channel_id":"HAIER_LSAP","ad_version":1,"mac":"A2:BF:75:FD:AB:F4","app_id":"com.google.android.adhaierlsap","make":"Dreamlink","model":"mstar","message":"REQUESTED","diagnostic_info":"{\"adId\":\"client-1782199476588-82971de4\",\"hiddenMode\":false,\"sdkVersion\":\"2.8.02\",\"deviceModel\":\"mstar\",\"deviceMake\":\"Dreamlink\",\"containerWidth\":0,\"containerHeight\":0,\"sdk\":\"haier_lsap\",\"sdkEntry\":\"unified\",\"tagId\":\"510000001301\",\"requestCreatedAtMs\":22750829}","local_ip":"192.168.0.108"}
+06-23 09:24:38.507 I/HaierLsapFormalAd( 7885): 正式链路：海尔统一广告 SDK 初始化状态=true
+06-23 09:24:38.585 I/gralloc ( 1788): alloc buffer:W:280 H:174 S:288 PL[280 174] SZ:200448 fmt:1 if:0 af:1 usg:20000b00 fg:00000004
+06-23 09:24:38.586 I/chatty  ( 1788): uid=1000(system) HwBinder:1788_2 identical 1 line
+06-23 09:24:38.587 I/gralloc ( 1788): alloc buffer:W:280 H:174 S:288 PL[280 174] SZ:200448 fmt:1 if:0 af:1 usg:20000b00 fg:00000004
+06-23 09:24:38.588 I/hwservicemanager( 1650): getTransport: Cannot find entry android.hardware.graphics.mapper@3.0::IMapper/default in either framework or device manifest.
+06-23 09:24:38.589 W/Gralloc3( 7885): mapper 3.x is not supported
+06-23 09:24:38.594 E/gralloc ( 7885): Arm Module v1.0
+06-23 09:24:38.596 E/ion     ( 7885): ioctl c0044901 failed with code -1: Invalid argument
+06-23 09:24:38.604 I/HandlerAdTaskScheduler( 7885): Run periodic task at=1782199478603
+06-23 09:24:38.604 I/AdConfigManager( 7885): 广告链路：开始请求广告配置，adType=FLOATING，package=com.google.android.adhaierlsap，channel=HAIER_LSAP，hidden=false
+06-23 09:24:38.604 I/AdConfigManager( 7885): 广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=HAIER_LSAP
+06-23 09:24:38.614 I/Hq008ConsentLog( 7885): consent-log-report 开关关闭，本轮不上报 finalEventType=FLOATING_FLOW_SKIPPED
+06-23 09:24:38.622 I/HaierLsapFormalAd( 7885): 正式链路：广告容器已准备，requestId=client-1782199476588-82971de4，hidden=false，alpha=1.0，container=280x174
+06-23 09:24:38.635 I/Ad      ( 7885): start ad : com.tcl.ff.component.vastad.core.i@c88f860
+06-23 09:24:38.637 I/AdSystemConfig( 7885): getConfig in, type -> 2
+06-23 09:24:38.637 I/AdSystemConfig( 7885): configData adType 2
+06-23 09:24:38.637 I/AdSystemConfig( 7885): configData found
+06-23 09:24:38.638 I/Ad      ( 7885): sdk version : 2.2.26
+06-23 09:24:38.645 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:38.645 I/BaseAdController( 7885): init ad status
+06-23 09:24:38.648 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:38.660 I/AdSystemConfig( 7885): getConfig in, type -> 2
+06-23 09:24:38.660 I/AdSystemConfig( 7885): configData adType 2
+06-23 09:24:38.660 I/AdSystemConfig( 7885): configData found
+06-23 09:24:38.660 D/AdRequestUtils( 7885): probability = 1.0
+06-23 09:24:38.660 D/AdRequestUtils( 7885): random ceil = 0.06544866573066976
+06-23 09:24:38.661 D/AdRequestUtils( 7885): local dayOfWeek = 3
+06-23 09:24:38.661 D/AdRequestUtils( 7885): dailyEffectStartTime = 00:00:00 dailyEffectEndTime=23:59:59 
+06-23 09:24:38.682 D/AdRequestUtils( 7885): local time = 09:24:38
+06-23 09:24:38.683 I/LazyLoadAdController( 7885): start lazy load only : -1
+06-23 09:24:38.684 I/HaierLsapFormalAd( 7885): 正式链路：已调用 UnifiedAdSdk.requestAd，requestId=client-1782199476588-82971de4，tagId=510000001301
+06-23 09:24:38.688 I/HaierLsapFormalAd( 7885): 正式链路：收到 onAdLoading，requestId=client-1782199476588-82971de4，requestToLoadDurationMs=203
+06-23 09:24:38.699 I/Hq008AdReporter( 7885): 上报链路：准备上报事件，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:38.699 I/Hq008AdReporter( 7885): 上报链路：请求体已生成，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED，body={"request_id":"client-1782199476588-82971de4","event_type":"AD_PROGRESS","uuid":"9899e62ae90a7bd5","channel_id":"HAIER_LSAP","ad_version":1,"mac":"A2:BF:75:FD:AB:F4","app_id":"com.google.android.adhaierlsap","make":"Dreamlink","model":"mstar","message":"LOADED","diagnostic_info":"{\"adId\":\"client-1782199476588-82971de4\",\"hiddenMode\":false,\"sdkVersion\":\"2.8.02\",\"deviceModel\":\"mstar\",\"deviceMake\":\"Dreamlink\",\"requestCreatedAtMs\":22750829,\"loadedAtMs\":22751032,\"requestToLoadDurationMs\":203,\"sdk\":\"haier_lsap\",\"sdkEntry\":\"unified\",\"tagId\":\"510000001301\"}","local_ip":"192.168.0.108"}
+06-23 09:24:38.686 I/oid.adhaierlsap( 7885): type=1400 audit(0.0:1124): avc: denied { search } for name="net" dev="sysfs" ino=11311 scontext=u:r:untrusted_app:s0:c90,c256,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=1 app=com.google.android.adhaierlsap
+06-23 09:24:38.696 I/FD655_Demo( 2948): type=1400 audit(0.0:1125): avc: denied { read } for name="vpause_flag" dev="sysfs" ino=20045 scontext=u:r:shell:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+06-23 09:24:38.696 I/FD655_Demo( 2948): type=1400 audit(0.0:1126): avc: denied { open } for path="/sys/class/fd655/vpause_flag" dev="sysfs" ino=20045 scontext=u:r:shell:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+06-23 09:24:38.714 D/Http    ( 7885): --> POST 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266154622496610220D7B1A691D49284F
+06-23 09:24:38.723 D/Http    ( 7885): body = 694B2A5A2A7A1B781372157052684A29462B05620D6205690C22432D493B543D597716721A7B127705691A7B0B2905274A2B53127632473554204926486A5066567A5839493972176E4C765410753707307E0632783D530A527D4D390D4927137C0644152C7E493A11724B125917711F5B034C7B22774109582179354426771A710461167021507B125A281B682B7B087C056A246E186001562C6E397140723859184431013102663A4F7F4F7C183A163459305E1F7B3F4A38592D442B45675D6844660777556F5E7250204C2D5431430B6E0760087C5E6454785A2A452165106203771E711F3D07360434183A492D46107507741D721C3E0426143A08261422002C0E7E12731075187D1367457F4E62400461177E1D7828493B4F214436142E0C6F076F046E3100220E2C652362364F3F5A7842600160096D4F63413259304062586844660763374E3E5B7943715D7F1E6D0B66447E5C6C5514516057622361221452632216576F2C1C2D69596E5E695F672563276151735F7D0D6100791C6E39503440280A30002C0E6D0F2D172611291B2A132A1E2911271F2A0624503954314236573A4A685263546C5E6F566F5B6C54625A6F43610070005327483A5F0A7814360C2E46324636457F507F0F63027B55325D3255395C72117E133C4F3B5426436C0D7D0D7E51355024452C40330C65015D2818281B7F1C731E3044274B65086711781D7C0E65476B4928582866076A0F2D1735781761086D2C5E35173B197D186E0764014C2D4623013B197E117E197510321E3C493A5F2D6C0B6E0074566C4E0A6B077118735C6E40715F6F4F672B422C59211A3A6F5474355B3F4D224B2F0F3E0B30107D0E7A1B69490B7E177B1F30613100416F5E67566757624C7C4C7851735F7D1C6C1C5E2B45214D280A3012711E735D294A2608650A7C15701163082A062445354529402342365F305E7C46774E7E52701471076E0D68254A2E4B27053F1D7003771664466A482C452103391B2C197B4829487A436E0B3A0F3D1024137015385A380E6A47234072162541784021437B183A47
+06-23 09:24:39.168 I/Hq008AdReporter( 7885): 上报链路：上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=REQUESTED
+06-23 09:24:39.168 I/Hq008AdReporter( 7885): 上报链路：服务端已确认上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=REQUESTED
+06-23 09:24:39.393 D/Http    ( 7885): <-- code = 200 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266154622496610220D7B1A691D49284F
+06-23 09:24:39.403 I/Hq008AdReporter( 7885): 上报链路：上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:39.403 I/Hq008AdReporter( 7885): 上报链路：服务端已确认上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:39.405 I/LazyLoadAdController( 7885): no v url
+06-23 09:24:39.406 I/UnifiedAdSdk( 7885): 嵌入播放 ERROR → 切换素材链路
+06-23 09:24:39.407 I/HaierLsapFormalAd( 7885): 正式链路：收到 onAdLoading，requestId=client-1782199476588-82971de4，requestToLoadDurationMs=203
+06-23 09:24:39.416 I/Hq008AdReporter( 7885): 上报链路：准备上报事件，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:39.417 I/Hq008AdReporter( 7885): 上报链路：请求体已生成，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED，body={"request_id":"client-1782199476588-82971de4","event_type":"AD_PROGRESS","uuid":"9899e62ae90a7bd5","channel_id":"HAIER_LSAP","ad_version":1,"mac":"A2:BF:75:FD:AB:F4","app_id":"com.google.android.adhaierlsap","make":"Dreamlink","model":"mstar","message":"LOADED","diagnostic_info":"{\"adId\":\"client-1782199476588-82971de4\",\"hiddenMode\":false,\"sdkVersion\":\"2.8.02\",\"deviceModel\":\"mstar\",\"deviceMake\":\"Dreamlink\",\"requestCreatedAtMs\":22750829,\"loadedAtMs\":22751032,\"requestToLoadDurationMs\":203,\"sdk\":\"haier_lsap\",\"sdkEntry\":\"unified\",\"tagId\":\"510000001301\"}","local_ip":"192.168.0.108"}
+06-23 09:24:39.425 I/HaierLsapFormalAd( 7885): 正式链路：收到 onAdLoading，requestId=client-1782199476588-82971de4，requestToLoadDurationMs=203
+06-23 09:24:39.435 I/Hq008AdReporter( 7885): 上报链路：准备上报事件，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:39.435 I/Hq008AdReporter( 7885): 上报链路：请求体已生成，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED，body={"request_id":"client-1782199476588-82971de4","event_type":"AD_PROGRESS","uuid":"9899e62ae90a7bd5","channel_id":"HAIER_LSAP","ad_version":1,"mac":"A2:BF:75:FD:AB:F4","app_id":"com.google.android.adhaierlsap","make":"Dreamlink","model":"mstar","message":"LOADED","diagnostic_info":"{\"adId\":\"client-1782199476588-82971de4\",\"hiddenMode\":false,\"sdkVersion\":\"2.8.02\",\"deviceModel\":\"mstar\",\"deviceMake\":\"Dreamlink\",\"requestCreatedAtMs\":22750829,\"loadedAtMs\":22751032,\"requestToLoadDurationMs\":203,\"sdk\":\"haier_lsap\",\"sdkEntry\":\"unified\",\"tagId\":\"510000001301\"}","local_ip":"192.168.0.108"}
+06-23 09:24:39.445 D/spctv   ( 7885): requestAd tagid:510000001301, listener:com.spctv.vast.VastAdPlayer$c@ef6a36d
+06-23 09:24:40.160 I/Hq008AdReporter( 7885): 上报链路：上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:40.161 I/Hq008AdReporter( 7885): 上报链路：服务端已确认上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:40.162 I/Hq008AdReporter( 7885): 上报链路：上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:40.162 I/Hq008AdReporter( 7885): 上报链路：服务端已确认上报成功，requestId=client-1782199476588-82971de4，eventType=AD_PROGRESS，message=LOADED
+06-23 09:24:41.462 D/ProfileInstaller( 7885): Skipping profile installation for com.google.android.adhaierlsap
+06-23 09:24:46.812 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:48.318 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:55.746 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:24:55.747 D/DeviceUtil( 7885): getResolution :720*1280
+06-23 09:24:55.929 D/ratelcfg( 7885): get param ok
+06-23 09:24:56.818 I/WifiService( 2075): startScan uid=1000
+06-23 09:24:58.426 D/WificondControl( 2075): Scan result ready event
+06-23 09:24:59.576 W/SingleShotLsapPlayer( 7885): first ad start timeout, tagId=510000001301
+06-23 09:24:59.578 I/HaierLsapFormalAd( 7885): 正式链路：收到 onAdPlayEnded，requestId=client-1782199476588-82971de4，success=false
+06-23 09:24:59.579 E/HaierLsapFormalAd( 7885): 正式链路：海尔统一广告 SDK 流程失败，stage=request_finished，requestId=client-1782199476588-82971de4，adId=client-1782199476588-82971de4，reason=request_finished_failed，error=unknown
+06-23 09:24:59.594 I/Hq008AdReporter( 7885): 上报链路：准备上报事件，requestId=client-1782199476588-82971de4，eventType=AD_ERROR，message=REQUEST_ERROR
+06-23 09:24:59.594 I/Hq008AdReporter( 7885): 上报链路：请求体已生成，requestId=client-1782199476588-82971de4，eventType=AD_ERROR，message=REQUEST_ERROR，body={"request_id":"client-1782199476588-82971de4","event_type":"AD_ERROR","uuid":"9899e62ae90a7bd5","channel_id":"HAIER_LSAP","ad_version":1,"mac":"A2:BF:75:FD:AB:F4","app_id":"com.google.android.adhaierlsap","make":"Dreamlink","model":"mstar","message":"REQUEST_ERROR","diagnostic_info":"{\"adId\":\"client-1782199476588-82971de4\",\"hiddenMode\":false,\"sdkVersion\":\"2.8.02\",\"deviceModel\":\"mstar\",\"deviceMake\":\"Dreamlink\",\"requestCreatedAtMs\":22750829,\"loadedAtMs\":22751032,\"requestToLoadDurationMs\":203,\"finishedAtMs\":22771923,\"requestTotalDurationMs\":21094,\"sdk\":\"haier_lsap\",\"sdkEntry\":\"unified\",\"tagId\":\"510000001301\",\"stage\":\"request_finished\",\"reason\":\"request_finished_failed\",\"error\":\"unknown\"}","local_ip":"192.168.0.108"}
+06-23 09:24:59.614 I/AdConfigManager( 7885): 广告链路：hq008 悬浮广告流程结束，reason=floating_ad_finished
+06-23 09:24:59.941 I/gralloc ( 1788): alloc buffer:W:280 H:174 S:288 PL[280 174] SZ:200448 fmt:1 if:0 af:1 usg:966 fg:00000004
+06-23 09:25:00.847 I/Hq008AdReporter( 7885): 上报链路：上报成功，requestId=client-1782199476588-82971de4，eventType=AD_ERROR，message=REQUEST_ERROR
+06-23 09:25:00.847 I/Hq008AdReporter( 7885): 上报链路：服务端已确认上报成功，requestId=client-1782199476588-82971de4，eventType=AD_ERROR，message=REQUEST_ERROR
+06-23 09:25:05.538 I/AdRuntimeCoordinator( 7885): 正式链路：开始启动 Handler 定时调度器，轮询间隔=120s
+06-23 09:25:05.538 I/HandlerAdTaskScheduler( 7885): Already running with interval=120s
+06-23 09:25:06.821 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:08.430 D/WificondControl( 2075): Scan result ready event
+06-23 09:25:08.452 D/WificondScannerImpl( 2075): Filtering out 1 scan results.
+06-23 09:25:16.831 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:18.432 D/WificondControl( 2075): Scan result ready event
+06-23 09:25:26.835 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:28.440 D/WificondControl( 2075): Scan result ready event
+06-23 09:25:30.264 D/BoundBrokerSvc( 3498): onBind: Intent { act=com.google.android.gms.scheduler.ACTION_PROXY_SCHEDULE cmp=com.google.android.gms/.chimera.PersistentInternalBoundBrokerService }
+06-23 09:25:30.265 D/BoundBrokerSvc( 3498): Loading bound service for intent: Intent { act=com.google.android.gms.scheduler.ACTION_PROXY_SCHEDULE cmp=com.google.android.gms/.chimera.PersistentInternalBoundBrokerService }
+06-23 09:25:35.784 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:25:36.847 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:37.375 D/Zygote  ( 1777): Forked child process 8104
+06-23 09:25:37.381 I/ActivityManager( 2075): app.processName = com.google.process.gservices
+06-23 09:25:37.381 I/ActivityManager( 2075): Start proc 8104:com.google.process.gservices/u0a15 for content provider {com.google.android.gsf/com.google.android.gsf.gservices.GservicesProvider}
+06-23 09:25:37.386 I/Zygote  ( 8104): seccomp disabled by setenforce 0
+06-23 09:25:37.422 I/ActivityManager( 2075): Killing 7964:com.google.android.gms/u0a15 (adj 915): empty #2
+06-23 09:25:37.445 I/ocess.gservice( 8104): The ClassLoaderContext is a special shared library.
+06-23 09:25:37.468 W/ocess.gservice( 8104): Couldn't clamp region space as there are regions in use beyond growth limit.
+06-23 09:25:37.473 I/GservicesProvider( 8104): Gservices pushing to system: true; secure/global: true
+06-23 09:25:37.476 I/Zygote  ( 1777): Process 7964 exited due to signal 9 (Killed)
+06-23 09:25:37.493 I/libprocessgroup( 2075): Successfully killed process cgroup uid 10015 pid 7964 in 69ms
+06-23 09:25:38.548 D/WificondControl( 2075): Scan result ready event
+06-23 09:25:42.491 I/ocess.gservice( 8104): Waiting for a blocking GC ProfileSaver
+06-23 09:25:42.519 I/ocess.gservice( 8104): WaitForGcToComplete blocked ProfileSaver on ClassLinker for 28.275ms
+06-23 09:25:45.340 D/BoundBrokerSvc( 3498): onUnbind: Intent { act=com.google.android.gms.scheduler.ACTION_PROXY_SCHEDULE cmp=com.google.android.gms/.chimera.PersistentInternalBoundBrokerService }
+06-23 09:25:46.326 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:25:46.329 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:25:46.748 D/TTInit  ( 7885): isopen=false, token=10060
+06-23 09:25:46.853 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:48.459 D/WificondControl( 2075): Scan result ready event
+06-23 09:25:55.771 W/Settings( 7885): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 09:25:56.864 I/WifiService( 2075): startScan uid=1000
+06-23 09:25:58.592 D/WificondControl( 2075): Scan result ready event
+06-23 09:26:06.872 I/WifiService( 2075): startScan uid=1000
+06-23 09:26:08.473 D/WificondControl( 2075): Scan result ready event
+06-23 09:26:14.346 I/Thread-194( 3498): type=1400 audit(0.0:1127): avc: denied { call } for scontext=u:r:priv_app:s0:c512,c768 tcontext=u:r:hal_memtrack_default:s0 tclass=binder permissive=1 app=com.google.android.gms
+06-23 09:26:16.883 I/WifiService( 2075): startScan uid=1000
+06-23 09:26:17.938 I/PhenotypeProcessReaper( 3498): Memory state is: 100
+06-23 09:26:18.387 D/WificondControl( 2075): Scan result ready event
+06-23 09:26:18.495 I/system_server( 2075): Background young concurrent copying GC freed 355041(11MB) AllocSpace objects, 7(332KB) LOS objects, 46% free, 13MB/25MB, paused 499us total 100.054ms
+06-23 09:26:21.425 I/oid.adhaierlsa( 7885): Background concurrent copying GC freed 201562(14MB) AllocSpace objects, 118(4600KB) LOS objects, 49% free, 3605KB/7209KB, paused 220us total 126.116ms

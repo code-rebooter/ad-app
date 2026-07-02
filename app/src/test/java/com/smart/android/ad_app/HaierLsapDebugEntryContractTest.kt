@@ -21,6 +21,8 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(buildGradle.contains("compileHaier_lsapDebugKotlin"))
         assertTrue(buildGradle.contains("haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)"))
         assertTrue(buildGradle.contains("haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar')"))
+        assertFalse(buildGradle.contains("haier_lsapImplementation files('sdk_debug/haier_lsap/lsapsdk-combine-release-1.1.9-debug.aar')"))
+        assertFalse(buildGradle.contains("excludePatterns << 'lsapsdk-combine-release-1.1.9.aar'"))
         assertTrue(!buildGradle.contains("lsapsdk-release_v1.1.8.jar"))
         assertTrue(!buildGradle.contains("haier_lsapImplementation fileTree(dir: tclDemoLibsDir"))
         assertTrue(!buildGradle.contains("haier_lsapImplementation('com.thoughtworks.xstream:xstream"))
@@ -33,7 +35,13 @@ class HaierLsapDebugEntryContractTest {
         val projectRoot = findProjectRoot("app/build.gradle")
         assertTrue(File(projectRoot, "app/signing_files/haier_lsap_release.jks").exists())
         assertTrue(File(projectRoot, "app/libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar").exists())
+        assertTrue(File(projectRoot, "app/sdk_debug/haier_lsap/lsapsdk-combine-release-1.1.9-debug.aar").exists())
         assertTrue(!File(projectRoot, "app/libs/haier_lsap/lsapsdk-release_v1.1.8.jar").exists())
+
+        val formalManagerSource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt")
+        val debugEntrySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
+        assertFalse(formalManagerSource.contains(".enableLog("))
+        assertFalse(debugEntrySource.contains(".enableLog("))
     }
 
     @Test
@@ -44,6 +52,9 @@ class HaierLsapDebugEntryContractTest {
 
         assertTrue(flavorManifest.contains("android.software.leanback"))
         assertTrue(flavorManifest.contains("android:banner=\"@drawable/haier_lsap_tv_banner\""))
+        assertFalse(flavorManifest.contains("android:name=\"tcl_app_key\""))
+        assertFalse(flavorManifest.contains("android:name=\"partner_name\""))
+        assertFalse(flavorManifest.contains("android:name=\"project_id\""))
         assertTrue(debugManifest.contains(".haier.HaierLsapDebugEntryActivity"))
         assertTrue(debugManifest.contains("Haier LSAP Test"))
         assertTrue(debugManifest.contains("android.intent.category.LAUNCHER"))
@@ -56,6 +67,16 @@ class HaierLsapDebugEntryContractTest {
             "debug Activity 必须只放在 haier_lsapDebug source set",
             File(projectRoot, "app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt").exists()
         )
+    }
+
+    @Test
+    fun `haier_lsap flavor manifest should include Android 14 connected device foreground service permissions`() {
+        val flavorManifest = readProjectFile("app/src/haier_lsap/AndroidManifest.xml")
+
+        assertTrue(flavorManifest.contains("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"))
+        assertTrue(flavorManifest.contains("android.permission.FOREGROUND_SERVICE_DATA_SYNC"))
+        assertTrue(flavorManifest.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"))
+        assertTrue(flavorManifest.contains("android.permission.CHANGE_NETWORK_STATE"))
     }
 
     @Test
@@ -108,6 +129,7 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(activitySource.contains("UnifiedAdSdk.init("))
         assertTrue(activitySource.contains("UnifiedAdConfig.Builder()"))
         assertTrue(activitySource.contains(".lsapAppKey(APP_KEY)"))
+        assertFalse(activitySource.contains(".enableLog("))
         assertTrue(activitySource.contains("UnifiedAdSdk.requestAd("))
         assertTrue(activitySource.contains("UnifiedAdRequestCallbacks"))
         assertTrue(activitySource.contains("onAdLoading("))
@@ -126,6 +148,7 @@ class HaierLsapDebugEntryContractTest {
     fun `haier_lsap formal chain should reuse common shell with dedicated lsap manager`() {
         val buildGradle = readProjectFile("app/build.gradle")
         val buildFlavorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
+        val timeoutPolicySource = readProjectFile("app/src/main/java/com/smart/android/ad_app/AdPlaybackPolicy.kt")
         val commonManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt")
         val managerSource = readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt")
         val appSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/APP.kt")
@@ -135,6 +158,8 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(BuildFlavor.isHq008Noneu("haier_lsap"))
         assertTrue(BuildFlavor.isHq008Family("haier_lsap"))
         assertTrue(buildFlavorSource.contains("fun isHaierLsap("))
+        assertTrue(timeoutPolicySource.contains("object AdPlaybackPolicy"))
+        assertTrue(timeoutPolicySource.contains("const val CALLBACK_TIMEOUT_MS = 180_000L"))
         assertTrue(buildGradle.contains("java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']"))
         assertTrue(commonManagerSource.contains("BuildFlavor.isHaierLsap()"))
         assertTrue(commonManagerSource.contains("HaierLsapAdManagerBridge"))
@@ -144,6 +169,9 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(managerSource.contains("UnifiedAdSdk.init("))
         assertTrue(managerSource.contains("UnifiedAdConfig.Builder()"))
         assertTrue(managerSource.contains(".lsapAppKey(APP_KEY)"))
+        assertFalse(managerSource.contains(".enableLog("))
+        assertTrue(managerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
+        assertTrue(!managerSource.contains("REQUEST_TIMEOUT_MS = 180_000L"))
         assertTrue(managerSource.contains("UnifiedAdSdk.requestAd("))
         assertTrue(managerSource.contains("UnifiedAdRequestCallbacks"))
         assertTrue(managerSource.contains("UnifiedAdSession"))

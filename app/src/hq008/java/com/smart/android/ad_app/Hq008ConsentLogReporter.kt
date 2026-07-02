@@ -119,7 +119,7 @@ internal object Hq008ConsentLogReporter {
             url = consentLogUrl,
             method = RequestMethod.POST,
             params = linkedMapOf(
-                "channel_id" to BuildConfig.CHANNEL,
+                "channel_id" to AdChannelResolver.currentChannel(),
                 "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
                 "ad_version" to BuildConfig.VERSION_CODE,
                 "event_type" to payload.eventType,

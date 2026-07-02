@@ -21,15 +21,15 @@ class Hq008DynamicPollingContractTest {
         assertTrue(policySource.contains("fun resolveEffectivePollingSeconds"))
         assertTrue(policySource.contains("KEY_SERVER_POLLING_SECONDS_PREFIX"))
         assertTrue(policySource.contains("MIN_SERVER_POLLING_SECONDS = 10L"))
-        assertTrue(policySource.contains("BuildConfig.CHANNEL") || scheduleManagerSource.contains("BuildConfig.CHANNEL"))
+        assertTrue(policySource.contains("AdChannelResolver.currentChannel()") || scheduleManagerSource.contains("AdChannelResolver.currentChannel()"))
 
         assertTrue(adConfigManagerSource.contains("val nextPollingSeconds"))
-        assertTrue(adConfigManagerSource.contains("Hq008LocalSchedulePolicy.updateServerPollingSeconds(BuildConfig.CHANNEL"))
+        assertTrue(adConfigManagerSource.contains("Hq008LocalSchedulePolicy.updateServerPollingSeconds(flowToken.channelId"))
         assertTrue(adConfigManagerSource.contains("HandlerAdTaskScheduler.startOrUpdateTask(nextPollingSeconds)"))
 
         assertTrue(flowGuardSource.contains("fun tryEnter"))
         assertTrue(flowGuardSource.contains("fun finish"))
-        assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.tryEnter(BuildConfig.CHANNEL)"))
+        assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.tryEnter(channel.value)"))
         assertTrue(adConfigManagerSource.contains("requestHq008Authorize(flowToken)"))
         assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.finish(flowToken"))
         assertTrue(rendererSource.contains("onFloatingFlowFinished"))

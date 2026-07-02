@@ -15,6 +15,7 @@ import com.itv.component.unified.UnifiedAdConfig
 import com.itv.component.unified.UnifiedAdRequestCallbacks
 import com.itv.component.unified.UnifiedAdSdk
 import com.itv.component.unified.UnifiedAdSession
+import com.smart.android.ad_app.AdChannelResolver
 import com.smart.android.ad_app.BuildConfig
 import com.smart.android.ad_app.R
 import java.io.File
@@ -77,7 +78,7 @@ class HaierLsapDebugEntryActivity : Activity() {
             append(packageName)
             append('\n')
             append("channel=")
-            append(BuildConfig.CHANNEL)
+            append(AdChannelResolver.currentChannel())
             append('\n')
             append("model=")
             append(BuildConfig.MODEL)

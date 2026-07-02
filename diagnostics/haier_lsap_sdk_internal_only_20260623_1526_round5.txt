@@ -1,0 +1,50 @@
+06-23 09:24:35.662 D/spctv   ( 7885): init ctx:com.smart.android.ad_app.APP@811feb4, appkey: com.atv.chhlauncher
+06-23 09:24:35.673 D/spctv   ( 7885): init end
+06-23 09:24:35.707 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : checkIfLogModel, logEnable: false, logMobileEnable: false, logEnableFile: false
+06-23 09:24:35.708 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : isDebugModel: false
+06-23 09:24:35.714 D/AdService( 7885): start
+06-23 09:24:35.715 D/BI_Common_SDK __2.2.26( 7885): BI_Common_SDK_workThread : gdpr value:true
+06-23 09:24:35.732 I/FileUtils( 7885): readLocalFile:/data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:35.742 D/AdService( 7885): onStartCommand
+06-23 09:24:35.853 D/AdService( 7885): onStartCommand
+06-23 09:24:35.863 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:35.870 D/AdConfigFetcher( 7885): -> getSdkAdConfig AdOverseasDebugUtils.isDebug() == false
+06-23 09:24:35.917 D/Http    ( 7885): --> GET 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266254A24422B4C63177F1664002F482D591854185B345A3C55320D6C08582A452F4A295D14704D7C4575
+06-23 09:24:35.918 D/Http    ( 7885): --> END GET
+06-23 09:24:35.923 D/AdService( 7885): onStartCommand
+06-23 09:24:35.938 D/AdService( 7885): onStartCommand
+06-23 09:24:36.604 D/Http    ( 7885): <-- code = 200 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266254A24422B4C63177F1664002F482D591854185B345A3C55320D6C08582A452F4A295D14704D7C4575
+06-23 09:24:36.606 D/AdConfigFetcher( 7885): -> getSdkAdConfig response == Response{protocol=http/1.1, code=200, message=, url=https://on-euads-o.api.leiniao.com/ads/adConfig/third/getALLConfig?adProjectId=190}
+06-23 09:24:36.612 I/AdConfigFetcher( 7885): -> getSdkAdConfig responseBody == {"code":100000,"data":[{"acceptChannelSelect":false,"adCacheNum":1,"adProjectId":190,"adReqsProb":1.0,"adScreemNum":1,"adSource":1,"adType":2,"adWrapperTimeoutMs":10000,"advertiseDisplayType":1,"bannerFreshSecond":15,"beaconingType":2,"cacheTimeout":3600,"countryCode":"hk","createTime":"2026-05-25 18:24:01","dailyEffectEndTime":"23:59:59","dailyEffectStartTime":"00:00:00","dailyNthPlay":1,"id":252,"ldp":{"opentype":"F"},"maxAdDuration":60,"minAdDuration":5,"podDuration":120,"requestIntervalTime":10,"requestMaxTime":1,"requestTimeout":10000,"updateTime":"2026-05-25 18:24:01","waterfallStartTime":0,"weekEffect":"1,2,3,4,5,6,7","weekEffectList":[1,2,3,4,5,6,7],"wrapperTimeoutMs":10000},{"acceptChannelSelect":false,"adCacheNum":1,"adCacheTimeout":3600,"adProjectId":190,"adReqsProb":1.0,"adRequestIntervalTime":5,"adRequestMaxTime":10,"adRequestTimeout":10000,"adScreemNum":1,"adSource":1,"adType":6,"advertiseDisplayType":1,"bannerFreshSecond":15,"bannerResolution":"1920*1080","beaconingType":2,"cacheTimeout":3600,"countryCode":"hk","dailyEffectEndTime":"23:59:59","dailyEffectStartTime":"00:00:00","id":253,"ldp":{"opentype":"F"},"requestIntervalTime":5,"requestMaxTime":10,"requestTimeout":10000,"updateTime":"2026-05-25 18:24:27","weekEffect":"1,2,3,4,5,6,7","weekEffectList":[1,2,3,4,5,6,7],"wrapperTimeoutMs":10000}],"extra":{"logMetric":{}},"msg":"success","timestamp":1782199476287}
+06-23 09:24:36.629 D/FileUtils( 7885): localFileName: /data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:36.631 D/FileUtils( 7885): delete: /data/user/0/com.google.android.adhaierlsap/filesAdConfig0/configs.0
+06-23 09:24:37.364 I/WebViewFactory( 7885): Loading com.android.webview version 74.0.3729.186 (code 373018605)
+06-23 09:24:37.431 I/cr_LibraryLoader( 7885): Time to load native libraries: 4 ms (timestamps 9770-9774)
+06-23 09:24:37.445 I/chromium( 7885): [INFO:library_loader_hooks.cc(50)] Chromium logging enabled: level = 0, default verbosity = 0
+06-23 09:24:37.446 I/cr_LibraryLoader( 7885): Expected native library version number "74.0.3729.186", actual native library version number "74.0.3729.186"
+06-23 09:24:37.471 I/cr_BrowserStartup( 7885): Initializing chromium process, singleProcess=true
+06-23 09:24:38.635 I/Ad      ( 7885): start ad : com.tcl.ff.component.vastad.core.i@c88f860
+06-23 09:24:38.637 I/AdSystemConfig( 7885): getConfig in, type -> 2
+06-23 09:24:38.637 I/AdSystemConfig( 7885): configData adType 2
+06-23 09:24:38.637 I/AdSystemConfig( 7885): configData found
+06-23 09:24:38.638 I/Ad      ( 7885): sdk version : 2.2.26
+06-23 09:24:38.645 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:38.645 I/BaseAdController( 7885): init ad status
+06-23 09:24:38.648 I/DeviceInfoGeneratorImpl( 7885): appBundle = com.google.android.adhaierlsap, appName = unknow, appVersion = 1.0.1
+06-23 09:24:38.660 I/AdSystemConfig( 7885): getConfig in, type -> 2
+06-23 09:24:38.660 I/AdSystemConfig( 7885): configData adType 2
+06-23 09:24:38.660 I/AdSystemConfig( 7885): configData found
+06-23 09:24:38.660 D/AdRequestUtils( 7885): probability = 1.0
+06-23 09:24:38.660 D/AdRequestUtils( 7885): random ceil = 0.06544866573066976
+06-23 09:24:38.661 D/AdRequestUtils( 7885): local dayOfWeek = 3
+06-23 09:24:38.661 D/AdRequestUtils( 7885): dailyEffectStartTime = 00:00:00 dailyEffectEndTime=23:59:59 
+06-23 09:24:38.682 D/AdRequestUtils( 7885): local time = 09:24:38
+06-23 09:24:38.683 I/LazyLoadAdController( 7885): start lazy load only : -1
+06-23 09:24:38.684 I/HaierLsapFormalAd( 7885): 正式链路：已调用 UnifiedAdSdk.requestAd，requestId=client-1782199476588-82971de4，tagId=510000001301
+06-23 09:24:38.714 D/Http    ( 7885): --> POST 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266154622496610220D7B1A691D49284F
+06-23 09:24:38.723 D/Http    ( 7885): body = 694B2A5A2A7A1B781372157052684A29462B05620D6205690C22432D493B543D597716721A7B127705691A7B0B2905274A2B53127632473554204926486A5066567A5839493972176E4C765410753707307E0632783D530A527D4D390D4927137C0644152C7E493A11724B125917711F5B034C7B22774109582179354426771A710461167021507B125A281B682B7B087C056A246E186001562C6E397140723859184431013102663A4F7F4F7C183A163459305E1F7B3F4A38592D442B45675D6844660777556F5E7250204C2D5431430B6E0760087C5E6454785A2A452165106203771E711F3D07360434183A492D46107507741D721C3E0426143A08261422002C0E7E12731075187D1367457F4E62400461177E1D7828493B4F214436142E0C6F076F046E3100220E2C652362364F3F5A7842600160096D4F63413259304062586844660763374E3E5B7943715D7F1E6D0B66447E5C6C5514516057622361221452632216576F2C1C2D69596E5E695F672563276151735F7D0D6100791C6E39503440280A30002C0E6D0F2D172611291B2A132A1E2911271F2A0624503954314236573A4A685263546C5E6F566F5B6C54625A6F43610070005327483A5F0A7814360C2E46324636457F507F0F63027B55325D3255395C72117E133C4F3B5426436C0D7D0D7E51355024452C40330C65015D2818281B7F1C731E3044274B65086711781D7C0E65476B4928582866076A0F2D1735781761086D2C5E35173B197D186E0764014C2D4623013B197E117E197510321E3C493A5F2D6C0B6E0074566C4E0A6B077118735C6E40715F6F4F672B422C59211A3A6F5474355B3F4D224B2F0F3E0B30107D0E7A1B69490B7E177B1F30613100416F5E67566757624C7C4C7851735F7D1C6C1C5E2B45214D280A3012711E735D294A2608650A7C15701163082A062445354529402342365F305E7C46774E7E52701471076E0D68254A2E4B27053F1D7003771664466A482C452103391B2C197B4829487A436E0B3A0F3D1024137015385A380E6A47234072162541784021437B183A47
+06-23 09:24:39.393 D/Http    ( 7885): <-- code = 200 7A0E7A0A79436C432C426F0A7F1E7A09244B6504741D335F3A533D54355A741778153A5B3F4C630266154622496610220D7B1A691D49284F
+06-23 09:24:39.405 I/LazyLoadAdController( 7885): no v url
+06-23 09:24:39.406 I/UnifiedAdSdk( 7885): 嵌入播放 ERROR → 切换素材链路
+06-23 09:24:39.445 D/spctv   ( 7885): requestAd tagid:510000001301, listener:com.spctv.vast.VastAdPlayer$c@ef6a36d
+06-23 09:24:59.576 W/SingleShotLsapPlayer( 7885): first ad start timeout, tagId=510000001301

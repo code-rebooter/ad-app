@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.widget.TextView
+import com.smart.android.ad_app.AdChannelResolver
 import com.smart.android.ad_app.BuildConfig
 import com.smart.android.ad_app.R
 import java.io.File
@@ -47,7 +48,7 @@ class PolyGammaTestEntryActivity : Activity() {
             append(currentProcessName() == packageName)
             append('\n')
             append("channel=")
-            append(BuildConfig.CHANNEL)
+            append(AdChannelResolver.currentChannel())
             append('\n')
             append("model=")
             append(BuildConfig.MODEL)

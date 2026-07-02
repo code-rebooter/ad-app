@@ -1,0 +1,228 @@
+06-23 20:42:54.222 D/Boost   ( 2072): hostingType=content provider, hostingName={com.google.android.adhaierlsap/com.smart.android.ad_app.AdProvider}, callerPackage=null, isSystem=true, isBoostNeeded=false.
+06-23 20:42:54.222 I/ActivityManager( 2072): Start proc 18520:com.google.android.adhaierlsap/u0a366 for content provider {com.google.android.adhaierlsap/com.smart.android.ad_app.AdProvider} caller=null
+06-23 20:42:54.226 E/Zygote  (18520): process_name_ptr:18520 com.google.android.adhaierlsap
+06-23 20:42:54.230 D/AppStatChecker(25496): first launch package: com.google.android.adhaierlsap
+06-23 20:42:54.232 E/oid.adhaierlsap(18520): Not starting debugger since process cannot load the jdwp agent.
+06-23 20:42:54.236 W/System.err(18520): android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+06-23 20:42:54.236 W/System.err(18520): 	at libcore.io.Linux.open(Native Method)
+06-23 20:42:54.236 W/System.err(18520): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+06-23 20:42:54.236 W/System.err(18520): 	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+06-23 20:42:54.236 W/System.err(18520): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+06-23 20:42:54.236 W/System.err(18520): 	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8381)
+06-23 20:42:54.236 W/System.err(18520): 	at android.system.Os.open(Os.java:494)
+06-23 20:42:54.236 W/System.err(18520): 	at android.os.perfdebug.PerfDebugMonitorImpl.monitorVersionControl(PerfDebugMonitorImpl.java:206)
+06-23 20:42:54.236 W/System.err(18520): 	at android.os.perfdebug.PerfDebugMonitorImpl.prepareMonitor(PerfDebugMonitorImpl.java:187)
+06-23 20:42:54.236 W/System.err(18520): 	at android.app.ActivityThread.main(ActivityThread.java:8468)
+06-23 20:42:54.236 W/System.err(18520): 	at java.lang.reflect.Method.invoke(Native Method)
+06-23 20:42:54.236 W/System.err(18520): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:561)
+06-23 20:42:54.236 W/System.err(18520): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:954)
+06-23 20:42:54.236 I/MessageMonitor(18520): Load libmiui_runtime
+06-23 20:42:54.242 D/CompatibilityChangeReporter(18520): Compat change id reported: 171979766; UID 10366; state: ENABLED
+06-23 20:42:54.254 I/Market-AppActiveReceiver(31485): use miui action receive app active broadcast for: AppActiveStatRecord{packageName='com.google.android.adhaierlsap', installer='null', miuiActiveId='17822185742131', miuiActiveTime=1782218574213, activeTime=1782218574234, activeType=1, userId=0, activationSource='null', reportSource='null'}
+06-23 20:42:54.259 I/Perf    (18520): Connecting to perf service.
+06-23 20:42:54.261 V/GraphicsEnvironment(18520): ANGLE Developer option for 'com.google.android.adhaierlsap' set to: 'default'
+06-23 20:42:54.261 V/GraphicsEnvironment(18520): ANGLE GameManagerService for com.google.android.adhaierlsap: false
+06-23 20:42:54.261 V/GraphicsEnvironment(18520): App is not on the allowlist for updatable production driver.
+06-23 20:42:54.264 I/ForceDarkHelperStubImpl(18520): initialize for com.google.android.adhaierlsap , ForceDarkOrigin
+06-23 20:42:54.265 D/oid.adhaierlsap(18520): JNI_OnLoad success
+06-23 20:42:54.265 I/MiuiForceDarkConfig(18520): setConfig density:2.750000, mainRule:0, secondaryRule:0, tertiaryRule:0
+06-23 20:42:54.266 D/NetworkSecurityConfig(18520): No Network Security Config specified, using platform default
+06-23 20:42:54.266 D/NetworkSecurityConfig(18520): No Network Security Config specified, using platform default
+06-23 20:42:54.277 D/WM-WrkMgrInitializer(18520): Initializing WorkManager with default configuration.
+06-23 20:42:54.280 D/PackageManager( 2072): set app component=ComponentInfo{com.google.android.adhaierlsap/androidx.work.impl.background.systemjob.SystemJobService} enabled state: 1 from null,uid=10366,pid=18520
+06-23 20:42:54.281 D/WM-PackageManagerHelper(18520): androidx.work.impl.background.systemjob.SystemJobService enabled
+06-23 20:42:54.281 D/WM-Schedulers(18520): Created SystemJobScheduler and enabled SystemJobService
+06-23 20:42:54.281 D/WM-ForceStopRunnable(18520): The default process name was not specified.
+06-23 20:42:54.282 D/WM-ForceStopRunnable(18520): Performing cleanup operations.
+06-23 20:42:54.283 I/SystemContactProvider(18520): Provider onCreate triggered
+06-23 20:42:54.283 I/ActivityManager( 2072): Background started FGS: Allowed [callingPackage: com.google.android.adhaierlsap; callingUid: 10366; uidState: IMPF; intent: Intent { cmp=com.google.android.adhaierlsap/com.google.android.AdService }; code:SYSTEM_ALERT_WINDOW_PERMISSION; tempAllowListReason:<null>; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null]
+06-23 20:42:54.285 I/ActivityManager( 2072): Background started FGS: Allowed [callingPackage: com.google.android.adhaierlsap; callingUid: 10366; uidState: FGS ; intent: Intent { cmp=com.google.android.adhaierlsap/com.google.android.BakService }; code:PROC_STATE_FGS; tempAllowListReason:<null>; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null]
+06-23 20:42:54.294 D/Boost   ( 2072): hostingType=service, hostingName={com.google.android.adhaierlsap/com.google.android.BakService}, callerPackage=com.google.android.adhaierlsap, isSystem=false, isBoostNeeded=false.
+06-23 20:42:54.295 I/ActivityManager( 2072): Start proc 18550:com.google.android.adhaierlsap:bak/u0a366 for service {com.google.android.adhaierlsap/com.google.android.BakService} caller=com.google.android.adhaierlsap
+06-23 20:42:54.300 E/Zygote  (18550): process_name_ptr:18550 com.google.android.adhaierlsap:bak
+06-23 20:42:54.306 E/adhaierlsap:bak(18550): Not starting debugger since process cannot load the jdwp agent.
+06-23 20:42:54.309 W/System.err(18550): android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+06-23 20:42:54.309 W/System.err(18550): 	at libcore.io.Linux.open(Native Method)
+06-23 20:42:54.309 W/System.err(18550): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+06-23 20:42:54.310 W/System.err(18550): 	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+06-23 20:42:54.310 W/System.err(18550): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+06-23 20:42:54.310 W/System.err(18550): 	at android.app.ActivityThread$AndroidOs.open(ActivityThread.java:8381)
+06-23 20:42:54.310 W/System.err(18550): 	at android.system.Os.open(Os.java:494)
+06-23 20:42:54.310 W/System.err(18550): 	at android.os.perfdebug.PerfDebugMonitorImpl.monitorVersionControl(PerfDebugMonitorImpl.java:206)
+06-23 20:42:54.310 W/System.err(18550): 	at android.os.perfdebug.PerfDebugMonitorImpl.prepareMonitor(PerfDebugMonitorImpl.java:187)
+06-23 20:42:54.310 W/System.err(18550): 	at android.app.ActivityThread.main(ActivityThread.java:8468)
+06-23 20:42:54.310 W/System.err(18550): 	at java.lang.reflect.Method.invoke(Native Method)
+06-23 20:42:54.310 W/System.err(18550): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:561)
+06-23 20:42:54.310 W/System.err(18550): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:954)
+06-23 20:42:54.310 I/MessageMonitor(18550): Load libmiui_runtime
+06-23 20:42:54.318 D/CompatibilityChangeReporter(18550): Compat change id reported: 171979766; UID 10366; state: ENABLED
+06-23 20:42:54.331 I/Perf    (18550): Connecting to perf service.
+06-23 20:42:54.333 D/spctv   (18520): init ctx:com.smart.android.ad_app.APP@5225700, appkey: com.atv.chhlauncher
+06-23 20:42:54.334 V/GraphicsEnvironment(18550): ANGLE Developer option for 'com.google.android.adhaierlsap' set to: 'default'
+06-23 20:42:54.335 V/GraphicsEnvironment(18550): ANGLE GameManagerService for com.google.android.adhaierlsap: false
+06-23 20:42:54.335 V/GraphicsEnvironment(18550): App is not on the allowlist for updatable production driver.
+06-23 20:42:54.336 D/spctv   (18520): init end
+06-23 20:42:54.336 I/UnifiedAdSdk(18520): 跳过 AdInit.init
+06-23 20:42:54.337 D/TrafficStats(18520): tagSocket(90) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:54.337 I/ForceDarkHelperStubImpl(18550): initialize for com.google.android.adhaierlsap , ForceDarkOrigin
+06-23 20:42:54.338 D/adhaierlsap:bak(18550): JNI_OnLoad success
+06-23 20:42:54.338 I/MiuiForceDarkConfig(18550): setConfig density:2.750000, mainRule:0, secondaryRule:0, tertiaryRule:0
+06-23 20:42:54.339 D/AdService(18520): start
+06-23 20:42:54.339 I/ActivityManager( 2072): Background started FGS: Allowed [callingPackage: com.google.android.adhaierlsap; callingUid: 10366; uidState: FGS ; intent: Intent { cmp=com.google.android.adhaierlsap/com.speed.adv.AdService }; code:PROC_STATE_FGS; tempAllowListReason:<fg-service-launch,reasonCode:SERVICE_LAUNCH,duration:30000,callingUid:10366>; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null]
+06-23 20:42:54.341 D/CompatibilityChangeReporter(18520): Compat change id reported: 160794467; UID 10366; state: ENABLED
+06-23 20:42:54.341 D/NetworkSecurityConfig(18550): No Network Security Config specified, using platform default
+06-23 20:42:54.342 D/NetworkSecurityConfig(18550): No Network Security Config specified, using platform default
+06-23 20:42:54.342 W/ActivityManager( 2072): Foreground service started from background can not have location/camera/microphone access: service com.google.android.adhaierlsap/com.google.android.AdService
+06-23 20:42:54.343 D/AdService(18520): onStartCommand
+06-23 20:42:54.346 D/FramePredict(18520): FramePredict init: false
+06-23 20:42:54.350 D/CompatibilityChangeReporter(18520): Compat change id reported: 170188668; UID 10366; state: ENABLED
+06-23 20:42:54.353 D/WM-PackageManagerHelper(18520): Skipping component enablement for androidx.work.impl.background.systemalarm.RescheduleReceiver
+06-23 20:42:54.360 W/ActivityManager( 2072): Foreground service started from background can not have location/camera/microphone access: service com.google.android.adhaierlsap/com.google.android.BakService
+06-23 20:42:54.361 D/AdService(18520): onStartCommand
+06-23 20:42:54.370 I/KeepAliveWorker(18520): WorkManager periodic heartbeat scheduled
+06-23 20:42:54.371 I/AlarmKeepAlive(18520): Alarm scheduled in 300s
+06-23 20:42:54.374 D/CompatibilityChangeReporter(18520): Compat change id reported: 194532703; UID 10366; state: ENABLED
+06-23 20:42:54.374 D/WM-SystemJobScheduler(18520): Scheduling work ID 33b331d6-49db-46f7-846e-c48e479d06a4Job ID 0
+06-23 20:42:54.383 D/WM-GreedyScheduler(18520): Starting work for 33b331d6-49db-46f7-846e-c48e479d06a4
+06-23 20:42:54.384 D/WM-Processor(18520): f: processing WorkGenerationalId(workSpecId=33b331d6-49db-46f7-846e-c48e479d06a4, generation=0)
+06-23 20:42:54.387 D/PackageManager( 2072): set app component=ComponentInfo{com.google.android.adhaierlsap/androidx.work.impl.background.systemalarm.RescheduleReceiver} enabled state: 1 from null,uid=10366,pid=18520
+06-23 20:42:54.388 D/WM-PackageManagerHelper(18520): androidx.work.impl.background.systemalarm.RescheduleReceiver enabled
+06-23 20:42:54.389 D/TrafficStats(18520): tagSocket(95) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:54.404 W/ActivityManager( 2072): Foreground service started from background can not have location/camera/microphone access: service com.google.android.adhaierlsap/com.speed.adv.AdService
+06-23 20:42:54.422 D/AdService(18520): onStartCommand
+06-23 20:42:54.436 D/AdService(18520): onStartCommand
+06-23 20:42:54.458 I/DaemonKeeper(18520): Successfully bound to guard target: ComponentInfo{com.google.android.adhaierlsap/com.google.android.BakService}
+06-23 20:42:54.458 D/WM-WorkerWrapper(18520): Starting work for com.speed.net.daemon.KeepAliveWorker
+06-23 20:42:54.465 I/AlarmKeepAlive(18520): Alarm scheduled in 300s
+06-23 20:42:54.475 D/AdService(18520): onStartCommand
+06-23 20:42:54.476 D/WM-SystemJobService(18520): onStartJob for WorkGenerationalId(workSpecId=33b331d6-49db-46f7-846e-c48e479d06a4, generation=0)
+06-23 20:42:54.477 D/WM-Processor(18520): Work WorkGenerationalId(workSpecId=33b331d6-49db-46f7-846e-c48e479d06a4, generation=0) is already enqueued for processing
+06-23 20:42:54.487 I/WM-WorkerWrapper(18520): Worker result SUCCESS for Work [ id=33b331d6-49db-46f7-846e-c48e479d06a4, tags={ com.speed.net.daemon.KeepAliveWorker } ]
+06-23 20:42:54.491 D/WM-Processor(18520): f 33b331d6-49db-46f7-846e-c48e479d06a4 executed; reschedule = false
+06-23 20:42:54.491 D/WM-SystemJobService(18520): 33b331d6-49db-46f7-846e-c48e479d06a4 executed on JobScheduler
+06-23 20:42:54.499 D/WM-GreedyScheduler(18520): Cancelling work ID 33b331d6-49db-46f7-846e-c48e479d06a4
+06-23 20:42:54.500 D/WM-SystemJobScheduler(18520): Scheduling work ID 33b331d6-49db-46f7-846e-c48e479d06a4Job ID 1
+06-23 20:42:54.660 I/AccountChangeReceiver(15258): handleAccountChange: type = com.google.android.adhaierlsap.sync.account
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{6938f2c com.chihi.authsyspermission/10079} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{c5a478a com.chihi.ptest/10123} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{9993fcb io.android.smart.sdkkit/11272} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{2f8b1fb com.galactic.spacevoyager/11307} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{d407218 com.screen.mirroring.software/11268} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{9b233a8 com.chihihgs.launcher_test/10349} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{dc41471 com.chihi.firstflutter.first_flutter_app/11158} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{b1d5256 com.zengyue.precisioncalc/10269} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{f1672d7 app.yevonne.charmwalls/10258} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{88d5ec1 com.google.android.services.adv/10221} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{1565666 com.example.rxhttp/10065} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{cd697c4 com.sovereign.habittracker/10264} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{8fa0da7 cn.example.smsdemo/11148} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{8cae254 com.chihi.m98_701_android/10045} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{f3486ad com.ytva.imageprocessor.debug/11271} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.280 I/AppsFilter( 2072): interaction: PackageSetting{1343de2 com.chihi.manual/10249} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{ce56573 com.fido.asm/10156} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{c876c30 com.zengyue.habittracker/11309} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{5bfe0a9 com.google.android.dyrtb/11308} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{4dc562e xyz.doikki.dkplayer/10168} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{9a6e5cf com.tbuonomo.dotsindicatorsample/10251} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{5025fd com.chihi.m98/10125} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{32f1b5c com.zhangteng.projectionscreensender/11270} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{a8cde65 com.test.exitdetector/10267} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{dba73a com.twentyfour.game/10275} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{bc4c51e io.android.hxapps.tv.launcher/10165} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{b560feb com.chihi.myapplicationnew/10224} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{7409148 com.googleapps.offlinematch3/11311} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{fafdd43 cn.shudongkj.xinqingapp/10411} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{871fbe1 com.chronos.offlineplanner/10262} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{44cfd06 com.chihi.jnidemo/10186} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{283bfc7 com.airbnb.lottie.snapshots/10585} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{17179f4 com.sabithpkcmnr.splashscreen/10256} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{731751d com.payelpaul.androidtvapp/10244} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{81dcfc0 com.lxj.xpopupdemo/10041} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{32be392 com.android.tv.reference/10344} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{87e24f9 io.android.app.hoteltvlauncher/10312} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.281 I/AppsFilter( 2072): interaction: PackageSetting{df29163 com.jin.jnidemo/10177} -> PackageSetting{d2870f9 com.google.android.adhaierlsap/10366} BLOCKED
+06-23 20:42:55.285 D/CarrierSvcBindHelper( 3275): onPackageModified: com.google.android.adhaierlsap
+06-23 20:42:55.286 D/Avrcp_ext( 3160): AvrcpServiceBroadcastReceiver-> packageName: com.google.android.adhaierlsap
+06-23 20:42:55.286 D/Avrcp_ext( 3160): packageName: com.google.android.adhaierlsap removed: false
+06-23 20:42:55.288 I/PackageInstallReceiver( 4648): action = android.intent.action.PACKAGE_CHANGED packageName = com.google.android.adhaierlsap
+06-23 20:42:55.288 I/AppWidgetDelegate( 4648): updateAppWidgets for com.google.android.adhaierlsap
+06-23 20:42:55.289 I/WidgetController( 4648): WidgetController.updateOrRemoveStackWhenPackageChanged: packageName com.google.android.adhaierlsap
+06-23 20:42:55.289 I/SingleShortcutPackageChangeListener( 4648): onAppChanged packageName: com.google.android.adhaierlsap action: android.intent.action.PACKAGE_CHANGED xspace: false
+06-23 20:42:55.289 D/PowerKeeper.GMS( 7079): pkgName: com.google.android.adhaierlsap
+06-23 20:42:55.293 D/ImsResolver( 3275): maybeAddedImsService, packageName: com.google.android.adhaierlsap
+06-23 20:42:55.438 W/oid.adhaierlsap(18520): type=1400 audit(0.0:240360): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:42:55.442 W/oid.adhaierlsap(18520): type=1400 audit(0.0:240361): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:42:55.446 W/i.kytira.cc/...(18520): type=1400 audit(0.0:240362): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:42:55.446 W/i.kytira.cc/...(18520): type=1400 audit(0.0:240363): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:42:55.454 D/TrafficStats(18520): tagSocket(100) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:55.868 D/Launcher.Model( 3379): LauncherAppsCallback onPackageChanged|com.google.android.adhaierlsap|UserHandle{0}
+06-23 20:42:55.870 D/Launcher.AllAppsList( 3379): updatePackage, packageName=com.google.android.adhaierlsap, loadMissing=false, user=UserHandle{0}, matchedSize=0
+06-23 20:42:56.276 D/CompatibilityChangeReporter(18520): Compat change id reported: 210923482; UID 10366; state: ENABLED
+06-23 20:42:56.278 W/oid.adhaierlsap(18520): type=1400 audit(0.0:240364): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:42:56.293 D/TrafficStats(18520): tagSocket(103) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:56.304 I/SmartPower.com.google.android.adhaierlsap/10366(18520)( 2072): background->visible(2089ms) R(become visible) adj=200.
+06-23 20:42:56.304 I/SmartPower.com.google.android.adhaierlsap:bak/10366(18550)( 2072): background->invisible(2019ms) R(become foreground) adj=200.
+06-23 20:42:56.306 D/CoreBackPreview( 2072): Window{93195b3 u0 com.google.android.adhaierlsap}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@969736e, mPriority=0}
+06-23 20:42:56.324 D/VRI[]   (18520): vri.reportNextDraw android.view.ViewRootImpl.performTraversals:4013 android.view.ViewRootImpl.doTraversal:2725 android.view.ViewRootImpl$TraversalRunnable.run:9812 android.view.Choreographer$CallbackRecord.run:1505 android.view.Choreographer$CallbackRecord.run:1513 
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): QUALCOMM build                   : db3d445dbc, Ia06b22fa1a
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Build Date                       : 10/04/21
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): OpenGL ES Shader Compiler Version: EV031.32.02.16
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Local Branch                     : 
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Remote Branch                    : 
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Remote Branch                    : 
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Reconstruct Branch               : 
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Build Config                     : S P 10.0.7 AArch64
+06-23 20:42:56.324 I/AdrenoGLES-0(18520): Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+06-23 20:42:56.324 D/VRI[]   (18520): vri.Setup new sync id=0 syncSeqId=0
+06-23 20:42:56.326 I/AdrenoGLES-0(18520): PFP: 0x016dd093, ME: 0x00000000
+06-23 20:42:56.333 W/libc    (18520): Access denied finding property "vendor.migl.debug"
+06-23 20:42:56.337 E/libEGL  (18520): pre_cache appList: ,,,
+06-23 20:42:56.348 D/oid.adhaierlsap(18520): MiuiProcessManagerServiceStub setSchedFifo
+06-23 20:42:56.348 I/MiuiProcessManagerImpl(18520): setSchedFifo pid:18520, mode:3
+06-23 20:42:56.351 E/libboost(18520): fail to open node: No such file or directory
+06-23 20:42:56.357 E/perf_hint(18520): Session creation failed, mPreferredRateNanos: -1
+06-23 20:42:56.357 D/VRI[]   (18520): vri.reportDrawFinished syncSeqId=0 android.view.ViewRootImpl.lambda$createSyncIfNeeded$4$android-view-ViewRootImpl:4081 android.view.ViewRootImpl$$ExternalSyntheticLambda2.run:6 android.os.Handler.handleCallback:942 android.os.Handler.dispatchMessage:99 android.os.Looper.loopOnce:211 
+06-23 20:42:56.357 D/WindowManager( 2072): wms.finishDrawingLocked: mDrawState=COMMIT_DRAW_PENDING Window{93195b3 u0 com.google.android.adhaierlsap} in Surface(name=)/@0x825da0f
+06-23 20:42:56.358 I/UnifiedAdSdk(18520): startLsapOnly 
+06-23 20:42:56.359 I/WindowManager( 2072): wms.showSurfaceRobustly mWin:Window{93195b3 u0 com.google.android.adhaierlsap}
+06-23 20:42:56.360 E/libEGL  (18520): pre_cache appList: ,,,
+06-23 20:42:56.363 I/IconCustomizer( 2072): find better bitmap : 132, for com.google.android.adhaierlsap
+06-23 20:42:56.364 I/IconCustomizer( 2072): find better bitmap : 156, for com.google.android.adhaierlsap
+06-23 20:42:56.365 I/IconCustomizer( 2072): find better bitmap : 180, for com.google.android.adhaierlsap
+06-23 20:42:56.367 D/IconCustomizer( 2072): Generate customized icon for com.google.android.adhaierlsap.png, false
+06-23 20:42:56.375 D/TrafficStats(18520): tagSocket(129) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:56.384 D/TrafficStats(18520): tagSocket(132) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:56.422 D/spctv   (18520): requestAd tagid:510000001301, listener:com.spctv.vast.VastAdPlayer$c@65eaf87
+06-23 20:42:56.437 W/TelephonyPermissions( 3275): reportAccessDeniedToReadIdentifiers:com.google.android.adhaierlsap:getDeviceId:11
+06-23 20:42:56.441 W/TelephonyPermissions( 3275): reportAccessDeniedToReadIdentifiers:com.google.android.adhaierlsap:getIccSerialNumber:11
+06-23 20:42:56.448 D/TrafficStats(18520): tagSocket(144) with statsTag=0xffffffff, statsUid=-1
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/ConscryptEngineSocket;->setUseSessionTickets(Z)V (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setUseSessionTickets(Z)V (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/AbstractConscryptSocket;->setUseSessionTickets(Z)V (max-target-q, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/ConscryptEngineSocket;->setHostname(Ljava/lang/String;)V (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setHostname(Ljava/lang/String;)V (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/AbstractConscryptSocket;->setHostname(Ljava/lang/String;)V (max-target-q, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setAlpnProtocols([B)V (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.450 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/AbstractConscryptSocket;->setAlpnProtocols([B)V (max-target-q, reflection, denied)
+06-23 20:42:56.544 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->getAlpnSelectedProtocol()[B (max-target-q,core-platform-api, reflection, denied)
+06-23 20:42:56.544 W/oid.adhaierlsap(18520): Accessing hidden method Lcom/android/org/conscrypt/AbstractConscryptSocket;->getAlpnSelectedProtocol()[B (max-target-q, reflection, denied)
+06-23 20:43:02.256 I/oid.adhaierlsap(18520): ProcessProfilingInfo new_methods=3842 is saved saved_to_disk=1 resolve_classes_delay=8000
+06-23 20:43:02.333 I/adhaierlsap:bak(18550): ProcessProfilingInfo new_methods=11 is saved saved_to_disk=1 resolve_classes_delay=8000
+06-23 20:43:11.680 I/oid.adhaierlsap(18520): This is non sticky GC, maxfree is 8388608 minfree is 2097152
+06-23 20:43:14.354 W/cat     (18720): type=1400 audit(0.0:240381): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:14.359 W/Settings(18520): Setting android_id has moved from android.provider.Settings.System to android.provider.Settings.Secure, returning read-only value.
+06-23 20:43:14.359 D/DeviceUtil(18520): getResolution :2190*1080
+06-23 20:43:14.362 W/cat     (18721): type=1400 audit(0.0:240382): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:14.426 D/ratelcfg(18520): get param ok
+06-23 20:43:16.471 W/SingleShotLsapPlayer(18520): first ad start timeout, tagId=510000001301
+06-23 20:43:16.470 W/oid.adhaierlsap(18520): type=1400 audit(0.0:240386): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:16.470 W/oid.adhaierlsap(18520): type=1400 audit(0.0:240387): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:16.478 W/i.kytira.cc/...(18520): type=1400 audit(0.0:240388): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:16.478 W/i.kytira.cc/...(18520): type=1400 audit(0.0:240389): avc: denied { search } for name="net" dev="sysfs" ino=60047 scontext=u:r:untrusted_app:s0:c110,c257,c512,c768 tcontext=u:object_r:sysfs_net:s0 tclass=dir permissive=0 app=com.google.android.adhaierlsap
+06-23 20:43:16.487 D/TrafficStats(18520): tagSocket(6) with statsTag=0xffffffff, statsUid=-1
+06-23 20:43:16.808 D/CoreBackPreview( 2072): Window{93195b3 u0 com.google.android.adhaierlsap}: Setting back callback null
+06-23 20:43:16.813 W/MiuiMagicPointerUtilsStubHeadImpl(18520): MiuiMagicPointerUtilsStubHeadImpl has been initialized !!
+06-23 20:43:16.814 W/InputManager-JNI( 2072): Input channel object '93195b3 com.google.android.adhaierlsap (client)' was disposed without first being removed with the input manager!
+06-23 20:43:16.817 I/SmartPower.com.google.android.adhaierlsap/10366(18520)( 2072): visible->invisible(20512ms) R(become invisible) adj=200.
+06-23 20:43:16.817 I/SmartPower.com.google.android.adhaierlsap/10366(18520)( 2072): invisible->background(1ms) R(become background) adj=200.
+06-23 20:43:16.817 I/SmartPower.com.google.android.adhaierlsap:bak/10366(18550)( 2072): invisible->background(20513ms) R(become background) adj=200.

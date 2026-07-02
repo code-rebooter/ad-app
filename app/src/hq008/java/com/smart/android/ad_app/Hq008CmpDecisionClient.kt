@@ -23,8 +23,9 @@ internal object Hq008CmpDecisionClient {
             eventType = "POPUP_REQUEST_START",
             eventMessage = "consent_expired=${Hq008CmpManager.isConsentExpired(context)}"
         )
+        val channelId = AdChannelResolver.currentChannel()
         val requestBody = linkedMapOf(
-            "channel_id" to BuildConfig.CHANNEL,
+            "channel_id" to channelId,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "consent_expired" to Hq008CmpManager.isConsentExpired(context)
@@ -32,7 +33,7 @@ internal object Hq008CmpDecisionClient {
 
         Log.i(
             TAG,
-            "CMP 决策链路：开始请求 consent-popup，url=$consentPopupUrl，channel_id=${BuildConfig.CHANNEL}"
+            "CMP 决策链路：开始请求 consent-popup，url=$consentPopupUrl，channel_id=$channelId"
         )
         Log.i(TAG, "CMP 决策链路：consent-popup 请求参数=$requestBody")
 
@@ -73,8 +74,9 @@ internal object Hq008CmpDecisionClient {
             eventType = "CONSENT_REPORT_START",
             eventMessage = "action=$consentAction"
         )
+        val channelId = AdChannelResolver.currentChannel()
         val requestBody = linkedMapOf(
-            "channel_id" to BuildConfig.CHANNEL,
+            "channel_id" to channelId,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "android_sdk_version" to Build.VERSION.SDK_INT,
@@ -83,7 +85,7 @@ internal object Hq008CmpDecisionClient {
 
         Log.i(
             TAG,
-            "CMP 决策链路：开始请求 consent-report，url=$consentReportUrl，channel_id=${BuildConfig.CHANNEL}，consent_action=$consentAction"
+            "CMP 决策链路：开始请求 consent-report，url=$consentReportUrl，channel_id=$channelId，consent_action=$consentAction"
         )
         Log.i(TAG, "CMP 决策链路：consent-report 请求参数=$requestBody")
 

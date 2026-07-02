@@ -131,15 +131,16 @@ object AdConfigManager {
         return Settings.canDrawOverlays(appContext)
     }
     fun getAdConfig(adType: AdType) {
+        val channel = AdChannelResolver.resolve()
         Log.i(
             TAG,
-            "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${BuildConfig.CHANNEL}，hidden=${AdDisplayConfig.isHiddenMode()}"
+            "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${channel.value}，channelSource=${channel.source.label}，hidden=${AdDisplayConfig.isHiddenMode()}"
         )
 
         if (BuildFlavor.isHq008Family() && adType == AdType.FLOATING) {
-            val flowToken = Hq008FloatingFlowGuard.tryEnter(BuildConfig.CHANNEL)
+            val flowToken = Hq008FloatingFlowGuard.tryEnter(channel.value)
             if (flowToken == null) {
-                Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${BuildConfig.CHANNEL}")
+                Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${channel.value}")
                 Hq008ConsentLogReporter.report(
                     eventType = "FLOATING_FLOW_SKIPPED",
                     eventMessage = "reason=in_flight,adType=$adType"
@@ -157,7 +158,7 @@ object AdConfigManager {
             )
             Hq008SdkFlowControlClient.request(
                 context = appContext,
-                channelId = BuildConfig.CHANNEL
+                channelId = channel.value
             ) { dto, error ->
                 val enabled = dto?.enabled == true
                 if (error != null) {
@@ -236,7 +237,7 @@ object AdConfigManager {
             RequestMethod.POST,
             buildMap {
                 put("packageName", appContext.packageName)
-                put("channel", BuildConfig.CHANNEL)
+                put("channel", channel.value)
                 put("macAddress", getMacAddress() ?: "")
                 put("adType", adType.value)
                 if (BuildFlavor.isHq008Family()) {
@@ -282,7 +283,7 @@ object AdConfigManager {
     private fun requestHq008Authorize(flowToken: Hq008FloatingFlowGuard.Token) {
         Hq008SdkAuthorizeClient.request(
             context = appContext,
-            channelId = BuildConfig.CHANNEL
+            channelId = flowToken.channelId
         ) { dto, error ->
             if (error != null) {
                 Log.e(TAG, "hq008 authorize failed: $error")
@@ -314,10 +315,10 @@ object AdConfigManager {
             AdDisplayConfig.setRemoteHiddenMode(effectiveHiddenMode)
             val nextPollingSeconds = Hq008LocalSchedulePolicy.normalizeServerPollingSeconds(dto.next_request_seconds)
             if (nextPollingSeconds != null) {
-                Hq008LocalSchedulePolicy.updateServerPollingSeconds(BuildConfig.CHANNEL, nextPollingSeconds)
+                Hq008LocalSchedulePolicy.updateServerPollingSeconds(flowToken.channelId, nextPollingSeconds)
                 HandlerAdTaskScheduler.startOrUpdateTask(nextPollingSeconds)
             } else {
-                Hq008LocalSchedulePolicy.clearServerPollingSeconds(BuildConfig.CHANNEL)
+                Hq008LocalSchedulePolicy.clearServerPollingSeconds(flowToken.channelId)
                 HandlerAdTaskScheduler.startOrUpdateTask(ScheduleManagerImpl.handlerScheduleTime())
             }
 
@@ -407,7 +408,7 @@ object AdConfigManager {
             RequestMethod.POST,
             buildMap {
                 put("packageName", appContext.packageName)
-                put("channel", BuildConfig.CHANNEL)
+                put("channel", AdChannelResolver.currentChannel())
                 put("macAddress", getMacAddress() ?: "")
                 put("status", statusStr)
                 put("result", errorInfo)

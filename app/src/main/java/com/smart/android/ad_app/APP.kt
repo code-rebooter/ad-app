@@ -20,12 +20,13 @@ class APP:Application() {
         initializePolyGammaOriginIfNeeded()
 
         AppManager.init{
+            val resolvedChannel = AdChannelResolver.resolve()
             context = this@APP
             baseUrl = BuildConfig.BASE_URL
             backupDomain = BuildConfig.BACKUP_DOMAIN
             randomDomainMD5 = BuildConfig.MD5_VALUE
             appId = BuildConfig.APP_ID
-            channel = BuildConfig.CHANNEL
+            channel = resolvedChannel.value
             ctype = BuildConfig.C_TYPE
             model = BuildConfig.MODEL
             isEncrypted = BuildConfig.IS_ENCRYPTED
@@ -34,6 +35,9 @@ class APP:Application() {
             isPrintNetRequestInfo = false
             isRunTasks = true
         }
+
+        val resolvedChannel = AdChannelResolver.resolve()
+        Log.i(TAG, "应用初始化：渠道=${resolvedChannel.value}，来源=${resolvedChannel.source.label}，flavor=${BuildConfig.FLAVOR}")
 
         if (BuildFlavor.isHaierLsap() && BuildConfig.DEBUG) {
             Log.i(TAG, "skip startup ad bootstrap for haier_lsap debug manual test build")

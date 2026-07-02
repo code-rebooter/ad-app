@@ -141,7 +141,7 @@ internal object Hq008AdReporter {
             "request_id" to requestId,
             "event_type" to eventType,
             "uuid" to resolveDeviceId(),
-            "channel_id" to BuildConfig.CHANNEL,
+            "channel_id" to AdChannelResolver.currentChannel(),
             "ad_version" to BuildConfig.VERSION_CODE,
             "mac" to (safeGetMacAddress()?.takeIf { it.isNotBlank() } ?: "00:00:00:00:00:00"),
             "app_id" to appContext.packageName,

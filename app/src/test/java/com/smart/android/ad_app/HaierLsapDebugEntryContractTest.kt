@@ -11,6 +11,8 @@ class HaierLsapDebugEntryContractTest {
     @Test
     fun `haier_lsap flavor should declare dedicated sdk dependency and identifiers`() {
         val buildGradle = readProjectFile("app/build.gradle")
+        val productFlavorsBlock = extractBlock(buildGradle, "    productFlavors {")
+        val flavorBlock = extractBlock(productFlavorsBlock, "        haier_lsap {")
 
         assertTrue(buildGradle.contains("haier_lsap {"))
         assertTrue(buildGradle.contains("java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']"))
@@ -20,21 +22,23 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(buildGradle.contains("kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'"))
         assertTrue(buildGradle.contains("compileHaier_lsapDebugKotlin"))
         assertTrue(buildGradle.contains("haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)"))
-        assertTrue(buildGradle.contains("haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar')"))
+        assertTrue(buildGradle.contains("haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.10.aar')"))
         assertFalse(buildGradle.contains("haier_lsapImplementation files('sdk_debug/haier_lsap/lsapsdk-combine-release-1.1.9-debug.aar')"))
-        assertFalse(buildGradle.contains("excludePatterns << 'lsapsdk-combine-release-1.1.9.aar'"))
+        assertFalse(buildGradle.contains("excludePatterns << 'lsapsdk-combine-release-1.1.10.aar'"))
         assertTrue(!buildGradle.contains("lsapsdk-release_v1.1.8.jar"))
         assertTrue(!buildGradle.contains("haier_lsapImplementation fileTree(dir: tclDemoLibsDir"))
         assertTrue(!buildGradle.contains("haier_lsapImplementation('com.thoughtworks.xstream:xstream"))
         assertTrue(buildGradle.contains("haierLsapRelease {"))
         assertTrue(buildGradle.contains("signingConfig       : signingConfigs.haierLsapRelease"))
         assertTrue(buildGradle.contains("variant.signingConfig.setConfig(android.signingConfigs.getByName(\"haierLsapRelease\"))"))
+        assertTrue(flavorBlock.contains("versionCode         : 2"))
+        assertTrue(flavorBlock.contains("versionName         : \"1.0.2\""))
         assertTrue(buildGradle.contains("channel             : \"HAIER_LSAP\"") || buildGradle.contains("channel               : \"HAIER_LSAP\""))
         assertTrue(buildGradle.contains("cType               : \"HAIER_LSAP\"") || buildGradle.contains("cType                 : \"HAIER_LSAP\""))
         assertTrue(buildGradle.contains("model               : \"HAIER_LSAP\"") || buildGradle.contains("model                 : \"HAIER_LSAP\""))
         val projectRoot = findProjectRoot("app/build.gradle")
         assertTrue(File(projectRoot, "app/signing_files/haier_lsap_release.jks").exists())
-        assertTrue(File(projectRoot, "app/libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar").exists())
+        assertTrue(File(projectRoot, "app/libs/haier_lsap/lsapsdk-combine-release-1.1.10.aar").exists())
         assertTrue(File(projectRoot, "app/sdk_debug/haier_lsap/lsapsdk-combine-release-1.1.9-debug.aar").exists())
         assertTrue(!File(projectRoot, "app/libs/haier_lsap/lsapsdk-release_v1.1.8.jar").exists())
 
@@ -168,7 +172,10 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(managerSource.contains("object HaierLsapAdManager : IAdManager"))
         assertTrue(managerSource.contains("UnifiedAdSdk.init("))
         assertTrue(managerSource.contains("UnifiedAdConfig.Builder()"))
-        assertTrue(managerSource.contains(".lsapAppKey(APP_KEY)"))
+        assertTrue(managerSource.contains(".lsapAppKey(appKey)"))
+        assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_APP_KEY"))
+        assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_TAG_ID"))
+        assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_SDK_NAME"))
         assertFalse(managerSource.contains(".enableLog("))
         assertTrue(managerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
         assertTrue(!managerSource.contains("REQUEST_TIMEOUT_MS = 180_000L"))
@@ -183,8 +190,8 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(managerSource.contains("adError?.invoke()"))
         assertTrue(managerSource.contains("adComplete.invoke()"))
         assertTrue(managerSource.contains("detach()"))
-        assertTrue(managerSource.contains("510000001301"))
-        assertTrue(managerSource.contains("com.atv.chhlauncher"))
+        assertTrue(buildGradle.contains("lsapTagId           : \"510000001301\""))
+        assertTrue(buildGradle.contains("lsapAppKey          : \"com.atv.chhlauncher\""))
         assertTrue(!managerSource.contains("LSAPAPI"))
         assertTrue(!managerSource.contains("VastAdPlayer"))
         assertTrue(appSource.contains("if (BuildFlavor.isHaierLsap() && !isMainProcess())"))
@@ -216,5 +223,31 @@ class HaierLsapDebugEntryContractTest {
         val projectRoot = generateSequence(workingDir) { it.parentFile }
             .firstOrNull { File(it, relativePath).exists() }
         return projectRoot ?: throw AssertionError("无法定位项目根目录: ${workingDir.absolutePath}")
+    }
+
+    private fun extractBlock(source: String, marker: String): String {
+        val start = source.indexOf(marker)
+        if (start < 0) {
+            fail("无法定位配置块: $marker")
+        }
+        var depth = 0
+        var end = start
+        var seenOpeningBrace = false
+        for (index in start until source.length) {
+            when (source[index]) {
+                '{' -> {
+                    seenOpeningBrace = true
+                    depth += 1
+                }
+                '}' -> {
+                    depth -= 1
+                    if (seenOpeningBrace && depth == 0) {
+                        end = index + 1
+                        break
+                    }
+                }
+            }
+        }
+        return source.substring(start, end)
     }
 }

@@ -56,6 +56,16 @@ class Hq008Noneuc2FlavorContractTest {
         assertTrue(manifest.contains("android:value=\"\${project_id}\""))
     }
 
+    @Test
+    fun `hq008XHSX manifest should declare permissions required by ad foreground services`() {
+        val manifest = readProjectFile("app/src/hq008XHSX/AndroidManifest.xml")
+
+        assertTrue(manifest.contains("android.permission.CHANGE_NETWORK_STATE"))
+        assertTrue(manifest.contains("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"))
+        assertTrue(manifest.contains("android.permission.FOREGROUND_SERVICE_DATA_SYNC"))
+        assertTrue(manifest.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"))
+    }
+
     private fun readProjectFile(relativePath: String): String {
         val workingDir = File(System.getProperty("user.dir") ?: ".")
         val projectRoot = generateSequence(workingDir) { it.parentFile }

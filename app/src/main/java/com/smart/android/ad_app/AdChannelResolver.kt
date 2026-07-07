@@ -50,7 +50,7 @@ internal object AdChannelResolver {
             val getMethod = clazz.getMethod("get", String::class.java)
             getMethod.invoke(null, key) as? String
         }.onFailure { error ->
-            Log.w(TAG, "读取系统属性失败，改走 getprop，key=$key，error=${error.message}")
+            logWarning("读取系统属性失败，改走 getprop，key=$key，error=${error.message}")
         }.getOrNull()
     }
 
@@ -61,7 +61,13 @@ internal object AdChannelResolver {
                 .start()
             process.inputStream.bufferedReader().use(BufferedReader::readLine)
         }.onFailure { error ->
-            Log.w(TAG, "通过 getprop 读取系统属性失败，key=$key，error=${error.message}")
+            logWarning("通过 getprop 读取系统属性失败，key=$key，error=${error.message}")
         }.getOrNull()
+    }
+
+    private fun logWarning(message: String) {
+        runCatching {
+            Log.w(TAG, message)
+        }
     }
 }

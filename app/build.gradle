@@ -117,6 +117,57 @@ android {
             java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
+        addy_hq1002 {
+            java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']
+            res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
+        addy_jams {
+            java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']
+            res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
+        google_ad_tv_desktop {
+            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
         tcl_poly {
             java.srcDirs = ['src/hq008/java', 'src/tcl_poly/java']
             res.srcDirs = ['src/hq008/res', 'src/tcl_poly/res']
@@ -202,6 +253,22 @@ android {
             storeType "JKS"
         }
 
+        addyHq1002Release {
+            storeFile file("signing_files/addy_hq1002_release.jks")
+            storePassword "addyhq1002"
+            keyAlias "addy_hq1002_release"
+            keyPassword "addyhq1002"
+            storeType "JKS"
+        }
+
+        addyJamsRelease {
+            storeFile file("signing_files/addy_jams_release.jks")
+            storePassword "addyjams"
+            keyAlias "addy_jams_release"
+            keyPassword "addyjams"
+            storeType "JKS"
+        }
+
         tclDemoNoneuRelease {
             if (tclDemoNoneuSigningPropertiesFile.exists()) {
                 storeFile new File(tclDemoProjectDir, tclDemoNoneuSigningProperties.getProperty("storeFile"))
@@ -218,6 +285,14 @@ android {
             keyAlias "haier_lsap_release"
             keyPassword "haierlsap"
             storeType "JKS"
+        }
+
+        googleAdTvDesktopRelease {
+            storeFile file("signing_files/google_ad_tv_desktop_upload.jks")
+            storePassword "UwimlJ1X0qfRiWWRnSlQB6gX"
+            keyAlias "tvdesktopupload"
+            keyPassword "UwimlJ1X0qfRiWWRnSlQB6gX"
+            storeType "PKCS12"
         }
 
     }
@@ -262,6 +337,9 @@ android {
                 backupDomain        : "https://api.g5movie.cc/",
                 handlerInitialDelayMs: 3500L,
                 handlerScheduleSeconds: 50L,
+                lsapAppKey          : "com.atv.chhlauncher",
+                lsapTagId           : "510000001301",
+                lsapSdkName         : "haier_lsap",
                 manifestPlaceholders: [share_uid: "android.uid.system"]
         ]
 
@@ -290,6 +368,9 @@ android {
             flavor.buildConfigField "String", "BACKUP_DOMAIN", "\"${merged.backupDomain}\""
             flavor.buildConfigField "long", "HANDLER_INITIAL_DELAY_MS", "${merged.handlerInitialDelayMs}L"
             flavor.buildConfigField "long", "HANDLER_SCHEDULE_SECONDS", "${merged.handlerScheduleSeconds}L"
+            flavor.buildConfigField "String", "UNIFIED_AD_APP_KEY", "\"${merged.lsapAppKey}\""
+            flavor.buildConfigField "String", "UNIFIED_AD_TAG_ID", "\"${merged.lsapTagId}\""
+            flavor.buildConfigField "String", "UNIFIED_AD_SDK_NAME", "\"${merged.lsapSdkName}\""
         }
 
         hq001 {
@@ -382,8 +463,8 @@ android {
         hq008XHSX {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adxhsx",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 2,
+                    versionName         : "1.0.2",
                     signingConfig       : signingConfigs.hq008XhsxRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "hq008XHSX",
@@ -466,13 +547,73 @@ android {
         haier_lsap {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adhaierlsap",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 2,
+                    versionName         : "1.0.2",
                     signingConfig       : signingConfigs.haierLsapRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "HAIER_LSAP",
                     cType               : "HAIER_LSAP",
                     model               : "HAIER_LSAP",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : ""
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
+        addy_hq1002 {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.addyhq1002",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.addyHq1002Release,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "ADDY_HQ1002",
+                    cType               : "ADDY_HQ1002",
+                    model               : "ADDY_HQ1002",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    lsapAppKey          : "com.google.android.addyhq1002",
+                    lsapTagId           : "ADDY_HQ1002",
+                    lsapSdkName         : "addy_hq1002",
+                    manifestPlaceholders: [
+                            share_uid   : ""
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
+        addy_jams {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.addyjams",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.addyJamsRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "ADDY_JAMS",
+                    cType               : "ADDY_JAMS",
+                    model               : "ADDY_JAMS",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    lsapAppKey          : "com.google.android.addyjams",
+                    lsapTagId           : "ADDY_JAMS",
+                    lsapSdkName         : "addy_jams",
+                    manifestPlaceholders: [
+                            share_uid   : ""
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
+        google_ad_tv_desktop {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "io.android.launcher.tv.desktop",
+                    versionCode         : 4,
+                    versionName         : "1.0.3",
+                    signingConfig       : signingConfigs.googleAdTvDesktopRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP",
+                    cType               : "GOOGLE_AD_TV_DESKTOP",
+                    model               : "GOOGLE_AD_TV_DESKTOP",
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
                             share_uid   : ""
@@ -551,6 +692,15 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "haier_lsap")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("haierLsapRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "addy_hq1002")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("addyHq1002Release"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "addy_jams")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("addyJamsRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "tcl_poly")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
     }
@@ -566,7 +716,14 @@ def haierLsapExcludedHq008SourcePaths = [
 ] as Set
 
 tasks.matching {
-    it.name == "compileHaier_lsapDebugKotlin" || it.name == "compileHaier_lsapReleaseKotlin"
+    it.name == "compileHaier_lsapDebugKotlin" ||
+            it.name == "compileHaier_lsapReleaseKotlin" ||
+            it.name == "compileAddy_hq1002DebugKotlin" ||
+            it.name == "compileAddy_hq1002ReleaseKotlin" ||
+            it.name == "compileAddy_jamsDebugKotlin" ||
+            it.name == "compileAddy_jamsReleaseKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktopDebugKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktopReleaseKotlin"
 }.configureEach { task ->
     task.exclude { element ->
         haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)
@@ -623,6 +780,12 @@ dependencies {
     // The library adds the IMA ExoPlayer integration for ads.
     //noinspection UseTomlInstead
     hq006Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation "androidx.media3:media3-ui:1.8.0"
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer:1.8.0"
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
 
     if (tclDemoLibsDir.exists()) {
         hq008Implementation fileTree(dir: tclDemoLibsDir, include: [
@@ -675,6 +838,12 @@ dependencies {
     //noinspection UseTomlInstead
     haier_lsapImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
+    addy_hq1002Implementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
     tcl_polyImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.appcompat:appcompat:1.7.1'
@@ -688,6 +857,12 @@ dependencies {
     hq008Noneuc2Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     haier_lsapImplementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    addy_hq1002Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -703,6 +878,12 @@ dependencies {
     //noinspection UseTomlInstead
     haier_lsapImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
+    addy_hq1002Implementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
@@ -716,6 +897,12 @@ dependencies {
     hq008Noneuc2Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     haier_lsapImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    addy_hq1002Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -731,6 +918,12 @@ dependencies {
     //noinspection UseTomlInstead
     haier_lsapImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
+    addy_hq1002Implementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
     tcl_polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
@@ -744,6 +937,12 @@ dependencies {
     hq008Noneuc2Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     haier_lsapImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    addy_hq1002Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    addy_jamsImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -767,12 +966,18 @@ dependencies {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
+    google_ad_tv_desktopImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
     tcl_polyImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
     tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'
-    haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.9.aar')
+    haier_lsapImplementation files('libs/haier_lsap/lsapsdk-combine-release-1.1.10.aar')
+    addy_hq1002Implementation fileTree(dir: 'libs/addy_hq1002', include: ['*.aar'])
+    addy_jamsImplementation fileTree(dir: 'libs/addy_jams', include: ['*.aar'])
 
     //noinspection UseTomlInstead
     api 'com.github.codeZeng95:lib_dimen:1.0.1'

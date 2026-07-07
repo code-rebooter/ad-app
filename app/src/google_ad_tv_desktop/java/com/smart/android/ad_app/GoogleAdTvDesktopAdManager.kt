@@ -6,16 +6,16 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.ViewGroup
 import androidx.annotation.Keep
-import com.itv.component.unified.UnifiedAdConfig
-import com.itv.component.unified.UnifiedAdRequestCallbacks
-import com.itv.component.unified.UnifiedAdSdk
-import com.itv.component.unified.UnifiedAdSession
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import com.smart.android.ad_app.google.GoogleAdTvDesktopVastConfig
+import com.smart.android.ad_app.google.GoogleAdVastPlayerView
 import java.lang.ref.WeakReference
 
 @Keep
-object HaierLsapAdManager : IAdManager {
+object GoogleAdTvDesktopAdManager : IAdManager {
     override fun init() {
-        HaierLsapFormalAd.init()
+        GoogleAdTvDesktopFormalAd.init()
     }
 
     override fun showAd(
@@ -25,7 +25,7 @@ object HaierLsapAdManager : IAdManager {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        HaierLsapFormalAd.showAd(
+        GoogleAdTvDesktopFormalAd.showAd(
             flRoot = flRoot,
             adId = adId,
             adStart = adStart,
@@ -35,28 +35,24 @@ object HaierLsapAdManager : IAdManager {
     }
 
     override fun destroyAd() {
-        HaierLsapFormalAd.destroyAd()
+        GoogleAdTvDesktopFormalAd.destroyAd()
     }
 }
 
-private object HaierLsapFormalAd {
-    private const val TAG = "HaierLsapFormalAd"
+private object GoogleAdTvDesktopFormalAd {
+    private const val TAG = "GoogleAdTvDesktopAd"
+    private const val SDK_NAME = "google_ad_tv_desktop"
+    private const val SDK_ENTRY = "media3_ima_vast"
     private const val REQUEST_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
-    private val appKey: String
-        get() = BuildConfig.UNIFIED_AD_APP_KEY
-    private val tagId: String
-        get() = BuildConfig.UNIFIED_AD_TAG_ID
-    private val sdkName: String
-        get() = BuildConfig.UNIFIED_AD_SDK_NAME
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var currentSession: UnifiedAdSession? = null
+    private var currentPlayer: GoogleAdVastPlayerView? = null
     private var currentContainerRef: WeakReference<ViewGroup>? = null
     private var currentRequest: PendingShowRequest? = null
     private var timeoutRunnable: Runnable? = null
 
     fun init() {
-        ensureInitialized()
+        Log.i(TAG, "正式链路：Google VAST 广告渠道初始化完成")
     }
 
     fun showAd(
@@ -79,7 +75,7 @@ private object HaierLsapFormalAd {
 
         Log.i(
             TAG,
-            "正式链路：开始请求海尔 LSAP 广告，requestId=$requestId，adId=$adId，tagId=$tagId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
+            "正式链路：开始请求 Google VAST 广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
         )
         Hq008AdReporter.reportRequested(
             requestId = requestId,
@@ -88,26 +84,16 @@ private object HaierLsapFormalAd {
             containerWidth = flRoot.width,
             containerHeight = flRoot.height,
             extra = mapOf(
-                "sdk" to sdkName,
-                "sdkEntry" to "unified",
-                "tagId" to tagId,
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
                 "requestCreatedAtMs" to request.requestCreatedAtMs
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_REQUESTED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=$requestId,adId=${adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
         )
-
-        if (!ensureInitialized()) {
-            failRequest(
-                request = request,
-                stage = "sdk_init",
-                reporterMessage = Hq008AdReporter.Message.INIT_ERROR,
-                reason = "sdk_init_failed"
-            )
-            return
-        }
 
         flRoot.post {
             startAd(request)
@@ -121,33 +107,15 @@ private object HaierLsapFormalAd {
                 request.markTerminal()
                 Hq008ConsentLogReporter.report(
                     eventType = "AD_PHASE_CANCELLED",
-                    eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=window_destroy,reason=window_hidden"
+                    eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=window_destroy,reason=window_hidden"
                 )
             }
         clearTimeout()
-        releaseCurrentSession()
+        releaseCurrentPlayer()
         currentRequest = null
     }
 
-    private fun ensureInitialized(): Boolean {
-        return runCatching {
-            if (!UnifiedAdSdk.isInitialized()) {
-                UnifiedAdSdk.init(
-                    appContext,
-                    UnifiedAdConfig.Builder()
-                        .lsapAppKey(appKey)
-                        .build()
-                )
-                Log.i(TAG, "正式链路：已发起海尔统一广告 SDK 初始化，appKey=$appKey")
-            }
-            val initialized = UnifiedAdSdk.isInitialized()
-            Log.i(TAG, "正式链路：海尔统一广告 SDK 初始化状态=$initialized")
-            initialized
-        }.onFailure { error ->
-            Log.e(TAG, "正式链路：海尔统一广告 SDK 初始化失败，error=${error.message}", error)
-        }.getOrDefault(false)
-    }
-
+    @OptIn(UnstableApi::class)
     private fun startAd(request: PendingShowRequest) {
         val container = request.containerRef.get()
         if (container == null) {
@@ -161,7 +129,7 @@ private object HaierLsapFormalAd {
         }
 
         clearTimeout()
-        releaseCurrentSession()
+        releaseCurrentPlayer()
         currentRequest = request
         currentContainerRef = WeakReference(container)
 
@@ -169,42 +137,52 @@ private object HaierLsapFormalAd {
             val hiddenMode = AdDisplayConfig.isHiddenMode()
             container.removeAllViews()
             container.alpha = if (hiddenMode) 0f else 1f
-            Log.i(
-                TAG,
-                "正式链路：广告容器已准备，requestId=${request.requestId}，hidden=$hiddenMode，alpha=${container.alpha}，container=${container.width}x${container.height}"
-            )
-            currentSession = UnifiedAdSdk.requestAd(
-                container.context,
-                container,
-                tagId,
-                object : UnifiedAdRequestCallbacks {
-                    override fun onAdLoading() {
-                        container.post {
-                            notifyLoaded(request)
-                        }
-                    }
 
-                    override fun onAdPlayStarted() {
-                        container.post {
-                            notifyStarted(request, container)
-                        }
-                    }
-
-                    override fun onAdPlayEnded(success: Boolean) {
-                        Log.i(
-                            TAG,
-                            "正式链路：收到 onAdPlayEnded，requestId=${request.requestId}，success=$success"
-                        )
-                    }
-
-                    override fun onRequestFinished(success: Boolean) {
-                        container.post {
-                            finishRequest(request, success)
-                        }
+            val playerView = GoogleAdVastPlayerView(container.context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                onAdLoaded = {
+                    container.post {
+                        notifyLoaded(request)
                     }
                 }
+                onAdStarted = {
+                    container.post {
+                        notifyStarted(request, container)
+                    }
+                }
+                onAdFinished = {
+                    container.post {
+                        finishRequest(request)
+                    }
+                }
+                onAdFailed = { message ->
+                    container.post {
+                        failRequest(
+                            request = request,
+                            stage = "vast_player",
+                            reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
+                            reason = "vast_player_failed",
+                            error = RuntimeException(message)
+                        )
+                    }
+                }
+            }
+
+            container.addView(playerView)
+            currentPlayer = playerView
+
+            Log.i(
+                TAG,
+                "正式链路：Google VAST 广告容器已准备，requestId=${request.requestId}，hidden=$hiddenMode，alpha=${container.alpha}，container=${container.width}x${container.height}"
             )
-            Log.i(TAG, "正式链路：已调用 UnifiedAdSdk.requestAd，requestId=${request.requestId}，tagId=$tagId")
+            Hq008ConsentLogReporter.report(
+                eventType = "AD_SDK_REQUEST",
+                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,adTagUrl=${GoogleAdTvDesktopVastConfig.AD_TAG_URL}"
+            )
+            playerView.play(GoogleAdTvDesktopVastConfig.AD_TAG_URL)
             armTimeout(request)
         }.onFailure { error ->
             failRequest(
@@ -218,26 +196,24 @@ private object HaierLsapFormalAd {
     }
 
     private fun notifyLoaded(request: PendingShowRequest) {
-        if (request.isTerminal()) {
+        if (request.isTerminal() || request.loadedAtMs != null) {
             return
         }
-        if (request.loadedAtMs == null) {
-            request.loadedAtMs = SystemClock.elapsedRealtime()
-        }
-        Log.i(TAG, "正式链路：收到 onAdLoading，requestId=${request.requestId}，requestToLoadDurationMs=${request.requestToLoadDurationMs()}")
+        request.loadedAtMs = SystemClock.elapsedRealtime()
+        Log.i(TAG, "正式链路：Google VAST 广告已加载，requestId=${request.requestId}，requestToLoadDurationMs=${request.requestToLoadDurationMs()}")
         Hq008AdReporter.reportLoaded(
             requestId = request.requestId,
             adId = request.adId,
             hiddenMode = AdDisplayConfig.isHiddenMode(),
             extra = request.buildProgressDiagnostics() + mapOf(
-                "sdk" to sdkName,
-                "sdkEntry" to "unified",
-                "tagId" to tagId
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_LOADED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
         )
     }
 
@@ -245,10 +221,13 @@ private object HaierLsapFormalAd {
         if (request.isTerminal() || request.startedAtMs != null) {
             return
         }
+        if (request.loadedAtMs == null) {
+            notifyLoaded(request)
+        }
         request.markStarted()
         Log.i(
             TAG,
-            "正式链路：收到 onAdPlayStarted，requestId=${request.requestId}，childCount=${container.childCount}，requestToStartDurationMs=${request.requestToStartDurationMs()}"
+            "正式链路：Google VAST 广告开始播放，requestId=${request.requestId}，childCount=${container.childCount}，requestToStartDurationMs=${request.requestToStartDurationMs()}"
         )
         Hq008AdReporter.reportStarted(
             requestId = request.requestId,
@@ -256,58 +235,48 @@ private object HaierLsapFormalAd {
             hiddenMode = AdDisplayConfig.isHiddenMode(),
             startProgress = null,
             extra = request.buildProgressDiagnostics() + mapOf(
-                "sdk" to sdkName,
-                "sdkEntry" to "unified",
-                "tagId" to tagId,
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
                 "childCount" to container.childCount
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_STARTED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},childCount=${container.childCount},requestToStartDurationMs=${request.requestToStartDurationMs()}"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},childCount=${container.childCount},requestToStartDurationMs=${request.requestToStartDurationMs()}"
         )
         request.adStart?.invoke()
     }
 
-    private fun finishRequest(request: PendingShowRequest, success: Boolean) {
+    private fun finishRequest(request: PendingShowRequest) {
         if (!request.markTerminal()) {
             return
         }
         clearTimeout()
-        if (success) {
-            completeRequest(request)
-        } else {
-            failRequest(
-                request = request,
-                stage = "request_finished",
-                reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-                reason = "request_finished_failed",
-                releaseSession = false
-            )
-        }
+        completeRequest(request)
     }
 
     private fun completeRequest(request: PendingShowRequest) {
         Log.i(
             TAG,
-            "正式链路：海尔统一广告 SDK 会话完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}"
+            "正式链路：Google VAST 广告播放完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}"
         )
         Hq008AdReporter.reportCompleted(
             requestId = request.requestId,
             adId = request.adId,
             hiddenMode = AdDisplayConfig.isHiddenMode(),
             extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to sdkName,
-                "sdkEntry" to "unified",
-                "tagId" to tagId,
-                "finishReason" to "request_finished"
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
+                "finishReason" to "vast_finished"
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_COMPLETED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=request_finished"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=vast_finished"
         )
-        releaseCurrentSession()
+        releaseCurrentPlayer()
         currentRequest = null
         request.adComplete.invoke()
     }
@@ -318,16 +287,16 @@ private object HaierLsapFormalAd {
         reporterMessage: String,
         reason: String,
         error: Throwable? = null,
-        releaseSession: Boolean = true
+        releasePlayer: Boolean = true
     ) {
-        if (!request.isTerminal()) {
-            request.markTerminal()
+        if (!request.markTerminal()) {
+            return
         }
         clearTimeout()
         val errorText = error?.message ?: "unknown"
         Log.e(
             TAG,
-            "正式链路：海尔统一广告 SDK 流程失败，stage=$stage，requestId=${request.requestId}，adId=${request.adId}，reason=$reason，error=$errorText",
+            "正式链路：Google VAST 广告流程失败，stage=$stage，requestId=${request.requestId}，adId=${request.adId}，reason=$reason，error=$errorText",
             error
         )
         Hq008AdReporter.reportError(
@@ -337,9 +306,9 @@ private object HaierLsapFormalAd {
             errorCode = null,
             errorMessage = reporterMessage,
             extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to sdkName,
-                "sdkEntry" to "unified",
-                "tagId" to tagId,
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
                 "stage" to stage,
                 "reason" to reason,
                 "error" to errorText
@@ -347,10 +316,10 @@ private object HaierLsapFormalAd {
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,error=$errorText"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,error=$errorText"
         )
-        if (releaseSession) {
-            releaseCurrentSession()
+        if (releasePlayer) {
+            releaseCurrentPlayer()
         }
         currentRequest = null
         request.adError?.invoke()
@@ -369,18 +338,18 @@ private object HaierLsapFormalAd {
         mainHandler.postDelayed(timeoutRunnable!!, REQUEST_TIMEOUT_MS)
     }
 
-    private fun releaseCurrentSession() {
-        val session = currentSession
+    private fun releaseCurrentPlayer() {
+        val player = currentPlayer
         val container = currentContainerRef?.get()
 
         runCatching {
-            session?.detach()
+            player?.release()
         }.onFailure { error ->
-            Log.w(TAG, "正式链路：释放海尔统一广告 SDK 会话失败，error=${error.message}", error)
+            Log.w(TAG, "正式链路：释放 Google VAST 广告播放器失败，error=${error.message}", error)
         }
 
         container?.removeAllViews()
-        currentSession = null
+        currentPlayer = null
         currentContainerRef?.clear()
         currentContainerRef = null
     }

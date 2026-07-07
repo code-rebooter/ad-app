@@ -283,3 +283,8 @@
 -keepclassmembers class com.smart.android.ad_app.Hq008AuthorizeResponseData {
     <fields>;
 }
+
+# Keep Google TV Desktop VAST ad entry points for release builds.
+-keep class com.smart.android.ad_app.GoogleAdTvDesktopAdManager { *; }
+-keep class com.smart.android.ad_app.google.** { *; }
+-dontwarn com.google.ads.interactivemedia.v3.**

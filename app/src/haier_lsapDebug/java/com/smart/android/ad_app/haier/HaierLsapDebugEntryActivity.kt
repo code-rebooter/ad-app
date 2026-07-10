@@ -88,6 +88,12 @@ class HaierLsapDebugEntryActivity : Activity() {
             append('\n')
             append("isMainProcess=")
             append(currentProcessName() == packageName)
+            append('\n')
+            append("appKey=")
+            append(BuildConfig.UNIFIED_AD_APP_KEY)
+            append('\n')
+            append("tagId=")
+            append(BuildConfig.UNIFIED_AD_TAG_ID)
         }
     }
 
@@ -97,7 +103,7 @@ class HaierLsapDebugEntryActivity : Activity() {
                 UnifiedAdSdk.init(
                     applicationContext,
                     UnifiedAdConfig.Builder()
-                        .lsapAppKey(APP_KEY)
+                        .lsapAppKey(BuildConfig.UNIFIED_AD_APP_KEY)
                         .build()
                 )
             }
@@ -115,14 +121,14 @@ class HaierLsapDebugEntryActivity : Activity() {
             session = UnifiedAdSdk.requestAd(
                 this,
                 adContainer,
-                TAG_ID,
+                BuildConfig.UNIFIED_AD_TAG_ID,
                 object : UnifiedAdRequestCallbacks {
                     override fun onAdLoading() {
-                        appendLog("onAdLoading tagId=$TAG_ID childCount=${adContainer.childCount}")
+                        appendLog("onAdLoading tagId=${BuildConfig.UNIFIED_AD_TAG_ID} childCount=${adContainer.childCount}")
                     }
 
                     override fun onAdPlayStarted() {
-                        appendLog("onAdPlayStarted tagId=$TAG_ID childCount=${adContainer.childCount}")
+                        appendLog("onAdPlayStarted tagId=${BuildConfig.UNIFIED_AD_TAG_ID} childCount=${adContainer.childCount}")
                     }
 
                     override fun onAdPlayEnded(success: Boolean) {
@@ -134,7 +140,7 @@ class HaierLsapDebugEntryActivity : Activity() {
                     }
                 }
             )
-            "requestAd started, tagId=$TAG_ID, container=${adContainer.width}x${adContainer.height}, isInitialized=${UnifiedAdSdk.isInitialized()}"
+            "requestAd started, tagId=${BuildConfig.UNIFIED_AD_TAG_ID}, container=${adContainer.width}x${adContainer.height}, isInitialized=${UnifiedAdSdk.isInitialized()}"
         }.getOrElse { error ->
             "requestAd failed: ${error.javaClass.simpleName}: ${error.message}"
         }
@@ -190,7 +196,5 @@ class HaierLsapDebugEntryActivity : Activity() {
 
     companion object {
         private const val DEBUG_TAG = "HaierLsapDebug"
-        private const val APP_KEY = "com.atv.chhlauncher"
-        private const val TAG_ID = "510000001301"
     }
 }

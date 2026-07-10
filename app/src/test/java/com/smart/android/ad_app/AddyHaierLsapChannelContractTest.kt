@@ -22,15 +22,21 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(sourceSetsBlock.contains("addy_hq1002 {"))
         assertTrue(sourceSetsBlock.contains("java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']"))
         assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']"))
+        assertTrue(sourceSetsBlock.contains("manifest.srcFile 'src/haier_lsap/AndroidManifest.xml'"))
         assertTrue(sourceSetsBlock.contains("addy_jams {"))
+        assertTrue(sourceSetsBlock.contains("addy_hq1002Debug {"))
+        assertTrue(sourceSetsBlock.contains("addy_jamsDebug {"))
+        assertTrue(sourceSetsBlock.contains("manifest.srcFile 'src/haier_lsapDebug/AndroidManifest.xml'"))
+        assertTrue(sourceSetsBlock.contains("java.srcDirs = ['src/haier_lsapDebug/java']"))
+        assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/haier_lsapDebug/res']"))
 
         assertTrue(hq1002Block.contains("applicationId       : \"com.google.android.addyhq1002\""))
         assertTrue(hq1002Block.contains("channel             : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("cType               : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("model               : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("signingConfig       : signingConfigs.addyHq1002Release"))
-        assertTrue(hq1002Block.contains("lsapAppKey          : \"com.google.android.addyhq1002\""))
-        assertTrue(hq1002Block.contains("lsapTagId           : \"ADDY_HQ1002\""))
+        assertTrue(hq1002Block.contains("lsapAppKey          : \"com.dy.chhaddyhq1002\""))
+        assertTrue(hq1002Block.contains("lsapTagId           : \"510000001501\""))
         assertTrue(hq1002Block.contains("lsapSdkName         : \"addy_hq1002\""))
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
@@ -38,8 +44,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(jamsBlock.contains("cType               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("model               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("signingConfig       : signingConfigs.addyJamsRelease"))
-        assertTrue(jamsBlock.contains("lsapAppKey          : \"com.google.android.addyjams\""))
-        assertTrue(jamsBlock.contains("lsapTagId           : \"ADDY_JAMS\""))
+        assertTrue(jamsBlock.contains("lsapAppKey          : \"com.dy.chhaddyjams\""))
+        assertTrue(jamsBlock.contains("lsapTagId           : \"510000001401\""))
         assertTrue(jamsBlock.contains("lsapSdkName         : \"addy_jams\""))
 
         assertTrue(signingConfigsBlock.contains("addyHq1002Release {"))
@@ -61,9 +67,14 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_APP_KEY"))
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_TAG_ID"))
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_SDK_NAME"))
+        val debugActivitySource = readProjectFile("app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt")
+        assertTrue(debugActivitySource.contains("BuildConfig.UNIFIED_AD_APP_KEY"))
+        assertTrue(debugActivitySource.contains("BuildConfig.UNIFIED_AD_TAG_ID"))
 
         assertTrue(File(projectRoot, "app/signing_files/addy_hq1002_release.jks").exists())
         assertTrue(File(projectRoot, "app/signing_files/addy_jams_release.jks").exists())
+        assertTrue(File(projectRoot, "app/libs/addy_hq1002/lsapsdk-combine-com.google.android.addyhq1002-1.1.11.aar").exists())
+        assertTrue(File(projectRoot, "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.11.aar").exists())
     }
 
     private fun readProjectFile(relativePath: String): String {

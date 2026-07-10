@@ -28,6 +28,8 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(buildGradle.contains("compileGoogle_ad_tv_desktopReleaseKotlin"))
 
         assertTrue(flavorBlock.contains("applicationId       : \"io.android.launcher.tv.desktop\"") || flavorBlock.contains("applicationId: \"io.android.launcher.tv.desktop\""))
+        assertTrue(flavorBlock.contains("versionCode         : 6") || flavorBlock.contains("versionCode: 6"))
+        assertTrue(flavorBlock.contains("versionName         : \"1.0.5\"") || flavorBlock.contains("versionName: \"1.0.5\""))
         assertTrue(flavorBlock.contains("channel             : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("channel               : \"GOOGLE_AD_TV_DESKTOP\""))
         assertTrue(flavorBlock.contains("cType               : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("cType                 : \"GOOGLE_AD_TV_DESKTOP\""))
         assertTrue(flavorBlock.contains("model               : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("model                 : \"GOOGLE_AD_TV_DESKTOP\""))
@@ -87,7 +89,7 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(playerSource.contains("onAdFinished?.invoke()"))
         assertTrue(playerSource.contains("onAdFailed?.invoke(message)"))
 
-        assertTrue(configSource.contains("/23334778486/TVDesktop/video-1"))
+        assertTrue(configSource.contains("https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&description_url=https%3A%2F%2Fghtfor.cc&tfcd=0&npa=0&ad_type=audio_video&sz=1x1%7C300x250%7C320x480%7C400x300%7C640x360%7C640x430%7C640x480&gdfp_req=1&unviewed_position_start=1&output=vast&env=vp&impl=s&plcmt=1&vpmute=0&app_package=io.android.launcher.tv.desktop&correlator="))
         assertTrue(configSource.contains("AD_STARTUP_TIMEOUT_MS"))
         assertTrue(manifest.contains("android.software.leanback"))
         assertTrue(manifest.contains("tools:remove=\"android:sharedUserId\""))

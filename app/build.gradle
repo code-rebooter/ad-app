@@ -118,6 +118,7 @@ android {
         }
 
         addy_hq1002 {
+            manifest.srcFile 'src/haier_lsap/AndroidManifest.xml'
             java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']
             res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']
             kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
@@ -135,6 +136,7 @@ android {
         }
 
         addy_jams {
+            manifest.srcFile 'src/haier_lsap/AndroidManifest.xml'
             java.srcDirs = ['src/hq008/java', 'src/haier_lsap/java']
             res.srcDirs = ['src/hq008/res', 'src/haier_lsap/res']
             kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
@@ -149,6 +151,18 @@ android {
             java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
             java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
             java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
+        addy_hq1002Debug {
+            manifest.srcFile 'src/haier_lsapDebug/AndroidManifest.xml'
+            java.srcDirs = ['src/haier_lsapDebug/java']
+            res.srcDirs = ['src/haier_lsapDebug/res']
+        }
+
+        addy_jamsDebug {
+            manifest.srcFile 'src/haier_lsapDebug/AndroidManifest.xml'
+            java.srcDirs = ['src/haier_lsapDebug/java']
+            res.srcDirs = ['src/haier_lsapDebug/res']
         }
 
         google_ad_tv_desktop {
@@ -573,8 +587,8 @@ android {
                     cType               : "ADDY_HQ1002",
                     model               : "ADDY_HQ1002",
                     backupDomain        : "https://api.bcytua.cc/",
-                    lsapAppKey          : "com.google.android.addyhq1002",
-                    lsapTagId           : "ADDY_HQ1002",
+                    lsapAppKey          : "com.dy.chhaddyhq1002",
+                    lsapTagId           : "510000001501",
                     lsapSdkName         : "addy_hq1002",
                     manifestPlaceholders: [
                             share_uid   : ""
@@ -594,8 +608,8 @@ android {
                     cType               : "ADDY_JAMS",
                     model               : "ADDY_JAMS",
                     backupDomain        : "https://api.bcytua.cc/",
-                    lsapAppKey          : "com.google.android.addyjams",
-                    lsapTagId           : "ADDY_JAMS",
+                    lsapAppKey          : "com.dy.chhaddyjams",
+                    lsapTagId           : "510000001401",
                     lsapSdkName         : "addy_jams",
                     manifestPlaceholders: [
                             share_uid   : ""
@@ -607,8 +621,8 @@ android {
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
-                    versionCode         : 4,
-                    versionName         : "1.0.3",
+                    versionCode         : 6,
+                    versionName         : "1.0.5",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP",

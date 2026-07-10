@@ -132,7 +132,8 @@ class HaierLsapDebugEntryContractTest {
 
         assertTrue(activitySource.contains("UnifiedAdSdk.init("))
         assertTrue(activitySource.contains("UnifiedAdConfig.Builder()"))
-        assertTrue(activitySource.contains(".lsapAppKey(APP_KEY)"))
+        assertTrue(activitySource.contains(".lsapAppKey(BuildConfig.UNIFIED_AD_APP_KEY)"))
+        assertTrue(activitySource.contains("BuildConfig.UNIFIED_AD_TAG_ID"))
         assertFalse(activitySource.contains(".enableLog("))
         assertTrue(activitySource.contains("UnifiedAdSdk.requestAd("))
         assertTrue(activitySource.contains("UnifiedAdRequestCallbacks"))
@@ -142,8 +143,6 @@ class HaierLsapDebugEntryContractTest {
         assertTrue(activitySource.contains("onRequestFinished("))
         assertTrue(activitySource.contains("handleKeyEvent("))
         assertTrue(activitySource.contains("detach()"))
-        assertTrue(activitySource.contains("510000001301"))
-        assertTrue(activitySource.contains("com.atv.chhlauncher"))
         assertTrue(!activitySource.contains("LSAPAPI"))
         assertTrue(!activitySource.contains("VastAdPlayer"))
     }

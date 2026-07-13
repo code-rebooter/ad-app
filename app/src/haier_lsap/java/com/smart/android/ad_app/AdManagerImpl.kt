@@ -10,6 +10,7 @@ object AdManagerImpl : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -17,6 +18,7 @@ object AdManagerImpl : IAdManager {
         HaierLsapAdManager.showAd(
             flRoot = flRoot,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete

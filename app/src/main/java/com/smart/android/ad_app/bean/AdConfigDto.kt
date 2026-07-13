@@ -13,7 +13,8 @@ data class AdConfigDto(
     val isClosable: Int?,
     val isCountdownVisible: Boolean?,
     val position: Int?,
-    val videoUrl: String?
+    val videoUrl: String?,
+    val soundEnabled: Boolean = false
 ){
     val positionEnum: Position get() = Position.fromInt(position?:0)
 }

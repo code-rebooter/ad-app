@@ -46,6 +46,7 @@ object AdManagerImpl : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit

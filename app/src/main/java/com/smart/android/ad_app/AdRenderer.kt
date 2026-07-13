@@ -22,7 +22,11 @@ object AdRenderer {
     )
 
     fun showSplashAd(dto: AdConfigDto) {
-        val window = TvAdFloatingWindow(appContext, dto.adId)
+        val window = TvAdFloatingWindow(
+            context = appContext,
+            adId = dto.adId,
+            soundEnabled = dto.soundEnabled
+        )
         val renderConfig = resolveRenderConfig(
             defaultWidth = MATCH_PARENT,
             defaultHeight = MATCH_PARENT,
@@ -53,7 +57,12 @@ object AdRenderer {
         dto: AdConfigDto,
         onFloatingFlowFinished: (() -> Unit)? = null
     ) {
-        val window = TvAdFloatingWindow(appContext, dto.adId, onFloatingFlowFinished)
+        val window = TvAdFloatingWindow(
+            context = appContext,
+            adId = dto.adId,
+            soundEnabled = dto.soundEnabled,
+            onFloatingFlowFinished = onFloatingFlowFinished
+        )
         val renderConfig = resolveRenderConfig(
             defaultWidth = dto.floatingWidth,
             defaultHeight = dto.floatingHeight,

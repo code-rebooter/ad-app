@@ -13,6 +13,11 @@ object AdConfigManager {
     private const val TAG = "AdConfigManager"
     private var currentAdId: String? = null  // 保存当前广告 adId
     private const val POPUP_FALLBACK_ACTION = "MAYBE_LATER"
+    private const val HQ008_DEFAULT_FLOATING_WIDTH = 210
+    private const val HQ008_DEFAULT_FLOATING_HEIGHT = 131
+    private const val HQ008_DEFAULT_FLOATING_X = 0
+    private const val HQ008_DEFAULT_FLOATING_Y = 0
+    private const val HQ008_DEFAULT_FLOATING_POSITION = 0
 
     init {
         if (BuildFlavor.isHq008Family()) {
@@ -305,11 +310,12 @@ object AdConfigManager {
 
             val effectiveAuthorized = dto.authorized
             val effectiveHiddenMode = dto.hidden_mode
+            val effectiveSoundEnabled = dto.sound_mode == true
             Log.i(
                 TAG,
                 // AD_FLOW hq008 authorize callback
                 "广告链路：收到授权接口回调，request_id=${dto.request_id}，" +
-                    "authorized=${dto.authorized}，hidden_mode=${dto.hidden_mode}，" +
+                    "authorized=${dto.authorized}，hidden_mode=${dto.hidden_mode}，sound_mode=${dto.sound_mode}，" +
                     "next_request_seconds=${dto.next_request_seconds}"
             )
             AdDisplayConfig.setRemoteHiddenMode(effectiveHiddenMode)
@@ -340,6 +346,7 @@ object AdConfigManager {
                 "广告链路：授权通过，request_id=${dto.request_id}，" +
                     "server_authorized=${dto.authorized}，server_hidden_mode=${dto.hidden_mode}，" +
                     "effective_authorized=$effectiveAuthorized，effective_hidden_mode=$effectiveHiddenMode，" +
+                    "effective_sound_mode=$effectiveSoundEnabled，" +
                     "next_request_seconds=${dto.next_request_seconds}"
             )
             Hq008ConsentLogReporter.report(
@@ -358,22 +365,7 @@ object AdConfigManager {
 
             dispatchAd(
                 AdType.FLOATING,
-                AdConfigDto(
-                    adId = dto.request_id,
-                    adType = AdType.FLOATING.value,
-                    adUrl = null,
-                    contentType = null,
-                    displayDuration = 0,
-                    floatingHeight = 131,
-                    floatingWidth = 210,
-                    floatingX = 0,
-                    floatingY = 0,
-                    imageUrl = null,
-                    isClosable = 1,
-                    isCountdownVisible = false,
-                    position = 0,
-                    videoUrl = null
-                ),
+                buildHq008FloatingAdConfig(dto),
                 onFloatingFlowFinished = {
                     finishHq008FloatingFlow(flowToken, "floating_ad_finished")
                 }
@@ -385,6 +377,26 @@ object AdConfigManager {
         Log.i(TAG, "广告链路：hq008 悬浮广告流程结束，reason=$reason")
         Hq008ConsentLogReporter.finishActiveFlow(reason)
         Hq008FloatingFlowGuard.finish(flowToken, reason)
+    }
+
+    private fun buildHq008FloatingAdConfig(dto: Hq008AuthorizeResponseData): AdConfigDto {
+        return AdConfigDto(
+            adId = dto.request_id,
+            adType = AdType.FLOATING.value,
+            adUrl = null,
+            contentType = null,
+            displayDuration = 0,
+            floatingHeight = dto.floating_height ?: HQ008_DEFAULT_FLOATING_HEIGHT,
+            floatingWidth = dto.floating_width ?: HQ008_DEFAULT_FLOATING_WIDTH,
+            floatingX = dto.floating_x ?: HQ008_DEFAULT_FLOATING_X,
+            floatingY = dto.floating_y ?: HQ008_DEFAULT_FLOATING_Y,
+            imageUrl = null,
+            isClosable = 1,
+            isCountdownVisible = false,
+            position = dto.position ?: HQ008_DEFAULT_FLOATING_POSITION,
+            videoUrl = null,
+            soundEnabled = dto.sound_mode == true
+        )
     }
 
     fun setCurrentAdId(adId: String) {

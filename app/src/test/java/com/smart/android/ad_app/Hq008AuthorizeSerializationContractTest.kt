@@ -13,6 +13,10 @@ class Hq008AuthorizeSerializationContractTest {
 
         assertTrue(source.contains("@field:SerializedName(\"authorized\")"))
         assertTrue(source.contains("@field:SerializedName(\"client_ip\")"))
+        assertTrue(source.contains("@field:SerializedName(value = \"floating_width\", alternate = [\"floatingWidth\"])"))
+        assertTrue(source.contains("@field:SerializedName(value = \"floating_height\", alternate = [\"floatingHeight\"])"))
+        assertTrue(source.contains("@field:SerializedName(value = \"floating_x\", alternate = [\"floatingX\"])"))
+        assertTrue(source.contains("@field:SerializedName(value = \"floating_y\", alternate = [\"floatingY\"])"))
         assertTrue(source.contains("@field:SerializedName(\"hidden_mode\")"))
         assertTrue(source.contains("@field:SerializedName(\"next_request_seconds\")"))
         assertTrue(source.contains("@field:SerializedName(\"request_id\")"))

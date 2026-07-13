@@ -30,6 +30,7 @@ object AdManagerImpl : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -38,6 +39,7 @@ object AdManagerImpl : IAdManager {
             HaierLsapAdManagerBridge.showAd(
                 flRoot = flRoot,
                 adId = adId,
+                soundEnabled = soundEnabled,
                 adStart = adStart,
                 adError = adError,
                 adComplete = adComplete
@@ -47,6 +49,7 @@ object AdManagerImpl : IAdManager {
         Hq008TclVideoAd.showAd(
             flRoot = flRoot,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -78,6 +81,7 @@ private object HaierLsapAdManagerBridge : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -85,6 +89,7 @@ private object HaierLsapAdManagerBridge : IAdManager {
         delegate.showAd(
             flRoot = flRoot,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -124,6 +129,7 @@ private object Hq008TclVideoAd {
     fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -152,6 +158,7 @@ private object Hq008TclVideoAd {
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
+            soundEnabled = soundEnabled,
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -295,7 +302,7 @@ private object Hq008TclVideoAd {
                 // PLAY_FLOW startAd begin
                 Log.i(
                     TAG,
-                    "播放链路：开始执行 startAd，requestId=${request.requestId}，adId=${request.adId}，hidden=$hiddenMode，alpha=${safeContainer.alpha}"
+                    "播放链路：开始执行 startAd，requestId=${request.requestId}，adId=${request.adId}，hidden=$hiddenMode，soundEnabled=${request.soundEnabled}，alpha=${safeContainer.alpha}"
                 )
                 Log.i(
                     TAG,
@@ -305,7 +312,7 @@ private object Hq008TclVideoAd {
                     .begin(appContext)
                     .lazyLoad()
                     .setAdType(AdType.WATERFALL)
-                    .setVolume(0f)
+                    .setVolume(if (request.soundEnabled) 1f else 0f)
                     .setRequestParams(buildRequestParams())
                     .listen(
                         object : AdStatusListener {
@@ -557,6 +564,7 @@ private object Hq008TclVideoAd {
     private data class PendingShowRequest(
         val requestId: String,
         val adId: String?,
+        val soundEnabled: Boolean,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,

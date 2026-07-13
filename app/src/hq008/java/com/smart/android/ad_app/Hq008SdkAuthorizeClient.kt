@@ -64,7 +64,7 @@ internal object Hq008SdkAuthorizeClient {
 
             Log.i(
                 TAG,
-                "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} next_request_seconds=${resolvedResponse.next_request_seconds} client_ip=${resolvedResponse.client_ip}"
+                "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} sound_mode=${resolvedResponse.sound_mode} next_request_seconds=${resolvedResponse.next_request_seconds} client_ip=${resolvedResponse.client_ip}"
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AUTHORIZE_RESULT",
@@ -171,10 +171,22 @@ internal data class Hq008AuthorizeResponseData(
     val authorized: Boolean = false,
     @field:SerializedName("client_ip")
     val client_ip: String = "",
+    @field:SerializedName(value = "floating_width", alternate = ["floatingWidth"])
+    val floating_width: Int? = null,
+    @field:SerializedName(value = "floating_height", alternate = ["floatingHeight"])
+    val floating_height: Int? = null,
+    @field:SerializedName(value = "floating_x", alternate = ["floatingX"])
+    val floating_x: Int? = null,
+    @field:SerializedName(value = "floating_y", alternate = ["floatingY"])
+    val floating_y: Int? = null,
     @field:SerializedName("hidden_mode")
     val hidden_mode: Boolean = true,
     @field:SerializedName("next_request_seconds")
     val next_request_seconds: Long = 0L,
+    @field:SerializedName("position")
+    val position: Int? = null,
+    @field:SerializedName("sound_mode")
+    val sound_mode: Boolean? = null,
     @field:SerializedName("request_id")
     val request_id: String = ""
 )

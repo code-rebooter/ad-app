@@ -10,6 +10,7 @@ import com.speed.log.printLog
 class TvAdFloatingWindow(
     context: Context,
     private val adId: String? = null,
+    private val soundEnabled: Boolean = false,
     private val onFloatingFlowFinished: (() -> Unit)? = null
 ) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
@@ -21,6 +22,7 @@ class TvAdFloatingWindow(
         AdManagerImpl.showAd(
             binding.flAdcontainer,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = {
                 "广告开始播放".printLog()
                 if (canSetFocusable()) {

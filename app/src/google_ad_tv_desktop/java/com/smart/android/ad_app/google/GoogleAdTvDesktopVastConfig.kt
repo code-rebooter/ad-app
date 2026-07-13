@@ -7,4 +7,11 @@ object GoogleAdTvDesktopVastConfig {
     const val AD_LOAD_TIMEOUT_MS = 20_000
     const val AD_STARTUP_TIMEOUT_MS = 35_000L
     const val SILENCE_CONTENT_DURATION_US = 60_000_000L
+
+    fun resolveAdTagUrl(soundEnabled: Boolean): String {
+        val muteValue = if (soundEnabled) "0" else "1"
+        return AD_TAG_URL.replace(Regex("([?&])vpmute=[^&]*")) { match ->
+            "${match.groupValues[1]}vpmute=$muteValue"
+        }
+    }
 }

@@ -63,7 +63,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         addView(playerView)
     }
 
-    fun play(adTagUrl: String) {
+    fun play(adTagUrl: String, soundEnabled: Boolean) {
         releasePlayerOnly()
         hasFinished = false
         adLoaded = false
@@ -82,6 +82,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         )
 
         playbackPlayer?.apply {
+            volume = if (soundEnabled) 1f else 0f
             setMediaSource(createAdMediaSource(playbackSpec))
             playWhenReady = true
             prepare()

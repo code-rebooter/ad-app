@@ -9,6 +9,7 @@ interface IAdManager {
     fun showAd(
         flRoot: ViewGroup,
         adId: String? = null,
+        soundEnabled: Boolean = false,
         adStart: (() -> Unit)? = null,
         adError: (() -> Unit)? = null,
         adComplete: () -> Unit

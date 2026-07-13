@@ -621,8 +621,8 @@ android {
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
-                    versionCode         : 6,
-                    versionName         : "1.0.5",
+                    versionCode         : 7,
+                    versionName         : "1.0.6",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP",

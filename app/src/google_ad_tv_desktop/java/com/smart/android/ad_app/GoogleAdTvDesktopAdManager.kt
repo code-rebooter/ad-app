@@ -21,6 +21,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -28,6 +29,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         GoogleAdTvDesktopFormalAd.showAd(
             flRoot = flRoot,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -58,6 +60,7 @@ private object GoogleAdTvDesktopFormalAd {
     fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -66,6 +69,8 @@ private object GoogleAdTvDesktopFormalAd {
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
+            soundEnabled = soundEnabled,
+            adTagUrl = GoogleAdTvDesktopVastConfig.resolveAdTagUrl(soundEnabled),
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -86,7 +91,7 @@ private object GoogleAdTvDesktopFormalAd {
             extra = mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
+                "adTagUrl" to request.adTagUrl,
                 "requestCreatedAtMs" to request.requestCreatedAtMs
             )
         )
@@ -176,13 +181,13 @@ private object GoogleAdTvDesktopFormalAd {
 
             Log.i(
                 TAG,
-                "正式链路：Google VAST 广告容器已准备，requestId=${request.requestId}，hidden=$hiddenMode，alpha=${container.alpha}，container=${container.width}x${container.height}"
+                "正式链路：Google VAST 广告容器已准备，requestId=${request.requestId}，hidden=$hiddenMode，soundEnabled=${request.soundEnabled}，alpha=${container.alpha}，container=${container.width}x${container.height}"
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AD_SDK_REQUEST",
-                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,adTagUrl=${GoogleAdTvDesktopVastConfig.AD_TAG_URL}"
+                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},adTagUrl=${request.adTagUrl}"
             )
-            playerView.play(GoogleAdTvDesktopVastConfig.AD_TAG_URL)
+            playerView.play(request.adTagUrl, request.soundEnabled)
             armTimeout(request)
         }.onFailure { error ->
             failRequest(
@@ -208,7 +213,7 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildProgressDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL
+                "adTagUrl" to request.adTagUrl
             )
         )
         Hq008ConsentLogReporter.report(
@@ -237,7 +242,7 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildProgressDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
+                "adTagUrl" to request.adTagUrl,
                 "childCount" to container.childCount
             )
         )
@@ -268,7 +273,7 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildCompletionDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
+                "adTagUrl" to request.adTagUrl,
                 "finishReason" to "vast_finished"
             )
         )
@@ -308,7 +313,7 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildCompletionDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to GoogleAdTvDesktopVastConfig.AD_TAG_URL,
+                "adTagUrl" to request.adTagUrl,
                 "stage" to stage,
                 "reason" to reason,
                 "error" to errorText
@@ -362,6 +367,8 @@ private object GoogleAdTvDesktopFormalAd {
     private data class PendingShowRequest(
         val requestId: String,
         val adId: String?,
+        val soundEnabled: Boolean,
+        val adTagUrl: String,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,

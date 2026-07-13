@@ -21,6 +21,7 @@ object HaierLsapAdManager : IAdManager {
     override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -28,6 +29,7 @@ object HaierLsapAdManager : IAdManager {
         HaierLsapFormalAd.showAd(
             flRoot = flRoot,
             adId = adId,
+            soundEnabled = soundEnabled,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -62,6 +64,7 @@ private object HaierLsapFormalAd {
     fun showAd(
         flRoot: ViewGroup,
         adId: String?,
+        soundEnabled: Boolean,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -70,6 +73,7 @@ private object HaierLsapFormalAd {
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
+            soundEnabled = soundEnabled,
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -393,6 +397,7 @@ private object HaierLsapFormalAd {
     private data class PendingShowRequest(
         val requestId: String,
         val adId: String?,
+        val soundEnabled: Boolean,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,

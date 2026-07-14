@@ -1,0 +1,15 @@
+package com.smart.android.googlevideoad;
+
+public enum AdErrorCode {
+    INIT_NOT_CALLED,
+    INVALID_CHANNEL_ID,
+    INVALID_ARGUMENT,
+    CONFIG_NETWORK_ERROR,
+    CONFIG_HTTP_ERROR,
+    CONFIG_PARSE_ERROR,
+    IMA_LOAD_ERROR,
+    IMA_PLAYBACK_ERROR,
+    PLAYER_ERROR,
+    TIMEOUT,
+    INTERNAL_ERROR
+}

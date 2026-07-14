@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -31,6 +32,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/haier_lsapDebug/res']"))
 
         assertTrue(hq1002Block.contains("applicationId       : \"com.google.android.addyhq1002\""))
+        assertTrue(hq1002Block.contains("versionCode         : 2"))
+        assertTrue(hq1002Block.contains("versionName         : \"1.0.2\""))
         assertTrue(hq1002Block.contains("channel             : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("cType               : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("model               : \"ADDY_HQ1002\""))
@@ -40,6 +43,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(hq1002Block.contains("lsapSdkName         : \"addy_hq1002\""))
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
+        assertTrue(jamsBlock.contains("versionCode         : 2"))
+        assertTrue(jamsBlock.contains("versionName         : \"1.0.2\""))
         assertTrue(jamsBlock.contains("channel             : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("cType               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("model               : \"ADDY_JAMS\""))
@@ -73,8 +78,11 @@ class AddyHaierLsapChannelContractTest {
 
         assertTrue(File(projectRoot, "app/signing_files/addy_hq1002_release.jks").exists())
         assertTrue(File(projectRoot, "app/signing_files/addy_jams_release.jks").exists())
-        assertTrue(File(projectRoot, "app/libs/addy_hq1002/lsapsdk-combine-com.google.android.addyhq1002-1.1.11.aar").exists())
-        assertTrue(File(projectRoot, "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.11.aar").exists())
+        assertTrue(File(projectRoot, "app/libs/addy_hq1002/lsapsdk-combine-com.google.android.addyhq1002-1.1.12.aar").exists())
+        assertTrue(File(projectRoot, "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12.aar").exists())
+        assertFalse(File(projectRoot, "app/libs/addy_hq1002/lsapsdk-combine-com.google.android.addyhq1002-1.1.11.aar").exists())
+        assertFalse(File(projectRoot, "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.11.aar").exists())
+        assertTrue(managerSource.contains("UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)"))
     }
 
     private fun readProjectFile(relativePath: String): String {

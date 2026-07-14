@@ -189,6 +189,18 @@ private object HaierLsapFormalAd {
                     }
 
                     override fun onAdPlayStarted() {
+                        if (currentRequest !== request || request.isTerminal()) {
+                            Log.w(
+                                TAG,
+                                "正式链路：忽略过期广告开始回调，requestId=${request.requestId}"
+                            )
+                            return
+                        }
+                        UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)
+                        Log.i(
+                            TAG,
+                            "正式链路：已设置广告音量，requestId=${request.requestId}，soundEnabled=${request.soundEnabled}"
+                        )
                         container.post {
                             notifyStarted(request, container)
                         }

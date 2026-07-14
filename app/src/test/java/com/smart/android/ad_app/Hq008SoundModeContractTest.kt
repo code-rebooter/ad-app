@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -44,7 +45,7 @@ class Hq008SoundModeContractTest {
     }
 
     @Test
-    fun `supported players should apply sound mode to volume and GAM mute metadata`() {
+    fun `supported players should apply sound mode to volume without rewriting GAM URL`() {
         val tclManagerSource = readProjectFile(
             "app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt"
         )
@@ -54,22 +55,23 @@ class Hq008SoundModeContractTest {
         val googlePlayerSource = readProjectFile(
             "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdVastPlayerView.kt"
         )
-        val googleConfigSource = readProjectFile(
-            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdTvDesktopVastConfig.kt"
+        val googleGamConfigClientSource = readProjectFile(
+            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt"
+        )
+        val lsapManagerSource = readProjectFile(
+            "app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt"
         )
 
         assertTrue(tclManagerSource.contains(".setVolume(if (request.soundEnabled) 1f else 0f)"))
-        assertTrue(
-            googleManagerSource.contains(
-                "adTagUrl = GoogleAdTvDesktopVastConfig.resolveAdTagUrl(soundEnabled)"
-            )
-        )
-        assertTrue(googleManagerSource.contains("playerView.play(request.adTagUrl, request.soundEnabled)"))
+        assertTrue(googleManagerSource.contains("adTagUrl = request.adTagUrl"))
+        assertTrue(googleManagerSource.contains("soundEnabled = request.soundEnabled"))
         assertTrue(googleManagerSource.contains("\"adTagUrl\" to request.adTagUrl"))
-        assertTrue(googlePlayerSource.contains("fun play(adTagUrl: String, soundEnabled: Boolean)"))
+        assertTrue(googlePlayerSource.contains("soundEnabled: Boolean"))
         assertTrue(googlePlayerSource.contains("volume = if (soundEnabled) 1f else 0f"))
-        assertTrue(googleConfigSource.contains("fun resolveAdTagUrl(soundEnabled: Boolean)"))
-        assertTrue(googleConfigSource.contains("if (soundEnabled) \"0\" else \"1\""))
+        assertFalse(googleManagerSource.contains("resolveAdTagUrl"))
+        assertFalse(googleGamConfigClientSource.contains("vpmute="))
+        assertFalse(googleGamConfigClientSource.contains("correlator="))
+        assertTrue(lsapManagerSource.contains("UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)"))
     }
 
     @Test

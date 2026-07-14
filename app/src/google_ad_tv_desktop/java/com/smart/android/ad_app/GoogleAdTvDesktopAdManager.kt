@@ -8,6 +8,8 @@ import android.view.ViewGroup
 import androidx.annotation.Keep
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import com.smart.android.ad_app.google.GoogleGamAdConfigClient
+import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
 import com.smart.android.ad_app.google.GoogleAdTvDesktopVastConfig
 import com.smart.android.ad_app.google.GoogleAdVastPlayerView
 import java.lang.ref.WeakReference
@@ -66,11 +68,11 @@ private object GoogleAdTvDesktopFormalAd {
         adComplete: () -> Unit
     ) {
         val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+        flRoot.alpha = 0f
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
             soundEnabled = soundEnabled,
-            adTagUrl = GoogleAdTvDesktopVastConfig.resolveAdTagUrl(soundEnabled),
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -91,7 +93,6 @@ private object GoogleAdTvDesktopFormalAd {
             extra = mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to request.adTagUrl,
                 "requestCreatedAtMs" to request.requestCreatedAtMs
             )
         )
@@ -101,7 +102,7 @@ private object GoogleAdTvDesktopFormalAd {
         )
 
         flRoot.post {
-            startAd(request)
+            resolveAdConfig(request)
         }
     }
 
@@ -118,6 +119,64 @@ private object GoogleAdTvDesktopFormalAd {
         clearTimeout()
         releaseCurrentPlayer()
         currentRequest = null
+    }
+
+    private fun resolveAdConfig(request: PendingShowRequest) {
+        val container = request.containerRef.get()
+        if (container == null) {
+            failRequest(
+                request = request,
+                stage = "config_container_prepare",
+                reporterMessage = Hq008AdReporter.Message.CONTAINER_RELEASED,
+                reason = "container_released"
+            )
+            return
+        }
+
+        currentRequest
+            ?.takeUnless { it === request || it.isTerminal() }
+            ?.markTerminal()
+        clearTimeout()
+        releaseCurrentPlayer()
+        currentRequest = request
+        currentContainerRef = WeakReference(container)
+        container.removeAllViews()
+        container.alpha = 0f
+
+        Log.i(TAG, "正式链路：开始解析 Google GAM 广告配置，requestId=${request.requestId}")
+        GoogleGamAdConfigClient.request { config, error ->
+            container.post {
+                if (request.isTerminal() || currentRequest !== request) {
+                    return@post
+                }
+                when {
+                    error != null -> skipRequest(
+                        request = request,
+                        reason = "gam_config_network_failed",
+                        error = error
+                    )
+                    config == null -> skipRequest(
+                        request = request,
+                        reason = "gam_config_unavailable"
+                    )
+                    else -> applyResolvedConfigAndStart(request, config)
+                }
+            }
+        }
+    }
+
+    private fun applyResolvedConfigAndStart(
+        request: PendingShowRequest,
+        config: GoogleGamAdPlaybackConfig
+    ) {
+        request.adTagUrl = config.adTagUrl
+        request.adLoadTimeoutMs = config.adLoadTimeoutMs
+        request.adStartupTimeoutMs = config.adStartupTimeoutMs
+        Log.i(
+            TAG,
+            "正式链路：Google GAM 配置解析成功，requestId=${request.requestId}，adLoadTimeoutMs=${request.adLoadTimeoutMs}，adStartupTimeoutMs=${request.adStartupTimeoutMs}"
+        )
+        startAd(request)
     }
 
     @OptIn(UnstableApi::class)
@@ -141,7 +200,7 @@ private object GoogleAdTvDesktopFormalAd {
         runCatching {
             val hiddenMode = AdDisplayConfig.isHiddenMode()
             container.removeAllViews()
-            container.alpha = if (hiddenMode) 0f else 1f
+            container.alpha = 0f
 
             val playerView = GoogleAdVastPlayerView(container.context).apply {
                 layoutParams = ViewGroup.LayoutParams(
@@ -156,6 +215,11 @@ private object GoogleAdTvDesktopFormalAd {
                 onAdStarted = {
                     container.post {
                         notifyStarted(request, container)
+                    }
+                }
+                onAdFirstFrameRendered = {
+                    container.post {
+                        revealContainerWhenReady(request, container)
                     }
                 }
                 onAdFinished = {
@@ -187,7 +251,12 @@ private object GoogleAdTvDesktopFormalAd {
                 eventType = "AD_SDK_REQUEST",
                 eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},adTagUrl=${request.adTagUrl}"
             )
-            playerView.play(request.adTagUrl, request.soundEnabled)
+            playerView.play(
+                adTagUrl = request.adTagUrl,
+                soundEnabled = request.soundEnabled,
+                adLoadTimeoutMs = request.adLoadTimeoutMs,
+                adStartupTimeoutMs = request.adStartupTimeoutMs
+            )
             armTimeout(request)
         }.onFailure { error ->
             failRequest(
@@ -253,6 +322,18 @@ private object GoogleAdTvDesktopFormalAd {
         request.adStart?.invoke()
     }
 
+    private fun revealContainerWhenReady(request: PendingShowRequest, container: ViewGroup) {
+        if (request.isTerminal() || AdDisplayConfig.isHiddenMode()) {
+            return
+        }
+        container.animate().cancel()
+        container.animate().alpha(1f).setDuration(150L).start()
+        Log.i(
+            TAG,
+            "正式链路：Google VAST 广告首帧已渲染，显示广告容器，requestId=${request.requestId}"
+        )
+    }
+
     private fun finishRequest(request: PendingShowRequest) {
         if (!request.markTerminal()) {
             return
@@ -280,6 +361,39 @@ private object GoogleAdTvDesktopFormalAd {
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_COMPLETED",
             eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=vast_finished"
+        )
+        releaseCurrentPlayer()
+        currentRequest = null
+        request.adComplete.invoke()
+    }
+
+    private fun skipRequest(
+        request: PendingShowRequest,
+        reason: String,
+        error: String? = null
+    ) {
+        if (!request.markTerminal()) {
+            return
+        }
+        clearTimeout()
+        Log.w(
+            TAG,
+            "正式链路：跳过 Google VAST 广告，requestId=${request.requestId}，reason=$reason，error=${error.orEmpty()}"
+        )
+        Hq008AdReporter.reportCompleted(
+            requestId = request.requestId,
+            adId = request.adId,
+            hiddenMode = AdDisplayConfig.isHiddenMode(),
+            extra = request.buildCompletionDiagnostics() + mapOf(
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "finishReason" to reason,
+                "error" to error.orEmpty()
+            )
+        )
+        Hq008ConsentLogReporter.report(
+            eventType = "AD_PHASE_SKIPPED",
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},reason=$reason,error=${error.orEmpty()}"
         )
         releaseCurrentPlayer()
         currentRequest = null
@@ -368,12 +482,14 @@ private object GoogleAdTvDesktopFormalAd {
         val requestId: String,
         val adId: String?,
         val soundEnabled: Boolean,
-        val adTagUrl: String,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,
         val adError: (() -> Unit)?,
         val adComplete: () -> Unit,
+        var adTagUrl: String = "",
+        var adLoadTimeoutMs: Int = GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS,
+        var adStartupTimeoutMs: Long = GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS,
         var loadedAtMs: Long? = null,
         var startedAtMs: Long? = null,
         var finishedAtMs: Long? = null

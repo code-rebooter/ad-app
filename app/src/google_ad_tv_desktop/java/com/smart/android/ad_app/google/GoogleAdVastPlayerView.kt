@@ -50,9 +50,13 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     private var hasFinished = false
     private var adLoaded = false
     private var adStarted = false
+    private var firstFrameRendered = false
+    private var firstFrameNotified = false
+    private var adStartupTimeoutMs = GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS
 
     var onAdLoaded: (() -> Unit)? = null
     var onAdStarted: (() -> Unit)? = null
+    var onAdFirstFrameRendered: (() -> Unit)? = null
     var onAdFinished: (() -> Unit)? = null
     var onAdFailed: ((String) -> Unit)? = null
 
@@ -63,12 +67,20 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         addView(playerView)
     }
 
-    fun play(adTagUrl: String, soundEnabled: Boolean) {
+    fun play(
+        adTagUrl: String,
+        soundEnabled: Boolean,
+        adLoadTimeoutMs: Int,
+        adStartupTimeoutMs: Long
+    ) {
         releasePlayerOnly()
         hasFinished = false
         adLoaded = false
         adStarted = false
-        initializePlayer()
+        firstFrameRendered = false
+        firstFrameNotified = false
+        this.adStartupTimeoutMs = adStartupTimeoutMs
+        initializePlayer(adLoadTimeoutMs)
 
         val playbackSpec = GoogleAdVastPlaybackSpec(
             adTagUrl = adTagUrl,
@@ -78,7 +90,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         mainHandler.postDelayed(
             adStartupTimeoutRunnable,
-            GoogleAdTvDesktopVastConfig.AD_STARTUP_TIMEOUT_MS
+            adStartupTimeoutMs
         )
 
         playbackPlayer?.apply {
@@ -94,9 +106,9 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
     }
 
-    private fun initializePlayer() {
+    private fun initializePlayer(adLoadTimeoutMs: Int) {
         adsLoader = ImaAdsLoader.Builder(context)
-            .setMediaLoadTimeoutMs(GoogleAdTvDesktopVastConfig.AD_LOAD_TIMEOUT_MS)
+            .setMediaLoadTimeoutMs(adLoadTimeoutMs)
             .setAdEventListener { event ->
                 Log.i(TAG, "IMA event: ${event.type}")
                 when (event.type) {
@@ -112,6 +124,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
                         adStarted = true
                         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
                         onAdStarted?.invoke()
+                        notifyAdFirstFrameOnce()
                     }
                     AdEvent.AdEventType.CONTENT_RESUME_REQUESTED -> {
                         if (!adStarted) {
@@ -158,6 +171,12 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
                         Log.i(TAG, "Player isPlaying=$isPlaying")
                     }
 
+                    override fun onRenderedFirstFrame() {
+                        Log.i(TAG, "First video frame rendered")
+                        firstFrameRendered = true
+                        notifyAdFirstFrameOnce()
+                    }
+
                     override fun onPlayerError(error: PlaybackException) {
                         Log.e(TAG, "Player error", error)
                         failOnce(error.message ?: "Playback error")
@@ -175,12 +194,18 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         onAdLoaded?.invoke()
     }
 
+    private fun notifyAdFirstFrameOnce() {
+        if (hasFinished || firstFrameNotified || !adStarted || !firstFrameRendered) return
+        firstFrameNotified = true
+        onAdFirstFrameRendered?.invoke()
+    }
+
     private fun extendAdStartupTimeout() {
         if (hasFinished || adStarted) return
         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         mainHandler.postDelayed(
             adStartupTimeoutRunnable,
-            GoogleAdTvDesktopVastConfig.AD_STARTUP_TIMEOUT_MS
+            adStartupTimeoutMs
         )
     }
 

@@ -28,8 +28,8 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(buildGradle.contains("compileGoogle_ad_tv_desktopReleaseKotlin"))
 
         assertTrue(flavorBlock.contains("applicationId       : \"io.android.launcher.tv.desktop\"") || flavorBlock.contains("applicationId: \"io.android.launcher.tv.desktop\""))
-        assertTrue(flavorBlock.contains("versionCode         : 7") || flavorBlock.contains("versionCode: 7"))
-        assertTrue(flavorBlock.contains("versionName         : \"1.0.6\"") || flavorBlock.contains("versionName: \"1.0.6\""))
+        assertTrue(flavorBlock.contains("versionCode         : 8") || flavorBlock.contains("versionCode: 8"))
+        assertTrue(flavorBlock.contains("versionName         : \"1.0.7\"") || flavorBlock.contains("versionName: \"1.0.7\""))
         assertTrue(flavorBlock.contains("channel             : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("channel               : \"GOOGLE_AD_TV_DESKTOP\""))
         assertTrue(flavorBlock.contains("cType               : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("cType                 : \"GOOGLE_AD_TV_DESKTOP\""))
         assertTrue(flavorBlock.contains("model               : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("model                 : \"GOOGLE_AD_TV_DESKTOP\""))
@@ -56,8 +56,10 @@ class GoogleAdTvDesktopFlavorContractTest {
         val bridgeSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/AdManagerImpl.kt")
         val playerSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdVastPlayerView.kt")
         val configSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdTvDesktopVastConfig.kt")
+        val gamConfigClientSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt")
         val manifest = readProjectFile("app/src/google_ad_tv_desktop/AndroidManifest.xml")
         val proguardRules = readProjectFile("app/proguard-rules.pro")
+        val projectRoot = findProjectRoot("app/build.gradle")
 
         assertTrue(managerSource.contains("@Keep"))
         assertTrue(managerSource.contains("object GoogleAdTvDesktopAdManager : IAdManager"))
@@ -67,7 +69,12 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(bridgeSource.contains("GoogleAdTvDesktopAdManager.destroyAd()"))
         assertTrue(managerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
         assertTrue(managerSource.contains("GoogleAdVastPlayerView"))
-        assertTrue(managerSource.contains("GoogleAdTvDesktopVastConfig.resolveAdTagUrl(soundEnabled)"))
+        assertTrue(managerSource.contains("GoogleGamAdConfigClient.request"))
+        assertTrue(managerSource.contains("skipRequest("))
+        assertTrue(managerSource.contains("config.adTagUrl"))
+        assertTrue(managerSource.contains("config.adLoadTimeoutMs"))
+        assertTrue(managerSource.contains("config.adStartupTimeoutMs"))
+        assertFalse(managerSource.contains("resolveAdTagUrl"))
         assertTrue(managerSource.contains("Hq008AdReporter.reportRequested"))
         assertTrue(managerSource.contains("Hq008AdReporter.reportLoaded"))
         assertTrue(managerSource.contains("Hq008AdReporter.reportStarted"))
@@ -81,7 +88,8 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertFalse(managerSource.contains("AdManager.requestHomeVideoAd"))
 
         assertTrue(playerSource.contains("ImaAdsLoader.Builder(context)"))
-        assertTrue(playerSource.contains("setMediaLoadTimeoutMs(GoogleAdTvDesktopVastConfig.AD_LOAD_TIMEOUT_MS)"))
+        assertTrue(playerSource.contains("setMediaLoadTimeoutMs(adLoadTimeoutMs)"))
+        assertTrue(playerSource.contains("adStartupTimeoutMs"))
         assertTrue(playerSource.contains("setAdEventListener"))
         assertTrue(playerSource.contains("AdEvent.AdEventType.STARTED"))
         assertTrue(playerSource.contains("AdEvent.AdEventType.ALL_ADS_COMPLETED"))
@@ -89,13 +97,47 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(playerSource.contains("onAdFinished?.invoke()"))
         assertTrue(playerSource.contains("onAdFailed?.invoke(message)"))
 
-        assertTrue(configSource.contains("https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&description_url=https%3A%2F%2Fghtfor.cc&tfcd=0&npa=0&ad_type=audio_video&sz=1x1%7C300x250%7C320x480%7C400x300%7C640x360%7C640x430%7C640x480&gdfp_req=1&unviewed_position_start=1&output=vast&env=vp&impl=s&plcmt=1&vpmute=0&app_package=io.android.launcher.tv.desktop&correlator="))
-        assertTrue(configSource.contains("AD_STARTUP_TIMEOUT_MS"))
+        assertTrue(configSource.contains("DEFAULT_AD_LOAD_TIMEOUT_MS = 20_000"))
+        assertTrue(configSource.contains("DEFAULT_AD_STARTUP_TIMEOUT_MS = 35_000L"))
+        assertFalse(configSource.contains("pubads.g.doubleclick.net"))
+        assertFalse(configSource.contains("resolveAdTagUrl"))
+
+        assertTrue(gamConfigClientSource.contains("\${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/google-gam/resolve"))
+        assertTrue(gamConfigClientSource.contains("CHANNEL_ID = \"GOOGLE_AD_TV_DESKTOP\""))
+        assertTrue(gamConfigClientSource.contains("\"channel_id\" to CHANNEL_ID"))
+        assertTrue(gamConfigClientSource.contains("NetworkHelper.makeRequest<GoogleGamAdConfigResponseData>"))
+        assertTrue(gamConfigClientSource.contains("response?.ad_tag_url?.takeIf { it.isNotBlank() }"))
+        assertTrue(gamConfigClientSource.contains("GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS"))
+        assertTrue(gamConfigClientSource.contains("GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS"))
+        assertFalse(gamConfigClientSource.contains("vpmute="))
+        assertFalse(gamConfigClientSource.contains("correlator="))
+        assertFalse(File(projectRoot, "app/src/main/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt").exists())
+        assertFalse(File(projectRoot, "app/src/hq008/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt").exists())
         assertTrue(manifest.contains("android.software.leanback"))
         assertTrue(manifest.contains("tools:remove=\"android:sharedUserId\""))
         assertTrue(proguardRules.contains("-keep class com.smart.android.ad_app.GoogleAdTvDesktopAdManager { *; }"))
         assertTrue(proguardRules.contains("-keep class com.smart.android.ad_app.google.** { *; }"))
         assertTrue(proguardRules.contains("-dontwarn com.google.ads.interactivemedia.v3.**"))
+    }
+
+    @Test
+    fun `google_ad_tv_desktop should stay transparent until the first ad frame`() {
+        val managerSource = readProjectFile(
+            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt"
+        )
+        val playerSource = readProjectFile(
+            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdVastPlayerView.kt"
+        )
+
+        assertTrue(managerSource.contains("container.alpha = 0f"))
+        assertTrue(managerSource.contains("flRoot.alpha = 0f"))
+        assertTrue(managerSource.contains("onAdFirstFrameRendered = {"))
+        assertTrue(managerSource.contains("revealContainerWhenReady(request, container)"))
+        assertTrue(managerSource.contains("container.animate().alpha(1f)"))
+        assertTrue(playerSource.contains("var onAdFirstFrameRendered: (() -> Unit)? = null"))
+        assertTrue(playerSource.contains("override fun onRenderedFirstFrame()"))
+        assertTrue(playerSource.contains("notifyAdFirstFrameOnce()"))
+        assertTrue(playerSource.contains("!adStarted || !firstFrameRendered"))
     }
 
     private fun readProjectFile(relativePath: String): String {

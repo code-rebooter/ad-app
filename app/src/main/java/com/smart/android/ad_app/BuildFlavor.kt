@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 internal object BuildFlavor {
     fun isHq008(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008" || flavor == "hq008XHSX" || flavor == "tcl_aishang"
+        return flavor == "hq008" || flavor == "hq008XHSX" || flavor == "tcl_aishang" || flavor == "ad_ytx01"
     }
 
     fun isHq008Noneu(flavor: String = BuildConfig.FLAVOR): Boolean {

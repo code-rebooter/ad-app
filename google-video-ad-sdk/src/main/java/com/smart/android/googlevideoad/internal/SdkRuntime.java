@@ -34,7 +34,7 @@ public final class SdkRuntime {
         return new SdkRuntime(dispatcher, new DefaultComponentsFactory());
     }
 
-    public void initialize(
+    public synchronized void initialize(
         Context context,
         SdkConfig config,
         InitializationListener listener

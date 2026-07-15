@@ -1,6 +1,7 @@
 package com.smart.android.googlevideoad;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -37,5 +38,85 @@ public class GoogleVideoAdsTest {
         assertTrue(Modifier.isPublic(method.getModifiers()));
         assertTrue(Modifier.isStatic(method.getModifiers()));
         assertEquals(AdSession.class, method.getReturnType());
+    }
+
+    @Test
+    public void initializeRejectsNullArgumentsBeforeCreatingRuntime() {
+        SdkConfig config = new SdkConfig.Builder().setChannelId("CHANNEL_A").build();
+        InitializationListener listener = new NoOpInitializationListener();
+
+        assertEquals(
+            "listener must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.initialize(null, config, null)
+            ).getMessage()
+        );
+        assertEquals(
+            "config must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.initialize(null, null, listener)
+            ).getMessage()
+        );
+        assertEquals(
+            "context must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.initialize(null, config, listener)
+            ).getMessage()
+        );
+    }
+
+    @Test
+    public void playRejectsNullArgumentsBeforeCreatingRuntime() {
+        AdRequest request = new AdRequest.Builder().build();
+        AdListener listener = new NoOpAdListener();
+
+        assertEquals(
+            "listener must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.play(null, request, null)
+            ).getMessage()
+        );
+        assertEquals(
+            "request must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.play(null, null, listener)
+            ).getMessage()
+        );
+        assertEquals(
+            "container must not be null",
+            assertThrows(
+                NullPointerException.class,
+                () -> GoogleVideoAds.play(null, request, listener)
+            ).getMessage()
+        );
+    }
+
+    private static final class NoOpInitializationListener implements InitializationListener {
+        @Override
+        public void onInitialized() {
+        }
+
+        @Override
+        public void onError(AdError error) {
+        }
+    }
+
+    private static final class NoOpAdListener implements AdListener {
+        @Override
+        public void onLoaded(AdSession session) {
+        }
+
+        @Override
+        public void onStarted(AdSession session) {
+        }
+
+        @Override
+        public void onFinished(AdSession session, AdResult result) {
+        }
     }
 }

@@ -1,49 +1,49 @@
-# Haier LSAP User-Agent Normalization Design
+# 海尔 LSAP User-Agent 规范化设计
 
-Date: 2026-07-15
+日期：2026-07-15
 
-## Objective
+## 目标
 
-Correct malformed Android Dalvik User-Agent values on the `haier_lsap` channel without changing valid device User-Agent values.
+在 `haier_lsap` 渠道中修正异常的 Android Dalvik User-Agent，同时保证正常设备的原始 UA 不发生任何变化。
 
-The affected ROM cannot be trusted as a source for `Build.VERSION.RELEASE`, `Build.MODEL`, or `Build.ID` after an invalid UA is detected. Therefore, the correction branch uses an application-owned SDK profile instead of rebuilding from ROM-provided identity fields.
+一旦判定原始 UA 异常，就不能继续信任该 ROM 提供的 `Build.VERSION.RELEASE`、`Build.MODEL` 或 `Build.ID`。因此，异常修复分支必须使用应用侧维护的可信 SDK 配置，而不是继续使用 ROM 字段重新拼接 UA。
 
-## Scope
+## 范围
 
-- Enable only for the exact `haier_lsap` flavor.
-- Support the app runtime range API 23 through API 36.
-- Normalize `System.getProperty("http.agent")` before any ad SDK or network component can cache it.
-- Leave a valid original UA byte-for-byte unchanged.
-- Replace an invalid original UA with a deterministic Haier TV UA selected by `Build.VERSION.SDK_INT`.
-- Do not use the currently connected abnormal test device as a template.
-- Do not change unrelated product flavors.
+- 仅对准确的 `haier_lsap` flavor 启用。
+- 覆盖应用支持的 API 23 至 API 36。
+- 在任何广告 SDK 或网络组件缓存 UA 之前，规范化 `System.getProperty("http.agent")`。
+- 正常原始 UA 必须逐字符原样保留。
+- 异常原始 UA 根据 `Build.VERSION.SDK_INT` 替换为确定的海尔电视标准 UA。
+- 当前连接的异常测试设备不能作为固定模板来源。
+- 不影响其他产品渠道。
 
-Separate request fields such as `make`, `model`, and `osv` are outside this implementation scope. They must be reviewed separately if the server validates them against the UA.
+`make`、`model`、`osv` 等独立请求字段不属于本次实现范围。如果服务端会同时校验这些字段和 UA 的一致性，需要另行评估和修正。
 
-## Chosen Behavior
+## 最终行为
 
-The fixed portion of a corrected UA is:
+异常 UA 修正后的固定格式为：
 
 ```text
-Dalvik/2.1.0 (Linux; U; Android <official-version>; Haier TV Build/<canonical-build-id>)
+Dalvik/2.1.0 (Linux; U; Android <官方版本>; Haier TV Build/<标准Build ID>)
 ```
 
-The Android version and canonical build ID are selected together from an application-owned API-level table. This prevents combinations such as Android 11 with an Android 10 `QP1A` build.
+Android 版本和 Build ID 必须从应用侧 API Level 映射表中成对选择，避免再次出现 Android 11 搭配 Android 10 `QP1A` Build ID 的矛盾组合。
 
-Processing is idempotent:
+处理流程必须满足幂等性：
 
-1. Read the current Java system property `http.agent`.
-2. Parse and validate it against the current API level.
-3. If valid, return and install the original string unchanged.
-4. If invalid, select the canonical profile for the current API level.
-5. Generate and install the corrected UA.
-6. If no profile exists, preserve the original value and log an unsupported-SDK diagnostic rather than guessing.
+1. 读取当前 Java 系统属性 `http.agent`。
+2. 解析 UA，并根据当前 API Level 校验其合法性和一致性。
+3. 校验通过时，原样返回并保留原 UA。
+4. 校验失败时，查找当前 API Level 对应的标准配置。
+5. 生成并安装修正后的 UA。
+6. 如果不存在当前 SDK 的配置，则保留原值并记录“不支持的 SDK”诊断，不允许猜测或临时拼接。
 
-## Canonical Profiles
+## API Level 标准配置
 
-The profile table covers every supported runtime API level.
+配置表覆盖应用支持的全部运行版本。
 
-| SDK | Public Android label | Canonical build ID |
+| SDK | Android 对外版本 | 标准 Build ID |
 |---:|---|---|
 | 23 | 6.0 | `MRA58K` |
 | 24 | 7.0 | `NRD90M` |
@@ -60,47 +60,47 @@ The profile table covers every supported runtime API level.
 | 35 | 15 | `AP3A.240905.015.A2` |
 | 36 | 16 | `BP2A.250605.031.A2` |
 
-These are application normalization profiles based on Android release build families. They are not claims about the faulty ROM's original vendor firmware identity.
+这些值是应用侧用于异常数据修正的标准配置，并不代表异常 ROM 原本的真实厂商固件身份。
 
-## Validation Rules
+## UA 校验规则
 
-### Syntax
+### 基础格式
 
-A UA is invalid when any of the following is true:
+满足以下任意条件时，UA 判定为异常：
 
-- It is blank.
-- It contains control characters, carriage returns, or line feeds.
-- It cannot be parsed as a Dalvik Android UA with Android version, model, and Build ID fields.
-- Any required parsed field is blank.
+- UA 为空。
+- UA 包含控制字符、回车或换行。
+- 无法解析为包含 Android 版本、型号和 Build ID 的 Dalvik Android UA。
+- 任意必需字段解析后为空。
 
-### Android version
+### Android 版本
 
-The parsed Android version must be compatible with the current `SDK_INT`.
+UA 中解析出的 Android 版本必须与当前 `SDK_INT` 兼容。
 
-| SDK | Accepted normal version labels |
+| SDK | 允许视为正常的版本值 |
 |---:|---|
-| 23 | `6.0`, `6.0.1` |
+| 23 | `6.0`、`6.0.1` |
 | 24 | `7.0` |
-| 25 | `7.1`, `7.1.1`, `7.1.2` |
-| 26 | `8.0`, `8.0.0` |
-| 27 | `8.1`, `8.1.0` |
+| 25 | `7.1`、`7.1.1`、`7.1.2` |
+| 26 | `8.0`、`8.0.0` |
+| 27 | `8.1`、`8.1.0` |
 | 28 | `9` |
 | 29 | `10` |
 | 30 | `11` |
 | 31 | `12` |
-| 32 | `12`, `12L` |
+| 32 | `12`、`12L` |
 | 33 | `13` |
 | 34 | `14` |
 | 35 | `15` |
 | 36 | `16` |
 
-The validator must not apply a global "decimal means invalid" rule. Android 6.0, 7.1, and 8.1 are official releases. For API 30, however, `11.1` is invalid because the accepted label is only `11`.
+不能使用“版本中只要有小数点就判异常”的全局规则。Android 6.0、7.1 和 8.1 本身就是官方版本。但对于 API 30，只允许 Android 11，因此 `11.1` 必须判定为异常。
 
-### Model
+### 设备型号
 
-The parsed model is invalid when it is a known generic or platform identity rather than a TV brand/model. Matching is case-insensitive after trimming.
+当 UA 中的型号属于通用占位符、芯片平台名或伪造设备身份，而不是电视品牌或正式型号时，判定为异常。比较时忽略大小写并去除首尾空格。
 
-Initial invalid values:
+初始异常值列表：
 
 ```text
 TV BOX
@@ -114,20 +114,20 @@ walley
 walleye
 ```
 
-This set is deliberately explicit and testable. New customer-confirmed bad values can be added without changing the parser.
+该列表必须保持明确且可测试。后续客户确认新的异常值时，可以直接扩展列表，不需要修改 UA 解析器。
 
 ### Build ID
 
-Build validation is conservative to avoid rejecting valid OEM-specific build identifiers.
+Build ID 校验需要保持保守，避免误判正常的 OEM 自定义 Build ID。
 
-- An empty or unsafe Build ID is invalid.
-- If the Build ID matches a recognized Android/AOSP family, that family must be compatible with the current API level.
-- A recognized conflicting combination is invalid, such as `QP1A.191105.004` on API 30 or later.
-- An unknown but syntactically safe OEM Build ID is not rejected solely because its prefix is unfamiliar.
+- Build ID 为空或包含不安全字符时判定为异常。
+- 如果 Build ID 符合可识别的 Android/AOSP 版本族，其版本族必须与当前 API Level 兼容。
+- 可识别的冲突组合必须判定为异常，例如 API 30 或更高版本搭配 `QP1A.191105.004`。
+- 对于无法识别、但格式安全的 OEM Build ID，不能仅因为前缀未知就判定异常。
 
-Recognized families include:
+当前识别的版本族：
 
-| Family | Compatible SDK |
+| Build ID 版本族 | 兼容 SDK |
 |---|---:|
 | `M...` | 23 |
 | `N...` | 24-25 |
@@ -141,34 +141,36 @@ Recognized families include:
 | `AP3A...` | 35 |
 | `BP2A...` | 36 |
 
-## Components
+## 代码组件设计
 
 ### `HaierUserAgentNormalizer`
 
-A pure Kotlin component responsible for:
+纯 Kotlin 组件，职责包括：
 
-- parsing a UA;
-- determining whether it is valid for an injected SDK integer;
-- selecting a canonical profile;
-- returning a normalization result containing the original UA, effective UA, whether it changed, and a reason code.
+- 解析 UA；
+- 根据传入的 SDK 整数判断 UA 是否正常；
+- 选择对应的标准配置；
+- 返回规范化结果，包括原始 UA、生效 UA、是否发生修改以及原因码。
 
-The component must not access Android framework state directly so it can be unit tested on the JVM.
+该组件不能直接依赖 Android Framework，以便在普通 JVM 单元测试中完整验证。
 
 ### `HaierUserAgentInstaller`
 
-An Android-facing component responsible for:
+Android 环境组件，职责包括：
 
-- reading `Build.VERSION.SDK_INT`;
-- reading `System.getProperty("http.agent")`;
-- invoking the normalizer;
-- calling `System.setProperty("http.agent", effectiveUa)` only when the value changed;
-- emitting a concise diagnostic.
+- 读取 `Build.VERSION.SDK_INT`；
+- 读取 `System.getProperty("http.agent")`；
+- 调用规范化组件；
+- 仅在 UA 实际变化时调用 `System.setProperty("http.agent", effectiveUa)`；
+- 输出简洁诊断日志。
 
-### Application integration
+### Application 接入
 
-Install from `APP.attachBaseContext()` before `super.attachBaseContext(base)` and before all SDK initialization. Activation must check the exact flavor rather than the broader LSAP-family helper, because `BuildFlavor.isHaierLsap()` also includes other product flavors.
+在 `APP.attachBaseContext()` 中、`super.attachBaseContext(base)` 之前完成安装，确保早于所有 SDK 初始化逻辑。
 
-Conceptual integration:
+启用条件必须判断准确 flavor，不能直接使用较宽泛的 `BuildFlavor.isHaierLsap()`，因为该方法还包含其他 LSAP 系列产品渠道。
+
+接入形式：
 
 ```kotlin
 override fun attachBaseContext(base: Context) {
@@ -179,50 +181,50 @@ override fun attachBaseContext(base: Context) {
 }
 ```
 
-The Java system property is process-local. If a future `haier_lsap` component loads the ad SDK in another process, that process must execute the same installation path.
+Java 系统属性只在当前进程中生效。如果未来 `haier_lsap` 在其他进程中加载广告 SDK，则对应进程也必须执行相同安装逻辑。
 
-## Diagnostics
+## 诊断日志
 
-Result reason codes:
+规范化结果原因码：
 
-- `UNCHANGED_VALID`
-- `REPLACED_BLANK`
-- `REPLACED_UNSAFE_CHARACTERS`
-- `REPLACED_UNPARSEABLE`
-- `REPLACED_VERSION_MISMATCH`
-- `REPLACED_GENERIC_MODEL`
-- `REPLACED_BUILD_MISMATCH`
-- `UNCHANGED_UNSUPPORTED_SDK`
+- `UNCHANGED_VALID`：原 UA 正常，未修改。
+- `REPLACED_BLANK`：原 UA 为空，已替换。
+- `REPLACED_UNSAFE_CHARACTERS`：包含不安全字符，已替换。
+- `REPLACED_UNPARSEABLE`：无法解析，已替换。
+- `REPLACED_VERSION_MISMATCH`：Android 版本与 SDK 不一致，已替换。
+- `REPLACED_GENERIC_MODEL`：型号属于通用或平台值，已替换。
+- `REPLACED_BUILD_MISMATCH`：Build ID 与 SDK 不一致，已替换。
+- `UNCHANGED_UNSUPPORTED_SDK`：不存在 SDK 配置，保留原值。
 
-Release logging should include SDK, changed state, and reason. Full original and corrected UA values should be limited to debug logging.
+正式版本日志只记录 SDK、是否修改和原因码。完整的原始 UA 与修正 UA 只允许在 Debug 日志中输出。
 
-## Tests
+## 测试设计
 
-JVM unit tests must cover:
+JVM 单元测试必须覆盖：
 
-- valid UA values for each API level 23-36 remain byte-for-byte unchanged;
-- official legacy decimal versions such as Android 6.0, 7.1, and 8.1 remain valid;
-- API 30 with Android 11 remains unchanged;
-- API 30 with Android 11.1 is replaced;
-- API 30 with a recognized `QP1A` build is replaced;
-- generic models including `TV BOX` and `mstar` are replaced;
-- malformed and control-character input is replaced;
-- an unknown but safe OEM Build ID is accepted when the other fields are valid;
-- every abnormal input on SDK 23-36 resolves to the expected canonical profile;
-- normalization is idempotent;
-- unsupported SDK input is preserved rather than guessed;
-- installation is scoped to the exact `haier_lsap` flavor.
+- API 23 至 API 36 的正常 UA 均逐字符原样保留。
+- Android 6.0、7.1、8.1 等官方小数版本不会被误判。
+- API 30 搭配 Android 11 时保持不变。
+- API 30 搭配 Android 11.1 时执行替换。
+- API 30 搭配可识别的 `QP1A` Build ID 时执行替换。
+- `TV BOX`、`mstar` 等通用或平台型号执行替换。
+- 无法解析或包含控制字符的 UA 执行替换。
+- 其他字段正常时，安全但未知的 OEM Build ID 可以保留。
+- API 23 至 API 36 的所有异常输入都能生成对应的标准 UA。
+- 对规范化结果再次执行规范化时不会产生二次变化。
+- 不支持的 SDK 保留原值，不进行猜测。
+- 安装逻辑只对准确的 `haier_lsap` flavor 生效。
 
-## Success Criteria
+## 验收标准
 
-- Normal UAs are never modified.
-- Known malformed ROM UAs are replaced before the ad SDK reads `http.agent`.
-- Corrected UAs contain mutually compatible Android version and Build ID fields.
-- Corrected UAs use `Haier TV` instead of a generic platform/model value.
-- Behavior is deterministic and covered for every supported API level 23-36.
-- No existing user change in `app/build.gradle` is modified or included in the design commit.
+- 正常 UA 永远不被修改。
+- 已知异常 ROM UA 在广告 SDK 读取 `http.agent` 之前完成替换。
+- 修正后的 Android 版本与 Build ID 必须相互兼容。
+- 修正后的型号固定使用 `Haier TV`，不能继续使用通用平台值。
+- API 23 至 API 36 的行为确定且有完整测试覆盖。
+- 不修改或提交用户现有的 `app/build.gradle` 变更。
 
-## References
+## 参考资料
 
-- Android platform build-number reference: <https://source.android.com/docs/setup/reference/build-numbers>
-- AOSP default Dalvik UA construction: <https://android.googlesource.com/platform/frameworks/base/+/refs/heads/master/core/java/com/android/internal/os/RuntimeInit.java#282>
+- Android 官方 Build 编号：<https://source.android.com/docs/setup/reference/build-numbers>
+- AOSP 默认 Dalvik UA 生成逻辑：<https://android.googlesource.com/platform/frameworks/base/+/refs/heads/master/core/java/com/android/internal/os/RuntimeInit.java#282>

@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>HQ008 流程控制 SDK 客户接入说明</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 15mm 17mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      font-family: "Hiragino Sans GB", "Heiti SC", sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.62;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cover {
+      min-height: 248mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      page-break-after: always;
+      background: linear-gradient(145deg, #f3f7ff 0%, #ffffff 62%);
+      border-top: 7px solid #2463eb;
+      padding: 26mm 17mm;
+    }
+    .eyebrow {
+      color: #2463eb;
+      font-size: 11pt;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0;
+      color: #10224a;
+      font-size: 30pt;
+      line-height: 1.25;
+      letter-spacing: .4px;
+    }
+    .subtitle {
+      margin-top: 18px;
+      max-width: 125mm;
+      color: #4e5d78;
+      font-size: 13pt;
+    }
+    .meta {
+      margin-top: 42px;
+      padding-top: 16px;
+      border-top: 1px solid #ccd7ed;
+      color: #6a7892;
+      font-size: 9.5pt;
+    }
+    h2 {
+      margin: 24px 0 11px;
+      padding-bottom: 7px;
+      color: #173b7a;
+      font-size: 17pt;
+      line-height: 1.3;
+      border-bottom: 2px solid #dbe7ff;
+      break-after: avoid;
+    }
+    h3 {
+      margin: 17px 0 8px;
+      color: #24446f;
+      font-size: 12.5pt;
+      break-after: avoid;
+    }
+    p { margin: 7px 0; }
+    ul, ol { margin: 7px 0 9px 21px; padding: 0; }
+    li { margin: 3px 0; }
+    code {
+      font-family: Menlo, Monaco, "Courier New", monospace;
+    }
+    pre {
+      margin: 9px 0 13px;
+      padding: 12px 14px;
+      overflow: hidden;
+      color: #e8eefb;
+      background: #152238;
+      border-radius: 7px;
+      font-family: Menlo, Monaco, "Courier New", monospace;
+      font-size: 8.4pt;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      break-inside: avoid;
+    }
+    .callout {
+      margin: 12px 0;
+      padding: 11px 13px;
+      background: #eef5ff;
+      border-left: 4px solid #2463eb;
+      border-radius: 4px;
+      break-inside: avoid;
+    }
+    .warning {
+      background: #fff8e8;
+      border-left-color: #e59a16;
+    }
+    table {
+      width: 100%;
+      margin: 10px 0 14px;
+      border-collapse: collapse;
+      font-size: 9.7pt;
+      break-inside: avoid;
+    }
+    th, td {
+      padding: 8px 9px;
+      text-align: left;
+      vertical-align: top;
+      border: 1px solid #d6deeb;
+    }
+    th {
+      color: #173b7a;
+      background: #edf3ff;
+      font-weight: 700;
+    }
+    .flow {
+      margin: 12px 0;
+      padding: 12px;
+      text-align: center;
+      color: #20365e;
+      background: #f5f8fd;
+      border: 1px solid #dce5f3;
+      border-radius: 7px;
+      font-weight: 600;
+      line-height: 1.9;
+      break-inside: avoid;
+    }
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+    .checklist li::before {
+      content: "□";
+      margin-right: 8px;
+      color: #2463eb;
+      font-weight: 700;
+    }
+    .footer-note {
+      margin-top: 25px;
+      padding-top: 10px;
+      color: #7a879c;
+      font-size: 8.5pt;
+      border-top: 1px solid #e0e5ed;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="eyebrow">ANDROID · PURE JAVA · TCL VIDEO AD SDK 2.8.02</div>
+    <h1>HQ008 流程控制 SDK<br>客户接入说明</h1>
+    <div class="subtitle">
+      用于接入定时调度、flow-control、authorize 与广告事件上报。客户继续使用自己现有的 TCL 广告播放及 UI 代码。
+    </div>
+    <div class="meta">
+      文档版本：1.0<br>
+      SDK：hq008-flow-sdk<br>
+      更新日期：2026-07-16
+    </div>
+  </section>
+
+  <h2>1. 接入范围</h2>
+  <p>流程控制 SDK 负责：</p>
+  <ul>
+    <li>进程内定时调度；</li>
+    <li>调用 <code>sdk/flow-control</code>；</li>
+    <li>调用 <code>sdk/authorize</code>；</li>
+    <li>授权通过后通知当前广告 UI；</li>
+    <li>接收广告加载、开始、完成、失败事件并自动上报；</li>
+    <li>根据服务端 <code>next_request_seconds</code> 安排下一轮。</li>
+  </ul>
+  <p>客户继续负责：</p>
+  <ul>
+    <li>TCL 视频广告 SDK 的依赖和初始化；</li>
+    <li>广告窗口、容器、尺寸、位置和页面生命周期；</li>
+    <li>声音、展示方式以及其他播放策略；</li>
+    <li>应用本身的进程存活。</li>
+  </ul>
+  <div class="callout">
+    流程 SDK 不包含 CMP，不处理窗口、尺寸、声音或有感/无感播放配置。
+  </div>
+
+  <h2>2. 引入 AAR</h2>
+  <p>将 <code>hq008-flow-sdk-release.aar</code> 放入客户项目的 <code>app/libs</code>，并在应用模块添加：</p>
+  <pre>dependencies {
+    implementation files('libs/hq008-flow-sdk-release.aar')
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
+    implementation 'com.google.code.gson:gson:2.8.9'
+}</pre>
+  <p>流程 SDK 源码及公开 API 均为 Java，并与客户项目现有的 OkHttp 4.9.3、Gson 2.8.9 保持一致，避免重复版本和依赖冲突。客户现有的 TCL 视频广告 SDK 依赖保持不变。</p>
+
+  <h2>3. Application 初始化</h2>
+  <p>在客户 <code>Application.onCreate()</code> 中初始化流程 SDK：</p>
+  <pre>public final class CustomerApplication extends Application {
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        Hq008FlowSdk.initialize(
+                this,
+                "TCL_FFA"
+        );
+
+        // 客户原有的 TCL 视频广告 SDK 初始化逻辑继续保留
+    }
+}</pre>
+  <div class="warning callout">
+    <code>channelId</code> 必须使用双方约定的正式渠道值，示例中的 <code>TCL_FFA</code> 需要按实际渠道替换。
+  </div>
+
+  <h2>4. TCL SDK 初始化完成后启动流程</h2>
+  <p>在客户现有 TCL SDK 初始化成功回调中加入一行：</p>
+  <pre>@Override
+public void onInitComplete() {
+    Hq008FlowSdk.start();
+}</pre>
+  <p><code>start()</code> 可安全重复调用。流程 SDK 不负责初始化 TCL 广告 SDK。</p>
+
+  <h2>5. 在广告 UI 中绑定</h2>
+  <p>下面代码放在真正持有广告容器、能够请求广告的 Activity、Fragment 或 UI 控制器中。</p>
+  <pre>private Hq008AdSession currentAdSession;
+
+private final Hq008AdHost hq008AdHost = new Hq008AdHost() {
+    @Override
+    public void onAdAuthorized(Hq008AdSession session) {
+        currentAdSession = session;
+
+        // 调用客户当前已有的广告请求方法
+        requestAd();
+    }
+};
+
+@Override
+protected void onStart() {
+    super.onStart();
+    Hq008FlowSdk.attachAdHost(hq008AdHost);
+}
+
+@Override
+protected void onStop() {
+    Hq008FlowSdk.detachAdHost(hq008AdHost);
+    super.onStop();
+}</pre>
+  <div class="callout">
+    <code>hq008AdHost</code> 必须定义为页面属性，<code>attachAdHost</code> 与 <code>detachAdHost</code> 要传入同一个实例。
+  </div>
+  <p>SDK 定时触发后，会先完成 <code>flow-control</code> 和 <code>authorize</code>。只有 <code>authorized=true</code> 时，才回调 <code>Hq008AdHost</code> 并执行客户的 <code>requestAd()</code>。</p>
+
+  <h2>6. 在现有 TCL 广告回调中加入会话通知</h2>
+  <p>客户不需要修改广告请求方式，只需在对应回调位置加入以下调用。</p>
+  <table>
+    <thead>
+      <tr>
+        <th>TCL 广告事件位置</th>
+        <th>加入的流程 SDK 调用</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>onAdLoaded(controller)</code></td>
+        <td><code>currentAdSession.loaded();</code></td>
+      </tr>
+      <tr>
+        <td><code>onAdStartPlay()</code></td>
+        <td><code>currentAdSession.started();</code></td>
+      </tr>
+      <tr>
+        <td><code>onAdStartPlay(progress)</code></td>
+        <td><code>currentAdSession.started(progress);</code></td>
+      </tr>
+      <tr>
+        <td><code>onAdFinished()</code></td>
+        <td><code>currentAdSession.completed();</code></td>
+      </tr>
+      <tr>
+        <td><code>onAdError(errorCode)</code></td>
+        <td><code>currentAdSession.failed(errorCode, "TCL_AD_ERROR_" + errorCode);</code></td>
+      </tr>
+      <tr>
+        <td><code>onContainerSizeError()</code></td>
+        <td><code>currentAdSession.failed("TCL_CONTAINER_SIZE_ERROR");</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>播放完成</h3>
+  <pre>@Override
+public void onAdFinished() {
+    if (currentAdSession != null) {
+        currentAdSession.completed();
+        currentAdSession = null;
+    }
+
+    // 客户原有的广告完成处理继续执行
+}</pre>
+
+  <h3>播放失败</h3>
+  <pre>@Override
+public void onAdError(int errorCode) {
+    if (currentAdSession != null) {
+        currentAdSession.failed(
+                errorCode,
+                "TCL_AD_ERROR_" + errorCode
+        );
+        currentAdSession = null;
+    }
+
+    // 客户原有的广告失败处理继续执行
+}</pre>
+
+  <h2>7. 完整调用顺序</h2>
+  <div class="flow">
+    Application 初始化 Hq008FlowSdk<br>
+    ↓<br>
+    TCL SDK 初始化成功后调用 start()<br>
+    ↓<br>
+    广告页面 onStart 绑定 Hq008AdHost<br>
+    ↓<br>
+    定时任务 → flow-control → authorize<br>
+    ↓ authorized=true<br>
+    回调 Hq008AdHost，客户调用现有 requestAd()<br>
+    ↓<br>
+    TCL 广告事件通知 Hq008AdSession<br>
+    ↓<br>
+    流程 SDK 自动上报并安排下一轮
+  </div>
+
+  <h2>8. 可选控制</h2>
+  <table>
+    <thead>
+      <tr><th>调用</th><th>用途</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Hq008FlowSdk.triggerNow()</code></td><td>联调时立即触发一轮；必须已经调用 <code>start()</code> 且当前有广告 UI。</td></tr>
+      <tr><td><code>Hq008FlowSdk.stop()</code></td><td>停止后续定时任务，并结束当前流程会话。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. 接入检查</h2>
+  <ul class="checklist">
+    <li>已集成并成功初始化 TCL 视频广告 SDK；</li>
+    <li>Application 中已调用 <code>Hq008FlowSdk.initialize</code>；</li>
+    <li>TCL 初始化成功后已调用 <code>Hq008FlowSdk.start</code>；</li>
+    <li>广告 UI 的 <code>onStart/onStop</code> 已正确绑定和解绑同一个 Host；</li>
+    <li>TCL 加载、开始、完成、失败回调已通知当前 Session；</li>
+    <li>完成或失败后已将 <code>currentAdSession</code> 置空；</li>
+    <li>正式环境的 <code>channelId</code> 已确认。</li>
+  </ul>
+
+  <div class="footer-note">
+    本文只描述流程控制 SDK 的客户调用方式。TCL 广告窗口、容器和播放策略继续由客户现有代码负责。
+  </div>
+</body>
+</html>

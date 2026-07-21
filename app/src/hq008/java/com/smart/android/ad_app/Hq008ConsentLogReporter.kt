@@ -17,7 +17,7 @@ internal object Hq008ConsentLogReporter {
     private const val TAG = "Hq008ConsentLog"
     private const val MAX_MESSAGE_LENGTH = 512
     private const val MAX_TRACE_STEPS = 80
-    private const val MAX_TRACE_LOG_LENGTH = 24_000
+    private const val MAX_TRACE_LOG_LENGTH = 256_000
     private const val FLOW_SUMMARY_EVENT = "CMP_FLOW_SUMMARY"
     private const val AD_FLOW_SUMMARY_EVENT = "AD_FLOW_SUMMARY"
     private val criticalAdLogEvents = setOf(
@@ -115,6 +115,10 @@ internal object Hq008ConsentLogReporter {
             )
             return
         }
+        Log.i(
+            TAG,
+            "consent-log-report 开始上报 finalEventType=${payload.eventType} adLogLength=${payload.adLog.length}"
+        )
         NetworkHelper.makeRequest<EmptyData>(
             url = consentLogUrl,
             method = RequestMethod.POST,
@@ -131,6 +135,8 @@ internal object Hq008ConsentLogReporter {
         ) { _, error ->
             if (error != null) {
                 Log.w(TAG, "consent-log-report failed finalEventType=${payload.eventType} error=${error.message}")
+            } else {
+                Log.i(TAG, "consent-log-report 上报成功 finalEventType=${payload.eventType}")
             }
         }
     }

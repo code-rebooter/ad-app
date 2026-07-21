@@ -32,8 +32,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/haier_lsapDebug/res']"))
 
         assertTrue(hq1002Block.contains("applicationId       : \"com.google.android.addyhq1002\""))
-        assertTrue(hq1002Block.contains("versionCode         : 2"))
-        assertTrue(hq1002Block.contains("versionName         : \"1.0.2\""))
+        assertTrue(hq1002Block.contains("versionCode         : 3"))
+        assertTrue(hq1002Block.contains("versionName         : \"1.0.3\""))
         assertTrue(hq1002Block.contains("channel             : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("cType               : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("model               : \"ADDY_HQ1002\""))
@@ -43,8 +43,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(hq1002Block.contains("lsapSdkName         : \"addy_hq1002\""))
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
-        assertTrue(jamsBlock.contains("versionCode         : 2"))
-        assertTrue(jamsBlock.contains("versionName         : \"1.0.2\""))
+        assertTrue(jamsBlock.contains("versionCode         : 4"))
+        assertTrue(jamsBlock.contains("versionName         : \"1.0.4\""))
         assertTrue(jamsBlock.contains("channel             : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("cType               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("model               : \"ADDY_JAMS\""))

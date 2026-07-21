@@ -12,6 +12,11 @@ import java.io.File
 
 class APP:Application() {
 
+    override fun attachBaseContext(base: Context) {
+        HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.FLAVOR)
+        super.attachBaseContext(base)
+    }
+
     @SuppressLint("NewApi")
     override fun onCreate() {
         super.onCreate()

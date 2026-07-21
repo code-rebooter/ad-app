@@ -17,8 +17,12 @@ import com.itv.component.unified.UnifiedAdSdk
 import com.itv.component.unified.UnifiedAdSession
 import com.smart.android.ad_app.AdChannelResolver
 import com.smart.android.ad_app.BuildConfig
+import com.smart.android.ad_app.HaierAarAuditUploader
+import com.smart.android.ad_app.HaierAarRequestContext
+import com.smart.android.ad_app.Hq008ConsentLogReporter
 import com.smart.android.ad_app.R
 import java.io.File
+import java.util.UUID
 
 class HaierLsapDebugEntryActivity : Activity() {
 
@@ -29,6 +33,7 @@ class HaierLsapDebugEntryActivity : Activity() {
 
     private val logLines = ArrayList<String>()
     private var session: UnifiedAdSession? = null
+    private var debugRequestId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +121,18 @@ class HaierLsapDebugEntryActivity : Activity() {
 
     private fun attachPlayer() {
         detachPlayer("reattach")
+        val requestId = "debug-${System.currentTimeMillis()}-${UUID.randomUUID()}"
+        debugRequestId = requestId
+        HaierAarRequestContext.set(requestId)
+        HaierAarAuditUploader.beginFlow(requestId)
+        Hq008ConsentLogReporter.report(
+            eventType = "CMP_GATE_START",
+            eventMessage = "source=haier_lsap_debug,requestId=$requestId"
+        )
+        Hq008ConsentLogReporter.report(
+            eventType = "AD_PHASE_START",
+            eventMessage = "requestId=$requestId,hidden=false,adType=FLOATING"
+        )
         val result = runCatching {
             adContainer.removeAllViews()
             session = UnifiedAdSdk.requestAd(
@@ -125,10 +142,18 @@ class HaierLsapDebugEntryActivity : Activity() {
                 object : UnifiedAdRequestCallbacks {
                     override fun onAdLoading() {
                         appendLog("onAdLoading tagId=${BuildConfig.UNIFIED_AD_TAG_ID} childCount=${adContainer.childCount}")
+                        Hq008ConsentLogReporter.report(
+                            eventType = "AD_LOADED",
+                            eventMessage = "requestId=$requestId,tagId=${BuildConfig.UNIFIED_AD_TAG_ID},childCount=${adContainer.childCount}"
+                        )
                     }
 
                     override fun onAdPlayStarted() {
                         appendLog("onAdPlayStarted tagId=${BuildConfig.UNIFIED_AD_TAG_ID} childCount=${adContainer.childCount}")
+                        Hq008ConsentLogReporter.report(
+                            eventType = "AD_STARTED",
+                            eventMessage = "requestId=$requestId,tagId=${BuildConfig.UNIFIED_AD_TAG_ID},childCount=${adContainer.childCount}"
+                        )
                     }
 
                     override fun onAdPlayEnded(success: Boolean) {
@@ -137,26 +162,60 @@ class HaierLsapDebugEntryActivity : Activity() {
 
                     override fun onRequestFinished(success: Boolean) {
                         appendLog("onRequestFinished success=$success childCount=${adContainer.childCount}")
+                        finishDebugFlow(
+                            requestId = requestId,
+                            terminalEvent = if (success) "AD_PHASE_COMPLETED" else "AD_PHASE_ERROR",
+                            terminalReason = if (success) "request_finished" else "request_finished_failed"
+                        )
                     }
                 }
             )
             "requestAd started, tagId=${BuildConfig.UNIFIED_AD_TAG_ID}, container=${adContainer.width}x${adContainer.height}, isInitialized=${UnifiedAdSdk.isInitialized()}"
         }.getOrElse { error ->
+            finishDebugFlow(
+                requestId = requestId,
+                terminalEvent = "AD_PHASE_ERROR",
+                terminalReason = "request_ad_failed_${error.javaClass.simpleName}"
+            )
             "requestAd failed: ${error.javaClass.simpleName}: ${error.message}"
         }
         appendLog(result)
     }
 
     private fun detachPlayer(reason: String) {
-        val currentSession = session ?: return
-        runCatching {
-            currentSession.detach()
-            adContainer.removeAllViews()
-            appendLog("detach success, reason=$reason")
-        }.onFailure { error ->
-            appendLog("detach failed: ${error.javaClass.simpleName}: ${error.message}")
+        val currentSession = session
+        if (currentSession != null) {
+            runCatching {
+                currentSession.detach()
+                adContainer.removeAllViews()
+                appendLog("detach success, reason=$reason")
+            }.onFailure { error ->
+                appendLog("detach failed: ${error.javaClass.simpleName}: ${error.message}")
+            }
+            session = null
         }
-        session = null
+        debugRequestId?.let { requestId ->
+            finishDebugFlow(
+                requestId = requestId,
+                terminalEvent = "AD_PHASE_CANCELLED",
+                terminalReason = reason
+            )
+        }
+    }
+
+    private fun finishDebugFlow(
+        requestId: String,
+        terminalEvent: String,
+        terminalReason: String
+    ) {
+        if (debugRequestId != requestId) return
+        HaierAarAuditUploader.appendFlowCaptureToConsentLog(requestId, terminalReason)
+        Hq008ConsentLogReporter.report(
+            eventType = terminalEvent,
+            eventMessage = "requestId=$requestId,stage=haier_lsap_debug,reason=$terminalReason"
+        )
+        HaierAarRequestContext.clear(requestId)
+        debugRequestId = null
     }
 
     private fun appendLog(message: String) {

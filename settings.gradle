@@ -16,6 +16,7 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
+        maven { url 'https://maven.aliyun.com/repository/central' }
         mavenCentral()
         maven { url 'https://jitpack.io' }
         flatDir {
@@ -29,3 +30,4 @@ dependencyResolutionManagement {
 rootProject.name = "AD_APP"
 include ':app'
 include ':google-video-ad-sdk'
+include ':hq008-flow-sdk'

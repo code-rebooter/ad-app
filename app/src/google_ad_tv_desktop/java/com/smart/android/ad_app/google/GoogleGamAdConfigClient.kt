@@ -3,6 +3,7 @@ package com.smart.android.ad_app.google
 import android.util.Log
 import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
+import com.smart.android.ad_app.BuildConfig
 import com.smart.android.ad_app.Hq008ApiConfig
 import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
@@ -10,13 +11,19 @@ import com.speed.net.enum.RequestMethod
 internal object GoogleGamAdConfigClient {
     private const val TAG = "GoogleGamConfig"
     private const val CHANNEL_ID = "GOOGLE_AD_TV_DESKTOP"
+    private val requestChannelId: String
+        get() = if (BuildConfig.CHANNEL == "GOOGLE_AD_TV_LOCKSCREEN") {
+            "GOOGLE_AD_TV_LOCKSCREEN"
+        } else {
+            CHANNEL_ID
+        }
     private val resolveUrl = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/google-gam/resolve"
 
     fun request(onResult: (config: GoogleGamAdPlaybackConfig?, error: String?) -> Unit) {
         val requestBody = mapOf(
-            "channel_id" to CHANNEL_ID
+            "channel_id" to requestChannelId
         )
-        Log.i(TAG, "开始请求 Google GAM 配置，channel_id=$CHANNEL_ID")
+        Log.i(TAG, "开始请求 Google GAM 配置，channel_id=$requestChannelId")
 
         NetworkHelper.makeRequest<GoogleGamAdConfigResponseData>(
             url = resolveUrl,

@@ -20,6 +20,7 @@ import java.util.UUID
 internal object Hq008SdkAuthorizeClient {
     private const val TAG = "Hq008Authorize"
     private val authorizeUrl = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/sdk/authorize"
+    private val userAgentReportCollector = HaierUserAgentReportCollector()
 
     fun request(
         context: Context,
@@ -82,28 +83,35 @@ internal object Hq008SdkAuthorizeClient {
         val (screenW, screenH) = getScreenResolution(context)
         val localIp = getLocalIpAddress()
         val mac = getMacAddress().orEmpty()
-        return linkedMapOf(
+        val userAgentFields = HaierUserAgentAuthorizeFields.build(
+            flavor = BuildConfig.FLAVOR,
+            fallbackEffectiveUa = System.getProperty("http.agent")
+        ) {
+            userAgentReportCollector.collect(context)
+        }
+        return linkedMapOf<String, Any>(
             "request_id" to requestId,
             "uuid" to getAndroidIdAsUuid(context),
             "channel_id" to channelId,
             "ad_version" to BuildConfig.VERSION_CODE,
             "app_id" to context.packageName,
             "app_name" to "hq008",
-            "bundle" to context.packageName,
-            "ua" to (System.getProperty("http.agent") ?: ""),
-            "ifa" to getAndroidIdAsUuid(context),
-            "make" to Build.MANUFACTURER.orEmpty(),
-            "model" to Build.MODEL.orEmpty(),
-            "os" to "Android",
-            "osv" to Build.VERSION.RELEASE.orEmpty(),
-            "language" to Locale.getDefault().toString().replace("_", "-"),
-            "video_w" to context.resources.displayMetrics.widthPixels,
-            "video_h" to context.resources.displayMetrics.heightPixels,
-            "screen_w" to screenW,
-            "screen_h" to screenH,
-            "local_ip" to localIp.orEmpty(),
-            "mac" to mac
-        )
+            "bundle" to context.packageName
+        ).apply {
+            putAll(userAgentFields)
+            put("ifa", getAndroidIdAsUuid(context))
+            put("make", Build.MANUFACTURER.orEmpty())
+            put("model", Build.MODEL.orEmpty())
+            put("os", "Android")
+            put("osv", Build.VERSION.RELEASE.orEmpty())
+            put("language", Locale.getDefault().toString().replace("_", "-"))
+            put("video_w", context.resources.displayMetrics.widthPixels)
+            put("video_h", context.resources.displayMetrics.heightPixels)
+            put("screen_w", screenW)
+            put("screen_h", screenH)
+            put("local_ip", localIp.orEmpty())
+            put("mac", mac)
+        }
     }
 
     private fun generateRequestId(): String {

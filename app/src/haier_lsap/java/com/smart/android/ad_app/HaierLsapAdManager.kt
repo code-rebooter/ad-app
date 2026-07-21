@@ -80,6 +80,8 @@ private object HaierLsapFormalAd {
             adError = adError,
             adComplete = adComplete
         )
+        HaierAarRequestContext.set(requestId)
+        HaierAarAuditUploader.beginFlow(requestId)
 
         Log.i(
             TAG,
@@ -123,11 +125,16 @@ private object HaierLsapFormalAd {
             ?.takeUnless { it.isTerminal() }
             ?.let { request ->
                 request.markTerminal()
+                HaierAarAuditUploader.appendFlowCaptureToConsentLog(
+                    requestId = request.requestId,
+                    terminalReason = "window_hidden"
+                )
                 Hq008ConsentLogReporter.report(
                     eventType = "AD_PHASE_CANCELLED",
                     eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=window_destroy,reason=window_hidden"
                 )
             }
+        currentRequest?.let { HaierAarRequestContext.clear(it.requestId) }
         clearTimeout()
         releaseCurrentSession()
         currentRequest = null
@@ -135,6 +142,8 @@ private object HaierLsapFormalAd {
 
     private fun ensureInitialized(): Boolean {
         return runCatching {
+            HaierAarRuntimeBridge.initialize(appContext)
+            HaierAarRuntimeBridge.enforceNow("before_unified_init")
             if (!UnifiedAdSdk.isInitialized()) {
                 UnifiedAdSdk.init(
                     appContext,
@@ -167,9 +176,11 @@ private object HaierLsapFormalAd {
         clearTimeout()
         releaseCurrentSession()
         currentRequest = request
+        HaierAarRequestContext.set(request.requestId)
         currentContainerRef = WeakReference(container)
 
         runCatching {
+            HaierAarRuntimeBridge.enforceNow("before_unified_request")
             val hiddenMode = AdDisplayConfig.isHiddenMode()
             container.removeAllViews()
             container.alpha = if (hiddenMode) 0f else 1f
@@ -319,11 +330,16 @@ private object HaierLsapFormalAd {
                 "finishReason" to "request_finished"
             )
         )
+        HaierAarAuditUploader.appendFlowCaptureToConsentLog(
+            requestId = request.requestId,
+            terminalReason = "request_finished"
+        )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_COMPLETED",
             eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=request_finished"
         )
         releaseCurrentSession()
+        HaierAarRequestContext.clear(request.requestId)
         currentRequest = null
         request.adComplete.invoke()
     }
@@ -361,6 +377,10 @@ private object HaierLsapFormalAd {
                 "error" to errorText
             )
         )
+        HaierAarAuditUploader.appendFlowCaptureToConsentLog(
+            requestId = request.requestId,
+            terminalReason = reason
+        )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
             eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,error=$errorText"
@@ -368,6 +388,7 @@ private object HaierLsapFormalAd {
         if (releaseSession) {
             releaseCurrentSession()
         }
+        HaierAarRequestContext.clear(request.requestId)
         currentRequest = null
         request.adError?.invoke()
     }

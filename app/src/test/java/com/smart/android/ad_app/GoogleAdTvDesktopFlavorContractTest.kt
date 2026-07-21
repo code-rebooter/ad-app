@@ -9,6 +9,11 @@ import java.io.File
 class GoogleAdTvDesktopFlavorContractTest {
 
     @Test
+    fun `google_ad_tv_lockscreen should use hq008 flow control path`() {
+        assertTrue(BuildFlavor.isHq008Family("google_ad_tv_lockscreen"))
+    }
+
+    @Test
     fun `google_ad_tv_desktop should use target package signing channel and vast dependencies`() {
         val buildGradle = readProjectFile("app/build.gradle")
         val productFlavorsBlock = extractBlock(buildGradle, "    productFlavors {")

@@ -4,13 +4,13 @@
 
 ## 目标
 
-在 `haier_lsap` 渠道中修正异常的 Android Dalvik User-Agent，同时保证正常设备的原始 UA 不发生任何变化。
+在 `haier_lsap`、`addy_hq1002`、`addy_jams` 三个 LSAP 渠道中修正异常的 Android Dalvik User-Agent，同时保证正常设备的原始 UA 不发生任何变化。
 
 一旦判定原始 UA 异常，就不能继续信任该 ROM 提供的 `Build.VERSION.RELEASE`、`Build.MODEL` 或 `Build.ID`。因此，异常修复分支必须使用应用侧维护的可信 SDK 配置，而不是继续使用 ROM 字段重新拼接 UA。
 
 ## 范围
 
-- 仅对准确的 `haier_lsap` flavor 启用。
+- 仅对 `haier_lsap`、`addy_hq1002`、`addy_jams` 三个 flavor 启用。
 - 覆盖应用支持的 API 23 至 API 36。
 - 在任何广告 SDK 或网络组件缓存 UA 之前，规范化 `System.getProperty("http.agent")`。
 - 正常原始 UA 必须逐字符原样保留。
@@ -25,7 +25,7 @@
 异常 UA 修正后的固定格式为：
 
 ```text
-Dalvik/2.1.0 (Linux; U; Android <官方版本>; Haier TV Build/<标准Build ID>)
+Dalvik/2.1.0 (Linux; U; Android <官方版本>; X96_NEXT Build/<标准Build ID>)
 ```
 
 Android 版本和 Build ID 必须从应用侧 API Level 映射表中成对选择，避免再次出现 Android 11 搭配 Android 10 `QP1A` Build ID 的矛盾组合。
@@ -168,20 +168,18 @@ Android 环境组件，职责包括：
 
 在 `APP.attachBaseContext()` 中、`super.attachBaseContext(base)` 之前完成安装，确保早于所有 SDK 初始化逻辑。
 
-启用条件必须判断准确 flavor，不能直接使用较宽泛的 `BuildFlavor.isHaierLsap()`，因为该方法还包含其他 LSAP 系列产品渠道。
+启用条件必须准确限定为 `haier_lsap`、`addy_hq1002`、`addy_jams` 三个 flavor。
 
 接入形式：
 
 ```kotlin
 override fun attachBaseContext(base: Context) {
-    if (BuildConfig.FLAVOR == "haier_lsap") {
-        HaierUserAgentInstaller.install()
-    }
+    HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.FLAVOR)
     super.attachBaseContext(base)
 }
 ```
 
-Java 系统属性只在当前进程中生效。如果未来 `haier_lsap` 在其他进程中加载广告 SDK，则对应进程也必须执行相同安装逻辑。
+Java 系统属性只在当前进程中生效。如果未来这三个渠道在其他进程中加载广告 SDK，则对应进程也必须执行相同安装逻辑。
 
 ## 诊断日志
 
@@ -213,14 +211,14 @@ JVM 单元测试必须覆盖：
 - API 23 至 API 36 的所有异常输入都能生成对应的标准 UA。
 - 对规范化结果再次执行规范化时不会产生二次变化。
 - 不支持的 SDK 保留原值，不进行猜测。
-- 安装逻辑只对准确的 `haier_lsap` flavor 生效。
+- 安装逻辑只对 `haier_lsap`、`addy_hq1002`、`addy_jams` 三个 flavor 生效。
 
 ## 验收标准
 
 - 正常 UA 永远不被修改。
 - 已知异常 ROM UA 在广告 SDK 读取 `http.agent` 之前完成替换。
 - 修正后的 Android 版本与 Build ID 必须相互兼容。
-- 修正后的型号固定使用 `Haier TV`，不能继续使用通用平台值。
+- 修正后的型号固定使用 `X96_NEXT`，不能继续使用通用平台值。
 - API 23 至 API 36 的行为确定且有完整测试覆盖。
 - 不修改或提交用户现有的 `app/build.gradle` 变更。
 

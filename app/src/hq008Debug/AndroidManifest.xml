@@ -1,12 +1,29 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <provider
+            android:name=".AdProvider"
+            tools:node="remove" />
+
+        <activity
+            android:name=".Hq008FlowSdkTestActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity
+            android:name=".Hq008SdkStressActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <activity-alias
             android:name=".Hq008CmpSdkEntryLauncherActivity"
             android:enabled="true"
             android:exported="true"
-            android:label="CMP SDK Test"
-            android:targetActivity=".Hq008CmpSdkEntryTestActivity">
+            android:label="HQ008 Flow SDK Test"
+            android:targetActivity=".Hq008FlowSdkTestActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

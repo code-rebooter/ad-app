@@ -27,6 +27,12 @@
 }
 -keep class com.smart.android.ad_app.bean.** { *; }
 
+# LSAP AAR bytecode patch bridge entry points.
+-keep class com.smart.android.ad_app.HaierAarRuntimeBridge { *; }
+-keep class com.smart.android.ad_app.HaierAarNetworkAuditKt { *; }
+-keep class com.smart.android.ad_app.HaierAarAuditUploader { *; }
+-keep class com.smart.android.ad_app.HaierAarRequestContext { *; }
+
 #Tcl.aar的混淆配置，mofeng_ad.aar也是这个混淆配置
 -keep class com.tcl.ff.component.vastad.**{*;}
 #xstream

@@ -4,6 +4,14 @@
     tools:remove="android:sharedUserId">
 
     <application>
+        <activity
+            android:name=".Hq008CmpConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Hq008.CmpHost" />
+
         <meta-data
             android:name="tcl_app_key"
             android:value="${tcl_app_key}" />

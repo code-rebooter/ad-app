@@ -22,7 +22,7 @@ object AdRuntimeCoordinator {
 
     fun start(context: Context) {
         val appContext = context.applicationContext
-        if (BuildFlavor.isHq008Family()) {
+        if (BuildConfig.HQ008_LOCAL_INTEGRATION) {
             Hq008LocalSchedulePolicy.initialize(appContext)
         }
         Log.i(TAG, "正式链路：开始启动广告运行协调器，flavor=${BuildConfig.FLAVOR}，package=${appContext.packageName}")
@@ -43,7 +43,7 @@ object AdRuntimeCoordinator {
                     WebViewProviderHook.ensureHooked()
                 }
 
-                Log.i(TAG, "正式链路：运行协调器进入主流程，flavor=${BuildConfig.FLAVOR}，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}")
+                Log.i(TAG, "正式链路：运行协调器进入主流程，flavor=${BuildConfig.FLAVOR}")
                 ForegroundAppWatcher.start(appContext) { packageName ->
                     Log.i(TAG, "正式链路：监听到前台目标应用变化，packageName=$packageName，准备请求开屏广告")
                     "当前打开的应用包名: $packageName".printLog()

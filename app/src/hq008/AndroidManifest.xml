@@ -7,27 +7,12 @@
 
     <application>
         <activity
-            android:name=".Hq008CmpDebugActivity"
-            android:exported="true"
+            android:name=".Hq008CmpConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
             android:screenOrientation="landscape"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
-
-        <activity
-            android:name=".Hq008FloatingDebugActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
-
-        <activity
-            android:name=".Hq008CmpSdkEntryTestActivity"
-            android:exported="true"
-            android:screenOrientation="landscape"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
-
-        <activity
-            android:name=".Hq008CmpSilentEntryTestActivity"
-            android:exported="true"
-            android:screenOrientation="landscape"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+            android:theme="@style/Theme.Hq008.CmpHost" />
 
         <meta-data
             android:name="tcl_app_key"

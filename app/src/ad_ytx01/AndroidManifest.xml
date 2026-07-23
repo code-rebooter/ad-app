@@ -9,6 +9,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application>
+        <activity
+            android:name=".Hq008CmpConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Hq008.CmpHost" />
+
         <meta-data
             android:name="tcl_app_key"
             android:value="${tcl_app_key}" />

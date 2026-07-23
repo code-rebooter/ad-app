@@ -2,22 +2,15 @@ package com.smart.android.ad_app
 
 import android.content.ContentProvider
 import android.content.ContentValues
-import android.content.Intent
-import android.os.Binder
 import android.database.MatrixCursor
 import android.database.Cursor
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.os.Process
 import android.util.Log
 import com.speed.log.printLog
 
 class AdProvider : ContentProvider() {
     private companion object {
         private const val TAG = "AdProvider"
-        private const val HQ008_CMP_DEBUG_ACTIVITY_CLASS =
-            "com.smart.android.ad_app.Hq008CmpDebugActivity"
     }
 
     override fun onCreate(): Boolean {
@@ -38,94 +31,7 @@ class AdProvider : ContentProvider() {
         sortOrder: String?
     ): Cursor? {
         Log.i(TAG, "正式链路：AdProvider 收到查询，uri=$uri，pathSegments=${uri.pathSegments}")
-        val callerUid = Binder.getCallingUid()
-        val shellCaller = callerUid == Process.SHELL_UID || callerUid == Process.ROOT_UID
-        val isDebugShowFloating = shellCaller &&
-            uri.pathSegments.contains("debug") &&
-            uri.lastPathSegment == "showFloating"
-        val isDebugRequestFloating = shellCaller &&
-            uri.pathSegments.contains("debug") &&
-            uri.lastPathSegment == "requestFloating"
-        val isDebugShowCmp = shellCaller &&
-            uri.pathSegments.contains("debug") &&
-            uri.lastPathSegment == "showCmp"
-        val isDebugCmpAction = shellCaller &&
-            uri.pathSegments.contains("debug") &&
-            uri.pathSegments.contains("cmpAction")
-        if (isDebugShowFloating) {
-            Log.i(TAG, "调试链路：命中 showFloating 触发，callerUid=$callerUid，准备展示调试广告窗口")
-            Handler(Looper.getMainLooper()).post {
-                AdRenderer.showFloatingAd(
-                    com.smart.android.ad_app.bean.AdConfigDto(
-                        adId = "debug_hq008",
-                        adType = AdType.FLOATING.value,
-                        adUrl = null,
-                        contentType = null,
-                        displayDuration = 15000,
-                        floatingHeight = 180,
-                        floatingWidth = 320,
-                        floatingX = 0,
-                        floatingY = 0,
-                        imageUrl = null,
-                        isClosable = 1,
-                        isCountdownVisible = false,
-                        position = 0,
-                        videoUrl = null
-                    )
-                )
-            }
-            return MatrixCursor(arrayOf("triggered")).apply {
-                addRow(arrayOf<Any>(1))
-            }
-        }
-        if (isDebugRequestFloating) {
-            Log.i(TAG, "调试链路：命中 requestFloating 触发，callerUid=$callerUid，准备在 provider 内执行正式悬浮广告请求链路")
-            Handler(Looper.getMainLooper()).post {
-                AdConfigManager.getAdConfig(AdType.FLOATING)
-            }
-            return MatrixCursor(arrayOf("triggered")).apply {
-                addRow(arrayOf<Any>(1))
-            }
-        }
-        if (isDebugShowCmp) {
-            Log.i(TAG, "调试链路：命中 showCmp 触发，callerUid=$callerUid，准备拉起 CMP 调试页面")
-            Handler(Looper.getMainLooper()).post {
-                startActivityIfExists(HQ008_CMP_DEBUG_ACTIVITY_CLASS)
-            }
-            return MatrixCursor(arrayOf("triggered")).apply {
-                addRow(arrayOf<Any>(1))
-            }
-        }
-        if (isDebugCmpAction) {
-            val action = uri.lastPathSegment.orEmpty()
-            Log.i(TAG, "调试链路：命中 cmpAction 触发，callerUid=$callerUid，action=$action")
-            Handler(Looper.getMainLooper()).post {
-                context?.applicationContext?.let { appContext ->
-                    Hq008CmpManager.debugRunReflectiveSdkAction(appContext, action) { result ->
-                        Log.i(TAG, "调试链路：cmpAction 执行结束，action=$action，result=$result")
-                    }
-                }
-            }
-            return MatrixCursor(arrayOf("triggered", "action")).apply {
-                addRow(arrayOf<Any>(1, action))
-            }
-        }
         return MatrixCursor(arrayOf("result"))
-    }
-
-    private fun startActivityIfExists(className: String) {
-        val appContext = context ?: return
-        runCatching {
-            Class.forName(className).asSubclass(android.app.Activity::class.java)
-        }.onSuccess { activityClass ->
-            appContext.startActivity(
-                Intent(appContext, activityClass).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-        }.onFailure { error ->
-            Log.w(TAG, "调试链路：目标调试页面不存在，className=$className，error=${error.message}")
-        }
     }
 
     override fun getType(uri: Uri): String? = null

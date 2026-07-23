@@ -43,6 +43,7 @@ android {
         targetSdk 36
         versionCode 1
         versionName "1.0"
+        buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "false"
     }
 
     sourceSets {
@@ -77,31 +78,31 @@ android {
         }
 
         hq008 {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
         }
 
         hq008XHSX {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
             res.srcDirs = ['src/hq008/res']
         }
 
         tcl_aishang {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
             res.srcDirs = ['src/hq008/res']
         }
 
         ad_ytx01 {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
             res.srcDirs = ['src/hq008/res']
         }
 
         hq008Noneu {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
             res.srcDirs = ['src/hq008/res']
         }
 
         hq008Noneuc2 {
-            java.srcDirs = ['src/hq008/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java']
             res.srcDirs = ['src/hq008/res']
         }
 
@@ -206,7 +207,7 @@ android {
         }
 
         tcl_poly {
-            java.srcDirs = ['src/hq008/java', 'src/tcl_poly/java']
+            java.srcDirs = ['src/hq008/java', 'src/hq008Local/java', 'src/tcl_poly/java']
             res.srcDirs = ['src/hq008/res', 'src/tcl_poly/res']
         }
     }
@@ -487,8 +488,8 @@ android {
         hq008 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adffa",
-                    versionCode         : 18,
-                    versionName         : "1.0.17",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.tclDemoRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_FFA",
@@ -502,14 +503,15 @@ android {
                             project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
         hq008XHSX {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adxhsx",
-                    versionCode         : 3,
-                    versionName         : "1.0.3",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.hq008XhsxRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "hq008XHSX",
@@ -523,14 +525,15 @@ android {
                             project_id  : "206"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
         tcl_aishang {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adais",
-                    versionCode         : 2,
-                    versionName         : "1.0.2",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.tclAishangRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_AISHANG",
@@ -544,14 +547,15 @@ android {
                             project_id  : "212"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
         ad_ytx01 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adytx01",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.ytx01Release,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "AD_YTX01",
@@ -565,14 +569,15 @@ android {
                             project_id  : "224"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
         hq008Noneu {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adnoneu",
-                    versionCode         : 14,
-                    versionName         : "1.0.13",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_NONEU",
@@ -586,14 +591,15 @@ android {
                             project_id  : "190"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
         hq008Noneuc2 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adnoneu",
-                    versionCode         : 11,
-                    versionName         : "1.0.10",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_NONEY_C2",
@@ -607,6 +613,7 @@ android {
                             project_id  : "190"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
@@ -709,8 +716,8 @@ android {
         tcl_poly {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adpoly",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 190722,
+                    versionName         : "1.0.18.0722",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_POLY",
@@ -724,6 +731,7 @@ android {
                             project_id  : "190"
                     ]
             ])
+            buildConfigField "boolean", "HQ008_LOCAL_INTEGRATION", "true"
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
@@ -833,6 +841,54 @@ androidComponents {
     }
 }
 
+def hq008LocalIntegrationExcludedSourcePaths = [
+        file("src/main/java/com/smart/android/ad_app/AdConfigManager.kt").absolutePath,
+        file("src/main/java/com/smart/android/ad_app/AdRenderer.kt").absolutePath,
+        file("src/main/java/com/smart/android/ad_app/AdDisplayConfig.kt").absolutePath,
+        file("src/main/java/com/smart/android/ad_app/bean/AdConfigDto.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/ConsentInjector.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008AdReporter.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpApiLogSemantics.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpDebugActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpDecisionClient.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008ConsentLogReporter.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008ConsentTraceSession.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008FloatingDebugActivity.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008ReportRequestIdResolver.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008SdkAuthorizeClient.kt").absolutePath,
+        file("src/hq008/java/com/smart/android/ad_app/Hq008SdkFlowControlClient.kt").absolutePath,
+        file("src/hq008Debug/java/com/smart/android/ad_app/Hq008FlowSdkTestActivity.java").absolutePath,
+        file("src/hq008Debug/java/com/smart/android/ad_app/Hq008SdkStressActivity.java").absolutePath,
+        file("src/hq008Debug/java/com/smart/android/ad_app/Hq008StressRunState.java").absolutePath
+] as Set
+
+def hq008LocalIntegrationCompileTasks = [
+        "compileHq008ReleaseKotlin",
+        "compileHq008DebugKotlin",
+        "compileHq008DebugJavaWithJavac",
+        "compileHq008XHSXReleaseKotlin",
+        "compileHq008XHSXDebugKotlin",
+        "compileTcl_aishangReleaseKotlin",
+        "compileTcl_aishangDebugKotlin",
+        "compileAd_ytx01ReleaseKotlin",
+        "compileAd_ytx01DebugKotlin",
+        "compileHq008NoneuReleaseKotlin",
+        "compileHq008NoneuDebugKotlin",
+        "compileHq008Noneuc2ReleaseKotlin",
+        "compileHq008Noneuc2DebugKotlin",
+        "compileTcl_polyReleaseKotlin",
+        "compileTcl_polyDebugKotlin"
+] as Set
+
+tasks.matching { hq008LocalIntegrationCompileTasks.contains(it.name) }.configureEach { task ->
+    task.exclude { element ->
+        hq008LocalIntegrationExcludedSourcePaths.contains(element.file.absolutePath)
+    }
+}
+
 def haierLsapExcludedHq008SourcePaths = [
         file("src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt").absolutePath,
         file("src/hq008/java/com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt").absolutePath,
@@ -864,8 +920,6 @@ dependencies {
 
     implementation libs.androidx.core.ktx
     testImplementation 'junit:junit:4.13.2'
-    debugImplementation project(':hq008-flow-sdk')
-
     //noinspection UseTomlInstead
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
     implementation files('libs/lib_autorun-release-202606041646.aar')

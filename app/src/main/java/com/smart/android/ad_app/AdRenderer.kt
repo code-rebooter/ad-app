@@ -7,10 +7,10 @@ import com.smart.android.ad_app.bean.Position
 
 object AdRenderer {
     private const val TAG = "AdRenderer"
-
-    private const val HIDDEN_WINDOW_WIDTH = 320
-    private const val HIDDEN_WINDOW_HEIGHT = 180
-    private const val HIDDEN_WINDOW_OFFSET = -4000
+    private const val HQ008_FLOATING_WIDTH = 400
+    private const val HQ008_FLOATING_HEIGHT = 240
+    private const val HQ008_FLOATING_X = 0
+    private const val HQ008_FLOATING_Y = 0
 
     private data class WindowRenderConfig(
         val width: Int?,
@@ -20,6 +20,62 @@ object AdRenderer {
         val position: Position,
         val isFocusable: Boolean
     )
+
+    fun showHq008LocalAd(
+        adType: AdType,
+        onFloatingFlowFinished: (() -> Unit)? = null
+    ) {
+        when (adType) {
+            AdType.SPLASH -> showHq008SplashAd()
+            AdType.FLOATING -> showHq008FloatingAd(onFloatingFlowFinished)
+        }
+    }
+
+    private fun showHq008SplashAd() {
+        val window = TvAdFloatingWindow(
+            context = appContext,
+            adId = null,
+            soundEnabled = true
+        )
+        window.configure {
+            width = MATCH_PARENT
+            height = MATCH_PARENT
+            x = 0
+            y = 0
+            position = Position.CENTER
+            isFocusable = true
+        }
+        Log.i(TAG, "HQ008 splash window uses the fixed full-screen layout")
+        if (window.hasOverlayPermission()) {
+            window.show()
+        }
+    }
+
+    private fun showHq008FloatingAd(onFloatingFlowFinished: (() -> Unit)?) {
+        val window = TvAdFloatingWindow(
+            context = appContext,
+            adId = null,
+            soundEnabled = true,
+            onFloatingFlowFinished = onFloatingFlowFinished
+        )
+        window.configure {
+            width = HQ008_FLOATING_WIDTH
+            height = HQ008_FLOATING_HEIGHT
+            x = HQ008_FLOATING_X
+            y = HQ008_FLOATING_Y
+            position = Position.RIGHT_BOTTOM
+            isFocusable = false
+        }
+        Log.i(
+            TAG,
+            "HQ008 floating window fixed at right-bottom, size=${HQ008_FLOATING_WIDTH}x$HQ008_FLOATING_HEIGHT"
+        )
+        if (window.hasOverlayPermission()) {
+            window.show()
+        } else {
+            onFloatingFlowFinished?.invoke()
+        }
+    }
 
     fun showSplashAd(dto: AdConfigDto) {
         val window = TvAdFloatingWindow(
@@ -45,7 +101,7 @@ object AdRenderer {
         }
         Log.i(
             TAG,
-            "广告展示链路：准备展示开屏广告，adId=${dto.adId}，hidden=${AdDisplayConfig.isHiddenMode()}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
+            "广告展示链路：准备展示开屏广告，adId=${dto.adId}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
         )
 
         if (window.hasOverlayPermission()) {
@@ -81,7 +137,7 @@ object AdRenderer {
         }
         Log.i(
             TAG,
-            "广告展示链路：准备展示悬浮广告，adId=${dto.adId}，hidden=${AdDisplayConfig.isHiddenMode()}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
+            "广告展示链路：准备展示悬浮广告，adId=${dto.adId}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
         )
 
         if (window.hasOverlayPermission()) {
@@ -99,24 +155,13 @@ object AdRenderer {
         defaultPosition: Position,
         defaultFocusable: Boolean
     ): WindowRenderConfig {
-        val useHiddenMode = BuildFlavor.isHq008Family() && AdDisplayConfig.isHiddenMode()
-        if (!useHiddenMode) {
-            return WindowRenderConfig(
-                width = defaultWidth,
-                height = defaultHeight,
-                x = defaultX,
-                y = defaultY,
-                position = defaultPosition,
-                isFocusable = defaultFocusable
-            )
-        }
         return WindowRenderConfig(
-            width = HIDDEN_WINDOW_WIDTH,
-            height = HIDDEN_WINDOW_HEIGHT,
-            x = HIDDEN_WINDOW_OFFSET,
-            y = HIDDEN_WINDOW_OFFSET,
-            position = Position.LEFT_TOP,
-            isFocusable = false
+            width = defaultWidth,
+            height = defaultHeight,
+            x = defaultX,
+            y = defaultY,
+            position = defaultPosition,
+            isFocusable = defaultFocusable
         )
     }
 }

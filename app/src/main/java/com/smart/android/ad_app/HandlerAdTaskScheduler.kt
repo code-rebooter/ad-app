@@ -46,7 +46,7 @@ object HandlerAdTaskScheduler : TaskScheduler {
                         isExecuting = true
                     }
 
-                    if (BuildFlavor.isHq008Family()) {
+                    if (BuildConfig.HQ008_LOCAL_INTEGRATION) {
                         Hq008LocalSchedulePolicy.markFloatingPollTriggered()
                     }
                     Log.i(TAG, "Run periodic task at=${System.currentTimeMillis()}")

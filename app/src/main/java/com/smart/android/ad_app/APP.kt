@@ -21,7 +21,6 @@ class APP:Application() {
     override fun onCreate() {
         super.onCreate()
         MvvmHelper.init(this)
-        AdDisplayConfig.init(this)
         initializePolyGammaOriginIfNeeded()
 
         AppManager.init{

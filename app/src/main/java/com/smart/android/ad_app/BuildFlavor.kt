@@ -33,7 +33,8 @@ internal object BuildFlavor {
     }
 
     fun isGoogleAdTvDesktop(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "google_ad_tv_desktop"
+        return flavor == "google_ad_tv_desktop" ||
+                flavor == "google_ad_tv_desktop_jm"
     }
 
     fun isGoogleAdTvLockscreen(flavor: String = BuildConfig.FLAVOR): Boolean {

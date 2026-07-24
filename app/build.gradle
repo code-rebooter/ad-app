@@ -187,6 +187,24 @@ android {
             java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
+        google_ad_tv_desktop_jm {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
         google_ad_tv_lockscreen {
             manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
             java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
@@ -688,6 +706,24 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        google_ad_tv_desktop_jm {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "io.android.launcher.tv.desktop",
+                    versionCode         : 8,
+                    versionName         : "1.0.7",
+                    signingConfig       : signingConfigs.googleAdTvDesktopRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_JM",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_JM",
+                    model               : "GOOGLE_AD_TV_DESKTOP_JM",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : ""
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
         google_ad_tv_lockscreen {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.chihim.lockscreentv.play",
@@ -825,6 +861,9 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_jm")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_lockscreen")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
@@ -851,6 +890,8 @@ tasks.matching {
             it.name == "compileAddy_jamsReleaseKotlin" ||
             it.name == "compileGoogle_ad_tv_desktopDebugKotlin" ||
             it.name == "compileGoogle_ad_tv_desktopReleaseKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_jmDebugKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_jmReleaseKotlin" ||
             it.name == "compileGoogle_ad_tv_lockscreenDebugKotlin" ||
             it.name == "compileGoogle_ad_tv_lockscreenReleaseKotlin"
 }.configureEach { task ->
@@ -916,6 +957,11 @@ dependencies {
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-ui:1.8.0"
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer:1.8.0"
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer:1.8.0"
@@ -987,6 +1033,8 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.google.guava:guava:31.1-android'
@@ -1010,6 +1058,8 @@ dependencies {
     addy_jamsImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -1035,6 +1085,8 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
@@ -1058,6 +1110,8 @@ dependencies {
     addy_jamsImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -1083,6 +1137,8 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
@@ -1106,6 +1162,8 @@ dependencies {
     addy_jamsImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -1136,6 +1194,10 @@ dependencies {
     }
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_jmImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead

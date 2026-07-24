@@ -11,11 +11,12 @@ import com.speed.net.enum.RequestMethod
 internal object GoogleGamAdConfigClient {
     private const val TAG = "GoogleGamConfig"
     private const val CHANNEL_ID = "GOOGLE_AD_TV_DESKTOP"
+    private const val JM_CHANNEL_ID = "GOOGLE_AD_TV_DESKTOP_JM"
     private val requestChannelId: String
-        get() = if (BuildConfig.CHANNEL == "GOOGLE_AD_TV_LOCKSCREEN") {
-            "GOOGLE_AD_TV_LOCKSCREEN"
-        } else {
-            CHANNEL_ID
+        get() = when (BuildConfig.CHANNEL) {
+            "GOOGLE_AD_TV_LOCKSCREEN" -> "GOOGLE_AD_TV_LOCKSCREEN"
+            JM_CHANNEL_ID -> JM_CHANNEL_ID
+            else -> CHANNEL_ID
         }
     private val resolveUrl = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/google-gam/resolve"
 

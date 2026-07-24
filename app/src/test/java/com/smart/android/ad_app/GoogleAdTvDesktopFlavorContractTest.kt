@@ -109,7 +109,7 @@ class GoogleAdTvDesktopFlavorContractTest {
 
         assertTrue(gamConfigClientSource.contains("\${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/google-gam/resolve"))
         assertTrue(gamConfigClientSource.contains("CHANNEL_ID = \"GOOGLE_AD_TV_DESKTOP\""))
-        assertTrue(gamConfigClientSource.contains("\"channel_id\" to CHANNEL_ID"))
+        assertTrue(gamConfigClientSource.contains("\"channel_id\" to requestChannelId"))
         assertTrue(gamConfigClientSource.contains("NetworkHelper.makeRequest<GoogleGamAdConfigResponseData>"))
         assertTrue(gamConfigClientSource.contains("response?.ad_tag_url?.takeIf { it.isNotBlank() }"))
         assertTrue(gamConfigClientSource.contains("GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS"))

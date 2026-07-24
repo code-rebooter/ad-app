@@ -796,9 +796,9 @@ def lsapPatchedAarSpecs = [
         ],
         addy_jams  : [
                 task  : "patchAddyJamsLsapAar",
-                input : "libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12.aar",
-                output: "generated/lsap-patched/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-patched.aar",
-                sha256: "24e3651af8b1eb8e6f8313ad9225d6725cd64f24915430de07a89686bdeaee88"
+                input : "libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2.aar",
+                output: "generated/lsap-patched/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2-patched.aar",
+                sha256: "b86909b03375df9048f1d6e6d54cad150f67407a280557882eab6d22289aca30"
         ]
 ]
 

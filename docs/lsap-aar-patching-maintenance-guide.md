@@ -77,11 +77,13 @@ APK
 | --- | --- | --- |
 | haier_lsap | app/libs/haier_lsap/lsapsdk-com.google.android.adhaierlsap-1.1.12.aar | 2c405af3f7ba41c78baa8213992040f835db998a877c83cc0be64cc648d4ee6c |
 | addy_hq1002 | app/libs/addy_hq1002/lsapsdk-combine-com.google.android.addyhq1002-1.1.12.aar | b7800b13463999ffaf7651e0c8e9c80590bed1dc644178feb774b2f5c626a78d |
-| addy_jams | app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12.aar | 24e3651af8b1eb8e6f8313ad9225d6725cd64f24915430de07a89686bdeaee88 |
+| addy_jams | app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2.aar | b86909b03375df9048f1d6e6d54cad150f67407a280557882eab6d22289aca30 |
 
 输出目录：app/build/generated/lsap-patched/<flavor>/。
 
 SHA-256 是完整输入 AAR 的 SHA，不是 classes.jar 的 SHA。
+
+`addy_jams` 供应商在 SDK 版本号仍为 1.1.12 时重新发布了播放器释放修订包，仓库用本地 `-r2` 后缀区分不同字节码。旧输入 `lsapsdk-combine-com.google.android.addyjams-1.1.12.aar` 保留用于回滚，其 SHA-256 为 `24e3651af8b1eb8e6f8313ad9225d6725cd64f24915430de07a89686bdeaee88`。
 
 ## 4. 构建期 AAR 补丁流程
 
@@ -585,4 +587,3 @@ unzip -p app/build/generated/lsap-patched/<flavor>/<patched-aar>.aar META-INF/ls
 ~~~
 
 如果新 AAR 的混淆类名、方法 descriptor、网络库实现或动态加载方式变化，必须更新 LsapClassPatcher，并重新做静态检查和真机验证。
-

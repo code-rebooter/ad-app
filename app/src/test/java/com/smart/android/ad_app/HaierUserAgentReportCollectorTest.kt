@@ -43,7 +43,7 @@ class HaierUserAgentReportCollectorTest {
     }
 
     @Test
-    fun `collector caches webview user agent after first collection`() {
+    fun `collector refreshes webview user agent for every collection`() {
         var collectionCount = 0
         val collector = HaierUserAgentReportCollector()
         val provider = {
@@ -55,8 +55,8 @@ class HaierUserAgentReportCollectorTest {
         val second = collector.collect(null, "system-ua", provider)
 
         assertEquals("webview-ua-1", first.webViewUa)
-        assertEquals("webview-ua-1", second.webViewUa)
-        assertEquals(1, collectionCount)
+        assertEquals("webview-ua-2", second.webViewUa)
+        assertEquals(2, collectionCount)
     }
 
     @Test
@@ -73,7 +73,7 @@ class HaierUserAgentReportCollectorTest {
     }
 
     @Test
-    fun `authorize fields contain exactly three user agents for supported channels`() {
+    fun `authorize fields contain user agents and runtime audit state for supported channels`() {
         val fields = HaierUserAgentAuthorizeFields.build(
             flavor = "haier_lsap",
             fallbackEffectiveUa = "fallback"
@@ -89,7 +89,14 @@ class HaierUserAgentReportCollectorTest {
             linkedMapOf(
                 "ua_original" to "original",
                 "ua_effective" to "effective",
-                "webview_ua" to "webview"
+                "webview_ua" to "webview",
+                "ua_observed" to "effective",
+                "ua_aar_cached" to "",
+                "ua_aar_effective" to "effective",
+                "ua_drift_detected" to "false",
+                "ua_aar_drift_detected" to "false",
+                "ua_repaired" to "false",
+                "ua_checked_at_ms" to "0"
             ),
             fields
         )

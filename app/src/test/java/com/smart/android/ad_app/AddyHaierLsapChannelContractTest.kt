@@ -1,10 +1,12 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
+import java.security.MessageDigest
 
 class AddyHaierLsapChannelContractTest {
 
@@ -32,8 +34,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/haier_lsapDebug/res']"))
 
         assertTrue(hq1002Block.contains("applicationId       : \"com.google.android.addyhq1002\""))
-        assertTrue(hq1002Block.contains("versionCode         : 3"))
-        assertTrue(hq1002Block.contains("versionName         : \"1.0.3\""))
+        assertTrue(hq1002Block.contains("versionCode         : 4"))
+        assertTrue(hq1002Block.contains("versionName         : \"1.0.4\""))
         assertTrue(hq1002Block.contains("channel             : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("cType               : \"ADDY_HQ1002\""))
         assertTrue(hq1002Block.contains("model               : \"ADDY_HQ1002\""))
@@ -43,8 +45,8 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(hq1002Block.contains("lsapSdkName         : \"addy_hq1002\""))
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
-        assertTrue(jamsBlock.contains("versionCode         : 4"))
-        assertTrue(jamsBlock.contains("versionName         : \"1.0.4\""))
+        assertTrue(jamsBlock.contains("versionCode         : 7"))
+        assertTrue(jamsBlock.contains("versionName         : \"1.0.7\""))
         assertTrue(jamsBlock.contains("channel             : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("cType               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("model               : \"ADDY_JAMS\""))
@@ -62,8 +64,8 @@ class AddyHaierLsapChannelContractTest {
 
         assertTrue(buildGradle.contains("onVariants(selector().withBuildType(\"debug\").withFlavor(\"ad\", \"addy_hq1002\"))"))
         assertTrue(buildGradle.contains("onVariants(selector().withBuildType(\"debug\").withFlavor(\"ad\", \"addy_jams\"))"))
-        assertTrue(buildGradle.contains("addy_hq1002Implementation fileTree(dir: 'libs/addy_hq1002', include: ['*.aar'])"))
-        assertTrue(buildGradle.contains("addy_jamsImplementation fileTree(dir: 'libs/addy_jams', include: ['*.aar'])"))
+        assertTrue(buildGradle.contains("addy_hq1002Implementation lsapPatchedAars.addy_hq1002"))
+        assertTrue(buildGradle.contains("addy_jamsImplementation lsapPatchedAars.addy_jams"))
 
         assertTrue(buildFlavorSource.contains("fun isAddyHq1002("))
         assertTrue(buildFlavorSource.contains("fun isAddyJams("))
@@ -85,8 +87,57 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(managerSource.contains("UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)"))
     }
 
+    @Test
+    fun `addy jams should use reissued r2 aar through patch task`() {
+        val buildGradle = readProjectFile("app/build.gradle")
+        val projectRoot = findProjectRoot("app/build.gradle")
+        val originalAar = File(
+            projectRoot,
+            "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12.aar"
+        )
+        val r2Aar = File(
+            projectRoot,
+            "app/libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2.aar"
+        )
+
+        assertTrue("旧版 AAR 必须保留用于回滚", originalAar.exists())
+        assertTrue("R2 AAR 必须与旧版并存", r2Aar.exists())
+        assertEquals(
+            "24e3651af8b1eb8e6f8313ad9225d6725cd64f24915430de07a89686bdeaee88",
+            sha256(originalAar)
+        )
+        assertEquals(
+            "b86909b03375df9048f1d6e6d54cad150f67407a280557882eab6d22289aca30",
+            sha256(r2Aar)
+        )
+        assertTrue(
+            buildGradle.contains(
+                "input : \"libs/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2.aar\""
+            )
+        )
+        assertTrue(
+            buildGradle.contains(
+                "output: \"generated/lsap-patched/addy_jams/lsapsdk-combine-com.google.android.addyjams-1.1.12-r2-patched.aar\""
+            )
+        )
+        assertTrue(
+            buildGradle.contains(
+                "sha256: \"b86909b03375df9048f1d6e6d54cad150f67407a280557882eab6d22289aca30\""
+            )
+        )
+        assertTrue(buildGradle.contains("addy_jamsImplementation lsapPatchedAars.addy_jams"))
+        assertFalse(buildGradle.contains("addy_jamsImplementation files("))
+        assertFalse(buildGradle.contains("addy_jamsImplementation fileTree("))
+    }
+
     private fun readProjectFile(relativePath: String): String {
         return File(findProjectRoot(relativePath), relativePath).readText()
+    }
+
+    private fun sha256(file: File): String {
+        return MessageDigest.getInstance("SHA-256")
+            .digest(file.readBytes())
+            .joinToString("") { "%02x".format(it) }
     }
 
     private fun findProjectRoot(relativePath: String): File {

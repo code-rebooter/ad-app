@@ -82,7 +82,7 @@ private object Hq008TclVideoAd {
     private const val TAG = "Hq008TclVideoAd"
     private const val SDK_APP_CATEGORY = "app"
     private const val SDK_CONTENT_TITLE = "App Content"
-    private const val CALLBACK_TIMEOUT_MS = 60_000L
+    private const val CALLBACK_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
 
     private val initLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())

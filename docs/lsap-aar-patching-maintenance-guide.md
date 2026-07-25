@@ -486,7 +486,7 @@ jar tf /tmp/lsap-aar-check/classes.jar | sort
 | --- | ---: | --- |
 | haier_lsap | 5 | 1.0.5 |
 | addy_hq1002 | 4 | 1.0.4 |
-| addy_jams | 7 | 1.0.7 |
+| addy_jams | 8 | 1.0.8 |
 
 新版 AAR 必须进入新 APK；只生成 patched AAR 但不重打 APK，设备不会使用新逻辑。
 

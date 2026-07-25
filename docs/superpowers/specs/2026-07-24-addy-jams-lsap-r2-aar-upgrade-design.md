@@ -10,7 +10,7 @@ Use the customer-reissued `addy_jams` LSAP 1.1.12 AAR for a single-channel relea
 - Keep `haier_lsap` and `addy_hq1002` unchanged.
 - Keep the current `addy_jams` 1.1.12 AAR unchanged in `app/libs/addy_jams/`.
 - Add the reissued binary with the local revision suffix `1.1.12-r2` because the supplier reused version `1.1.12` for different bytecode.
-- Do not change application versionCode or versionName for this test build.
+- Increment the `addy_jams` application version to versionCode 8 and versionName 1.0.8 so the test build can upgrade versionCode 7 / versionName 1.0.7 in place.
 
 ## Input Identity
 

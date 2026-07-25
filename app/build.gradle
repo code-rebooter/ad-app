@@ -670,8 +670,8 @@ android {
         addy_jams {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.addyjams",
-                    versionCode         : 7,
-                    versionName         : "1.0.7",
+                    versionCode         : 8,
+                    versionName         : "1.0.8",
                     signingConfig       : signingConfigs.addyJamsRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "ADDY_JAMS",

@@ -51,7 +51,11 @@ output: "generated/lsap-patched/addy_jams/lsapsdk-combine-com.google.android.add
 sha256: "b86909b03375df9048f1d6e6d54cad150f67407a280557882eab6d22289aca30"
 ```
 
-- [ ] **Step 3: Run the focused test and verify GREEN**
+- [ ] **Step 3: Increment the `addy_jams` application version**
+
+Set versionCode to `8` and versionName to `1.0.8` so the R2 APK upgrades the previous `7 / 1.0.7` release.
+
+- [ ] **Step 4: Run the focused test and verify GREEN**
 
 Run the Task 1 command. Expected: PASS.
 

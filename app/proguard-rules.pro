@@ -33,6 +33,9 @@
 -keep class com.smart.android.ad_app.HaierAarAuditUploader { *; }
 -keep class com.smart.android.ad_app.HaierAarRequestContext { *; }
 
+# google_ad_tv_desktop 需要反射 UMP 4.0.0 内部 ConsentForm/WebView/Dialog。
+-keep class com.google.android.gms.internal.consent_sdk.** { *; }
+
 #Tcl.aar的混淆配置，mofeng_ad.aar也是这个混淆配置
 -keep class com.tcl.ff.component.vastad.**{*;}
 #xstream

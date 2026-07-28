@@ -3,7 +3,7 @@ package com.smart.android.ad_app
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.webkit.WebSettings
 import androidx.annotation.Keep
 import com.spctv.utils.okhttp3.w

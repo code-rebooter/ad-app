@@ -1,7 +1,7 @@
 package com.smart.android.ad_app
 
 import android.util.Base64
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream

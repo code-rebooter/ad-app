@@ -6,7 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import androidx.fragment.app.FragmentActivity
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -410,6 +410,10 @@ object Hq008CmpManager {
 
     fun getConsentString(): String? {
         return consentString
+    }
+
+    fun canContinueAfterRemoteDecision(): Boolean {
+        return true
     }
 
     fun setRemoteDecisionProvider(provider: ((Context, (RemoteCmpDecision?) -> Unit) -> Unit)?) {
@@ -2094,7 +2098,11 @@ object Hq008CmpManager {
             }.invoke(serverApi) as? String ?: error("failed to resolve campaign url")
             campaignUrlForLog = campaignUrl
 
-            Log.i(TAG, "静默同意链路：开始请求远端 CMP campaign 种子，body=$requestBody")
+            Log.i(
+                TAG,
+                "静默同意链路：开始请求远端 CMP campaign 种子，" +
+                    "bodyHash=${AdPrivacySanitizer.shortHash(requestBody)}，bodyLength=${requestBody.length}"
+            )
             Hq008ConsentLogReporter.report(
                 eventType = "CAMPAIGN_REQUEST_START",
                 eventMessage = "forcePopup=false",
@@ -2121,9 +2129,18 @@ object Hq008CmpManager {
             responseBodyForLog = responseBody
             captureFailureMessageForLog = capture?.failureMessage
             if (!responseBody.isNullOrBlank()) {
-                Log.i(TAG, "静默同意链路：远端 CMP campaign 原始 HTTP 响应=$responseBody")
+                Log.i(
+                    TAG,
+                    "静默同意链路：远端 CMP campaign 原始 HTTP 响应已捕获，" +
+                        "responseHash=${AdPrivacySanitizer.shortHash(responseBody)}，responseLength=${responseBody.length}"
+                )
             } else {
-                Log.i(TAG, "静默同意链路：远端 CMP campaign 响应对象=${response?.let(gson::toJson)}")
+                val responseJson = response?.let(gson::toJson).orEmpty()
+                Log.i(
+                    TAG,
+                    "静默同意链路：远端 CMP campaign 响应对象为空或未捕获，" +
+                        "responseHash=${AdPrivacySanitizer.shortHash(responseJson)}，responseLength=${responseJson.length}"
+                )
             }
             val suppressReason = responseBody?.let(::resolveCampaignSuppressionReason)
                 ?: resolveCampaignSuppressionReason(response)
@@ -2288,9 +2305,18 @@ object Hq008CmpManager {
             responseBodyForLog = responseBody
             captureFailureMessageForLog = capture?.failureMessage
             if (!responseBody.isNullOrBlank()) {
-                Log.i(TAG, "静默同意链路：远端 CMP consent 状态原始 HTTP 响应=$responseBody")
+                Log.i(
+                    TAG,
+                    "静默同意链路：远端 CMP consent 状态原始 HTTP 响应已捕获，" +
+                        "responseHash=${AdPrivacySanitizer.shortHash(responseBody)}，responseLength=${responseBody.length}"
+                )
             } else {
-                Log.i(TAG, "静默同意链路：远端 CMP consent 状态响应对象=${response?.let(gson::toJson)}")
+                val responseJson = response?.let(gson::toJson).orEmpty()
+                Log.i(
+                    TAG,
+                    "静默同意链路：远端 CMP consent 状态响应对象为空或未捕获，" +
+                        "responseHash=${AdPrivacySanitizer.shortHash(responseJson)}，responseLength=${responseJson.length}"
+                )
             }
             val data = response?.data
             Hq008ConsentLogReporter.report(
@@ -2364,19 +2390,20 @@ object Hq008CmpManager {
             addProperty("source", "tcl_cmp_sdk")
             addProperty("api", api)
             url?.takeIf { it.isNotBlank() }?.let {
-                addProperty("url", it)
+                addProperty("urlHash", AdPrivacySanitizer.shortHash(it))
+                addProperty("urlLength", it.length)
                 addProperty("path", it.substringAfter("://", it).substringAfter("/", ""))
             }
             durationMs?.let { addProperty("durationMs", it) }
             addProperty("success", success)
             requestBody?.let {
                 addProperty("requestLength", it.length)
-                addProperty("rawRequest", it.take(MAX_CMP_AD_LOG_RAW_LENGTH))
+                addProperty("requestHash", AdPrivacySanitizer.shortHash(it))
                 addProperty("requestTruncated", it.length > MAX_CMP_AD_LOG_RAW_LENGTH)
             }
             responseBody?.let {
                 addProperty("responseLength", it.length)
-                addProperty("rawResponse", it.take(MAX_CMP_AD_LOG_RAW_LENGTH))
+                addProperty("responseHash", AdPrivacySanitizer.shortHash(it))
                 addProperty("responseTruncated", it.length > MAX_CMP_AD_LOG_RAW_LENGTH)
                 addCmpResponseSummary(it)
             }

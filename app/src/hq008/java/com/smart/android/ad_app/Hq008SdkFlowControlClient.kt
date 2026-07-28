@@ -1,7 +1,7 @@
 package com.smart.android.ad_app
 
 import android.content.Context
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
 import com.speed.ext.getMacAddress

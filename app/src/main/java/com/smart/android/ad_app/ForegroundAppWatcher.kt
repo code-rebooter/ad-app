@@ -4,7 +4,7 @@ package com.smart.android.ad_app
 
 import android.app.ActivityManager
 import android.content.Context
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.speed.log.printLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.CountDownTimer
 import androidx.core.view.isVisible
 import com.smart.android.ad_app.databinding.FloatAdBinding
-import com.speed.log.printLog
 
 class TvAdFloatingWindow(
     context: Context,
@@ -24,19 +23,19 @@ class TvAdFloatingWindow(
             adId = adId,
             soundEnabled = soundEnabled,
             adStart = {
-                "广告开始播放".printLog()
+                "广告开始播放".adDebugPrintLog()
                 if (canSetFocusable()) {
                     setFocusable(true)
                     startCountdown()
                 }
             },
             adError = {
-                "广告播放错误".printLog()
+                "广告播放错误".adDebugPrintLog()
                 hide()
                 dispatchFlowFinishedOnce()
             }
         ) {
-            "广告播放完成".printLog()
+            "广告播放完成".adDebugPrintLog()
             hide()
             dispatchFlowFinishedOnce()
         }
@@ -44,10 +43,10 @@ class TvAdFloatingWindow(
 
     override fun onBackPressed(): Boolean {
         if (!isCountdownFinished) {
-            "W: 倒计时未结束，返回键无效".printLog()
+            "W: 倒计时未结束，返回键无效".adDebugPrintLog()
             return true // 拦截返回键，不隐藏
         }
-        "我按下了返回".printLog()
+        "我按下了返回".adDebugPrintLog()
         binding.root.isVisible = false
         hide()
         return true
@@ -80,7 +79,7 @@ class TvAdFloatingWindow(
                 val secondsLeft = (millisUntilFinished / 1000).toInt() + 1
                 binding.tvTip.isVisible = true
                 binding.tvTip.text = appContext.getString(R.string.app_closure, secondsLeft)
-                binding.tvTip.text.toString().printLog()
+                binding.tvTip.text.toString().adDebugPrintLog()
             }
 
             override fun onFinish() {

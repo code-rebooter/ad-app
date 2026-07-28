@@ -5,7 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import android.util.DisplayMetrics
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.WindowManager
 import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName

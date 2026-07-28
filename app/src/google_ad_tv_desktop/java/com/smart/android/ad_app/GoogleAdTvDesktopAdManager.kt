@@ -3,15 +3,16 @@ package com.smart.android.ad_app
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import android.view.ViewGroup
 import androidx.annotation.Keep
 import androidx.annotation.OptIn
+import com.google.gson.Gson
 import androidx.media3.common.util.UnstableApi
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.google.GoogleGamAdConfigClient
-import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
 import com.smart.android.ad_app.google.GoogleAdTvDesktopVastConfig
 import com.smart.android.ad_app.google.GoogleAdVastPlayerView
+import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
 import java.lang.ref.WeakReference
 
 @Keep
@@ -49,6 +50,7 @@ private object GoogleAdTvDesktopFormalAd {
     private const val SDK_ENTRY = "media3_ima_vast"
     private const val REQUEST_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
 
+    private val gson = Gson()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var currentPlayer: GoogleAdVastPlayerView? = null
     private var currentContainerRef: WeakReference<ViewGroup>? = null
@@ -101,8 +103,62 @@ private object GoogleAdTvDesktopFormalAd {
             eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
         )
 
+        currentRequest
+            ?.takeUnless { it.isTerminal() }
+            ?.markTerminal()
+        currentRequest = request
+        currentContainerRef = WeakReference(flRoot)
+
         flRoot.post {
-            resolveAdConfig(request)
+            requestConsentThenResolveAd(request)
+        }
+    }
+
+    private fun requestConsentThenResolveAd(request: PendingShowRequest) {
+        val container = request.containerRef.get()
+        if (container == null) {
+            failRequest(
+                request = request,
+                stage = "consent_container_prepare",
+                reporterMessage = Hq008AdReporter.Message.CONTAINER_RELEASED,
+                reason = "container_released"
+            )
+            return
+        }
+
+        Log.i(TAG, "正式链路：开始检查 UMP consent，requestId=${request.requestId}")
+        Hq008ConsentLogReporter.report(
+            eventType = "UMP_CONSENT_START",
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()}"
+        )
+        GoogleUmpConsentManager.requestConsent(
+            context = container.context,
+            action = GoogleUmpConsentManager.ConsentAction.CHECK_ONLY
+        ) { result ->
+            container.post {
+                if (request.isTerminal() || currentRequest !== request) {
+                    return@post
+                }
+                Hq008ConsentLogReporter.report(
+                    eventType = "UMP_CONSENT_RESULT",
+                    eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},canRequestAds=${result.canRequestAds},error=${result.errorMessage.orEmpty()}"
+                )
+                reportAuthorizedUmpStatus(request, result)
+                if (result.canRequestAds) {
+                    Log.i(TAG, "正式链路：UMP 已允许请求广告，requestId=${request.requestId}")
+                    resolveAdConfig(request)
+                } else {
+                    failRequest(
+                        request = request,
+                        stage = "ump_consent",
+                        reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
+                        reason = "ump_cannot_request_ads",
+                        error = IllegalStateException(
+                            result.errorMessage ?: "UMP did not allow ad requests"
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -222,9 +278,14 @@ private object GoogleAdTvDesktopFormalAd {
                         revealContainerWhenReady(request, container)
                     }
                 }
-                onAdFinished = {
+                onAdFinished = { terminalEvent ->
                     container.post {
-                        finishRequest(request)
+                        finishRequest(request, terminalEvent)
+                    }
+                }
+                onAdSkipped = { terminalEvent ->
+                    container.post {
+                        skipPlaybackRequest(request, terminalEvent)
                     }
                 }
                 onAdFailed = { message ->
@@ -249,7 +310,7 @@ private object GoogleAdTvDesktopFormalAd {
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AD_SDK_REQUEST",
-                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},adTagUrl=${request.adTagUrl}"
+                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},${request.adTagTraceMessage()}"
             )
             playerView.play(
                 adTagUrl = request.adTagUrl,
@@ -281,9 +342,8 @@ private object GoogleAdTvDesktopFormalAd {
             hiddenMode = AdDisplayConfig.isHiddenMode(),
             extra = request.buildProgressDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to request.adTagUrl
-            )
+                "sdkEntry" to SDK_ENTRY
+            ) + request.buildAdTagDiagnostics()
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_LOADED",
@@ -311,9 +371,8 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildProgressDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to request.adTagUrl,
                 "childCount" to container.childCount
-            )
+            ) + request.buildAdTagDiagnostics()
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_STARTED",
@@ -334,18 +393,24 @@ private object GoogleAdTvDesktopFormalAd {
         )
     }
 
-    private fun finishRequest(request: PendingShowRequest) {
+    private fun finishRequest(
+        request: PendingShowRequest,
+        terminalEvent: String
+    ) {
         if (!request.markTerminal()) {
             return
         }
         clearTimeout()
-        completeRequest(request)
+        completeRequest(request, terminalEvent)
     }
 
-    private fun completeRequest(request: PendingShowRequest) {
+    private fun completeRequest(
+        request: PendingShowRequest,
+        terminalEvent: String
+    ) {
         Log.i(
             TAG,
-            "正式链路：Google VAST 广告播放完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}"
+            "正式链路：Google VAST 广告播放完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}，imaTerminalEvent=$terminalEvent"
         )
         Hq008AdReporter.reportCompleted(
             requestId = request.requestId,
@@ -354,17 +419,53 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildCompletionDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to request.adTagUrl,
-                "finishReason" to "vast_finished"
-            )
+                "finishReason" to "vast_finished",
+                "imaTerminalEvent" to terminalEvent
+            ) + request.buildAdTagDiagnostics()
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_COMPLETED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=vast_finished"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=vast_finished,imaTerminalEvent=$terminalEvent"
         )
         releaseCurrentPlayer()
         currentRequest = null
         request.adComplete.invoke()
+    }
+
+    private fun skipPlaybackRequest(
+        request: PendingShowRequest,
+        terminalEvent: String
+    ) {
+        if (!request.markTerminal()) {
+            return
+        }
+        clearTimeout()
+        Log.w(
+            TAG,
+            "正式链路：Google VAST 广告被跳过，requestId=${request.requestId}，adId=${request.adId}，imaTerminalEvent=$terminalEvent"
+        )
+        Hq008AdReporter.reportError(
+            requestId = request.requestId,
+            adId = request.adId,
+            hiddenMode = AdDisplayConfig.isHiddenMode(),
+            errorCode = null,
+            errorMessage = Hq008AdReporter.Message.REQUEST_ERROR,
+            extra = request.buildCompletionDiagnostics() + mapOf(
+                "sdk" to SDK_NAME,
+                "sdkEntry" to SDK_ENTRY,
+                "stage" to "vast_player",
+                "reason" to "ima_ad_skipped",
+                "error" to terminalEvent,
+                "imaTerminalEvent" to terminalEvent
+            ) + request.buildAdTagDiagnostics()
+        )
+        Hq008ConsentLogReporter.report(
+            eventType = "AD_PHASE_ERROR",
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=vast_player,reason=ima_ad_skipped,imaTerminalEvent=$terminalEvent"
+        )
+        releaseCurrentPlayer()
+        currentRequest = null
+        request.adError?.invoke()
     }
 
     private fun skipRequest(
@@ -380,24 +481,28 @@ private object GoogleAdTvDesktopFormalAd {
             TAG,
             "正式链路：跳过 Google VAST 广告，requestId=${request.requestId}，reason=$reason，error=${error.orEmpty()}"
         )
-        Hq008AdReporter.reportCompleted(
+        Hq008AdReporter.reportError(
             requestId = request.requestId,
             adId = request.adId,
             hiddenMode = AdDisplayConfig.isHiddenMode(),
+            errorCode = null,
+            errorMessage = Hq008AdReporter.Message.REQUEST_ERROR,
             extra = request.buildCompletionDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
+                "stage" to "gam_config_resolve",
                 "finishReason" to reason,
+                "reason" to reason,
                 "error" to error.orEmpty()
             )
         )
         Hq008ConsentLogReporter.report(
-            eventType = "AD_PHASE_SKIPPED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},reason=$reason,error=${error.orEmpty()}"
+            eventType = "AD_PHASE_ERROR",
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=gam_config_resolve,reason=$reason,error=${error.orEmpty()}"
         )
         releaseCurrentPlayer()
         currentRequest = null
-        request.adComplete.invoke()
+        request.adError?.invoke()
     }
 
     private fun failRequest(
@@ -427,11 +532,10 @@ private object GoogleAdTvDesktopFormalAd {
             extra = request.buildCompletionDiagnostics() + mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "adTagUrl" to request.adTagUrl,
                 "stage" to stage,
                 "reason" to reason,
                 "error" to errorText
-            )
+            ) + request.buildAdTagDiagnostics()
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
@@ -476,6 +580,48 @@ private object GoogleAdTvDesktopFormalAd {
     private fun clearTimeout() {
         timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
         timeoutRunnable = null
+    }
+
+    private fun reportAuthorizedUmpStatus(
+        request: PendingShowRequest,
+        result: GoogleUmpConsentManager.Result
+    ) {
+        if (!Hq008ConsentLogReporter.hasActiveFlow()) {
+            return
+        }
+        val snapshot = result.storedConsentSnapshotData
+        val gdprApplies = snapshot.iabtcfGdprApplies.ifBlank { "unknown" }
+        val privacyOptions = result.privacyOptionsStatus.ifBlank { "UNKNOWN" }
+        val consentModeValues = snapshot.consentModeValues.ifBlank { "empty" }
+        Hq008ConsentLogReporter.report(
+            eventType = "UMP_STATUS_AFTER_AUTHORIZED",
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId}," +
+                "authorized=true,gdpr=$gdprApplies,status=${result.consentStatus}," +
+                "canRequestAds=${result.canRequestAds},formAvailable=${result.formAvailable}," +
+                "privacyOptions=$privacyOptions,tcLen=${snapshot.tcStringLength}," +
+                "purposeLen=${snapshot.purposeConsentsLength}," +
+                "vendorLen=${snapshot.vendorConsentsLength},consentMode=$consentModeValues",
+            adLog = gson.toJson(
+                linkedMapOf<String, Any?>(
+                    "requestId" to request.requestId,
+                    "authorized" to true,
+                    "sdk" to SDK_NAME,
+                    "sdkEntry" to SDK_ENTRY,
+                    "umpAction" to result.action.name,
+                    "umpConsentStatus" to result.consentStatus,
+                    "umpCanRequestAds" to result.canRequestAds,
+                    "umpFormAvailable" to result.formAvailable,
+                    "umpPrivacyOptions" to privacyOptions,
+                    "umpDeferred" to result.deferred,
+                    "iabtcfGdprApplies" to gdprApplies,
+                    "tcStringLength" to snapshot.tcStringLength,
+                    "purposeConsentsLength" to snapshot.purposeConsentsLength,
+                    "vendorConsentsLength" to snapshot.vendorConsentsLength,
+                    "consentModeValues" to consentModeValues,
+                    "error" to result.errorMessage.orEmpty()
+                )
+            )
+        )
     }
 
     private data class PendingShowRequest(
@@ -547,6 +693,15 @@ private object GoogleAdTvDesktopFormalAd {
                 "playbackDurationMs" to playbackDurationMs(),
                 "requestTotalDurationMs" to requestTotalDurationMs()
             )
+        }
+
+        fun buildAdTagDiagnostics(): Map<String, Any> {
+            return AdPrivacySanitizer.buildDiagnostics("adTagUrl", adTagUrl)
+        }
+
+        fun adTagTraceMessage(): String {
+            return "adTagUrlHash=${AdPrivacySanitizer.shortHash(adTagUrl)}," +
+                "adTagUrlLength=${AdPrivacySanitizer.length(adTagUrl)}"
         }
     }
 }

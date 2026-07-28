@@ -26,7 +26,7 @@ object AdManagerImpl : IAdManager {
 
     override fun init() {
         //广告初始化
-        println("hq002的广告初始化")
+        adDebugPrintln("hq002的广告初始化")
 
         try {
             val config = AdConfig.Builder()
@@ -38,7 +38,7 @@ object AdManagerImpl : IAdManager {
 
             AdManager.initialize(appContext, config)
         } catch (e: Exception) {
-            println("当前异常是：${e.message}")
+            adDebugPrintln("当前异常是：${e.message}")
         }
 
     }
@@ -52,7 +52,7 @@ object AdManagerImpl : IAdManager {
         adComplete: () -> Unit
     ) {
         //展示广告
-        println("hq002的广告展示")
+        adDebugPrintln("hq002的广告展示")
 
         try {
             val container = flRoot.requireFrameLayout("容器不是 FrameLayout，广告展示失败", adError)
@@ -66,25 +66,25 @@ object AdManagerImpl : IAdManager {
                     override fun onAdStateChange(state: Int) {
                         when (state) {
                             AD_ERROR -> {
-                                println("hq002广告加载错误")
+                                adDebugPrintln("hq002广告加载错误")
                                 adError?.invoke()
                             }
 
                             AD_LOADING -> {
-                                println("hq002广告开始加载")
+                                adDebugPrintln("hq002广告开始加载")
                             }
 
                             AD_LOADED -> {
-                                println("hq002广告加载完成")
+                                adDebugPrintln("hq002广告加载完成")
                             }
 
                             AD_PLAYING -> {
-                                println("hq002广告开始播放")
+                                adDebugPrintln("hq002广告开始播放")
                                 adStart?.invoke()
                             }
 
                             AD_COMPLETE_ALL -> {
-                                println("hq002广告播放完成")
+                                adDebugPrintln("hq002广告播放完成")
                                 adComplete.invoke()
                             }
                         }
@@ -96,7 +96,7 @@ object AdManagerImpl : IAdManager {
             adPlayManager.startAd(container, 0f)
 
         } catch (e: Exception) {
-            println("广告播放异常：${e.message}")
+            adDebugPrintln("广告播放异常：${e.message}")
             adError?.invoke()
         }
     }
@@ -113,7 +113,7 @@ object AdManagerImpl : IAdManager {
             }
             adPlayManagerRef = null
         } catch (e: Exception) {
-            println("销毁广告异常：${e.message}")
+            adDebugPrintln("销毁广告异常：${e.message}")
         }
     }
 

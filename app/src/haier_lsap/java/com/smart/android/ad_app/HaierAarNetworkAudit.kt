@@ -39,25 +39,75 @@ internal data class HaierAarAuditEvent(
             put("source_stack", sourceStack)
             put("coverage", coverage)
             put("method", method)
-            put("url_raw", urlRaw)
-            put("query_raw", rawQuery(urlRaw))
-            put("headers_raw", headersRaw)
+            put("url_hash", AdPrivacySanitizer.shortHash(urlRaw))
+            put("url_length", urlRaw.length)
+            put("url_path", safePath(urlRaw))
+            put("query_hash", AdPrivacySanitizer.shortHash(rawQuery(urlRaw)))
+            put("query_length", rawQuery(urlRaw).length)
+            put("headers_hash", AdPrivacySanitizer.shortHash(headersRaw))
+            put("headers_length", headersRaw.length)
+            put("header_names", headerNames(headersRaw))
             put("content_type", contentType)
             put("body_encoding", bodyEncoding)
-            put("body_raw", bodyRaw)
+            put("body_hash", bodySha256.ifBlank { AdPrivacySanitizer.shortHash(bodyRaw) })
             put("body_length", bodyLength ?: bodyRaw.toByteArray(Charsets.UTF_8).size)
-            put("body_sha256", bodySha256)
-            put("system_ua_before", check?.observedUa.orEmpty())
-            put("system_ua_after", check?.effectiveUa.orEmpty())
-            put("aar_effective_ua", HaierAarRuntimeBridge.currentEffectiveUa())
+            put("system_ua_before_hash", AdPrivacySanitizer.shortHash(check?.observedUa.orEmpty()))
+            put("system_ua_before_length", check?.observedUa.orEmpty().length)
+            put("system_ua_after_hash", AdPrivacySanitizer.shortHash(check?.effectiveUa.orEmpty()))
+            put("system_ua_after_length", check?.effectiveUa.orEmpty().length)
+            put("aar_effective_ua_hash", AdPrivacySanitizer.shortHash(HaierAarRuntimeBridge.currentEffectiveUa()))
+            put("aar_effective_ua_length", HaierAarRuntimeBridge.currentEffectiveUa().length)
             put("ua_drift_detected", check?.repaired == true)
             put("ua_repaired", check?.repaired == true)
             put("response_code", responseCode ?: JSONObject.NULL)
-            put("response_headers_raw", responseHeadersRaw)
-            put("error_message", errorMessage)
+            put("response_headers_hash", AdPrivacySanitizer.shortHash(responseHeadersRaw))
+            put("response_headers_length", responseHeadersRaw.length)
+            put("response_header_names", headerNames(responseHeadersRaw))
+            put("error_message", errorMessage.take(180))
             put("background", HaierAarRequestContext.currentRequestId().isNullOrEmpty())
-            extra.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
+            extra.forEach { (key, value) -> putSanitizedExtra(key, value) }
         }.toString()
+    }
+
+    private fun JSONObject.putSanitizedExtra(key: String, value: Any?) {
+        if (value !is String || !shouldHashExtra(key, value)) {
+            put(key, value ?: JSONObject.NULL)
+            return
+        }
+        put("${key}_hash", AdPrivacySanitizer.shortHash(value))
+        put("${key}_length", value.length)
+    }
+
+    private fun shouldHashExtra(key: String, value: String): Boolean {
+        val normalizedKey = key.lowercase()
+        return normalizedKey.contains("ua") ||
+            normalizedKey.contains("url") ||
+            normalizedKey.endsWith("_raw") ||
+            value.contains("://")
+    }
+
+    private fun safePath(url: String): String {
+        return runCatching {
+            java.net.URI(url).rawPath.orEmpty()
+        }.getOrDefault(
+            url.substringAfter("://", url)
+                .substringAfter("/", "")
+                .substringBefore("?")
+                .substringBefore("#")
+        ).take(180)
+    }
+
+    private fun headerNames(headers: String): String {
+        return headers
+            .lineSequence()
+            .mapNotNull { line ->
+                line.substringBefore(":", missingDelimiterValue = "")
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+            }
+            .distinct()
+            .joinToString(",")
+            .take(180)
     }
 
     private fun rawQuery(url: String): String {

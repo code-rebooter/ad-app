@@ -10,8 +10,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
-import android.util.Log
-import com.speed.log.printLog
+import com.smart.android.ad_app.AdLocalLog as Log
 
 class AdProvider : ContentProvider() {
     private companion object {
@@ -22,7 +21,7 @@ class AdProvider : ContentProvider() {
 
     override fun onCreate(): Boolean {
         Log.i(TAG, "正式链路：AdProvider 已创建，authority=${context?.packageName}.adprovider，开始初始化 CMP 与广告调度器")
-        "AdProvider onCreate".printLog()
+        "AdProvider onCreate".adDebugPrintLog()
         context?.applicationContext?.let {
             Hq008CmpManager.init(it)
             AdRuntimeCoordinator.start(it)

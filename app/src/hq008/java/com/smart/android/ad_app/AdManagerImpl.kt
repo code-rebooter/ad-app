@@ -4,7 +4,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.ViewGroup
 import com.tcl.ff.component.overseabase.base.constant.AdReportSwitchConfig
 import com.tcl.ff.component.overseabase.base.constant.AdType

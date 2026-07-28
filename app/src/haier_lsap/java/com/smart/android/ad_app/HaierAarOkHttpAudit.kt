@@ -1,6 +1,6 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient

@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL

@@ -13,7 +13,8 @@ import android.view.WindowManager
 import com.google.gson.Gson
 import com.smart.android.ad_app.AdChannelResolver
 import com.smart.android.ad_app.BuildConfig
-import com.speed.log.printLog
+import com.smart.android.ad_app.adDebugPrintLog
+import com.smart.android.ad_app.adDebugPrintln
 import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
 import java.util.*
@@ -57,8 +58,8 @@ object AdManager {
         )
 
         if (BuildConfig.DEBUG) {
-            "【RTB广告】发送竞价请求 → ".printLog()
-            println(gson.toJson(requestBody))
+            "【RTB广告】发送竞价请求 → ".adDebugPrintLog()
+            adDebugPrintln(gson.toJson(requestBody))
         }
 
         NetworkHelper.makeRequest<AdData>(
@@ -69,15 +70,15 @@ object AdManager {
             useDomainSwitch = false,
         ) { response, error ->
             if (error != null) {
-                "【RTB广告】请求失败：${error.message}".printLog()
+                "【RTB广告】请求失败：${error.message}".adDebugPrintLog()
                 onResult(null, error.message?:"网络错误")
                 return@makeRequest
             }
 
             onResult(response?.adm, null)
             if (BuildConfig.DEBUG) {
-                "【RTB广告】服务器返回：".printLog()
-                println(response ?: "null")
+                "【RTB广告】服务器返回：".adDebugPrintLog()
+                adDebugPrintln(response ?: "null")
             }
         }
     }

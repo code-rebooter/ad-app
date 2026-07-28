@@ -1,11 +1,10 @@
 package com.smart.android.ad_app
 
 import android.provider.Settings
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.EmptyData
 import com.speed.ext.getMacAddress
-import com.speed.log.printLog
 import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
 
@@ -38,7 +37,7 @@ object AdConfigManager {
                     )
                 }
 
-                Hq008CmpDecisionClient.request(appContext) { dto, error ->
+                    Hq008CmpDecisionClient.request(appContext) { dto, error ->
                     if (error != null) {
                         Log.e(TAG, "广告链路：consent-popup 请求失败，error=$error")
                         Hq008ConsentLogReporter.report(
@@ -52,6 +51,7 @@ object AdConfigManager {
                         TAG,
                         "广告链路：consent-popup 返回动作=${dto?.consent_action.orEmpty()}，payloadPresent=${dto?.consent_payload != null}"
                     )
+                    val googleUmpFlavor = BuildFlavor.isGoogleAdTvDesktop() || BuildFlavor.isGoogleAdTvLockscreen()
                     when (dto?.consent_action) {
                         "ACCEPT_ALL" -> {
                             Hq008ConsentLogReporter.report(
@@ -70,6 +70,15 @@ object AdConfigManager {
                             onResult(Hq008CmpManager.RemoteCmpDecision(consentAction = "REJECT"))
                         }
                         "SAVE_SETTINGS" -> {
+                            if (googleUmpFlavor) {
+                                Hq008ConsentLogReporter.report(
+                                    eventType = "POPUP_ACTION_SAVE_SETTINGS",
+                                    eventMessage = "payload=${dto.consent_payload != null},mappedTo=ACCEPT_ALL"
+                                )
+                                Log.i(TAG, "广告链路：Google UMP 暂将 SAVE_SETTINGS 按 ACCEPT_ALL 执行")
+                                onResult(Hq008CmpManager.RemoteCmpDecision(consentAction = "SAVE_SETTINGS"))
+                                return@request
+                            }
                             val payload = dto.consent_payload
                             if (payload == null) {
                                 Log.w(TAG, "广告链路：consent-popup 返回 SAVE_SETTINGS 但缺少 payload，回退执行 MAYBE_LATER")
@@ -214,6 +223,18 @@ object AdConfigManager {
                             eventType = "CMP_GATE_FINISH",
                             eventMessage = "consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
                         )
+                        if (!Hq008CmpManager.canContinueAfterRemoteDecision()) {
+                            Log.i(
+                                TAG,
+                                "广告链路：CMP/UMP 决策结果要求本轮停止，跳过授权与广告请求"
+                            )
+                            Hq008ConsentLogReporter.report(
+                                eventType = "CMP_GATE_STOP",
+                                eventMessage = "reason=decision_blocked,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                            )
+                            finishHq008FloatingFlow(flowToken, "cmp_decision_blocked")
+                            return@applyRemoteCmpDecisionIfNeeded
+                        }
                         Log.i(
                             TAG,
                             "广告链路：CMP 决策流程已结束，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始请求授权接口"
@@ -228,7 +249,7 @@ object AdConfigManager {
         // 只有悬浮窗广告才校验权限
         if (adType == AdType.FLOATING && !hasOverlayPermission()) {
             Log.w(TAG, "Skip FLOATING request: overlay permission missing.")
-           "没有悬浮窗权限，跳过 FLOATING 广告请求".printLog()
+           "没有悬浮窗权限，跳过 FLOATING 广告请求".adDebugPrintLog()
             return
         }
 
@@ -253,13 +274,13 @@ object AdConfigManager {
         ) { dto, error ->
             if (error != null) {
                 Log.e(TAG, "Ad request failed for $adType: ${error.message}", error)
-               "广告请求失败: ${error.message}".printLog()
+               "广告请求失败: ${error.message}".adDebugPrintLog()
                 return@makeRequest
             }
 
             if (dto?.adId.isNullOrEmpty()) {
                 Log.w(TAG, "No available ad for $adType.")
-                "无可用广告".printLog()
+                "无可用广告".adDebugPrintLog()
                 return@makeRequest
             }
 
@@ -405,11 +426,11 @@ object AdConfigManager {
 
     fun reportAdStatus(statusStr: String, errorInfo: String, adId: String? = null) {
         val resolvedAdId = adId ?: currentAdId ?: run {
-            "adId 为空，上报失败".printLog()
+            "adId 为空，上报失败".adDebugPrintLog()
             return
         }
 
-        "上报广告状态".printLog()
+        "上报广告状态".adDebugPrintLog()
         val url = if (BuildFlavor.isHq008Family()) {
             "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/task/report"
         } else {
@@ -433,10 +454,10 @@ object AdConfigManager {
         ) { _, error ->
             if (error != null) {
                 Log.e(TAG, "reportAdStatus failed status=$statusStr adId=$resolvedAdId error=${error.message}", error)
-                "请求失败".printLog()
+                "请求失败".adDebugPrintLog()
             } else {
                 Log.i(TAG, "reportAdStatus success status=$statusStr adId=$resolvedAdId result=$errorInfo")
-                "请求成功-${statusStr}, ${errorInfo}".printLog()
+                "请求成功-${statusStr}, ${errorInfo}".adDebugPrintLog()
             }
         }
     }

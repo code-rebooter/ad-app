@@ -30,6 +30,8 @@ import com.google.ads.interactivemedia.v3.api.ImaSdkFactory
 import com.google.ads.interactivemedia.v3.api.ImaSdkSettings
 import com.google.common.collect.ImmutableList
 import com.smart.android.ad_app.AdConfigManager
+import com.smart.android.ad_app.AdLocalLog as Log
+import com.smart.android.ad_app.adDebugPrintln
 import kotlin.apply
 
 
@@ -118,7 +120,7 @@ class VastAdPlayerView @JvmOverloads constructor(
 
     private fun debugLog(message: String) {
         if (enableDebugLogging) {
-            println(message)
+            adDebugPrintln(message)
         }
     }
 
@@ -490,7 +492,7 @@ class VastAdPlayerView @JvmOverloads constructor(
             
         } catch (e: Exception) {
             debugLog("CDN 诊断失败: ${e.message}")
-            e.printStackTrace()
+            Log.e("VastAdPlayerView", "CDN 诊断失败: ${e.message}", e)
             result.append("\"error\":\"${e.message?.replace("\"", "'")}\"")
         }
         

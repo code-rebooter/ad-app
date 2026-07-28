@@ -23,15 +23,8 @@ if (tclDemoNoneuSigningPropertiesFile.exists()) {
     }
 }
 
-def tclDemoGradlePropertiesFile = new File(tclDemoProjectDir, "gradle.properties")
-def tclDemoGradleProperties = new Properties()
-if (tclDemoGradlePropertiesFile.exists()) {
-    tclDemoGradlePropertiesFile.withInputStream { stream ->
-        tclDemoGradleProperties.load(stream)
-    }
-}
-
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
+def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
 android {
     namespace 'com.smart.android.ad_app'
@@ -365,10 +358,12 @@ android {
             minifyEnabled true
             zipAlignEnabled true
             shrinkResources true
+            manifestPlaceholders += [ump_consent_activity_exported: "false"]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug{
             minifyEnabled false
+            manifestPlaceholders += [ump_consent_activity_exported: "true"]
         }
     }
     compileOptions {
@@ -515,9 +510,9 @@ android {
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
                             share_uid   : "",
-                            tcl_app_key : tclDemoGradleProperties.getProperty("TCL_APP_KEY", ""),
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
-                            project_id  : tclDemoGradleProperties.getProperty("TCL_PROJECT_ID", "0")
+                            tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4owsqw9j3Y1AnhbAOJWhOOU0L2PnLfCGJ39cXus/jcmTHJ2CPvE0qclHv3OimV+X5AA==",
+                            partner_name: "chhkj_1",
+                            project_id  : "178"
                     ]
             ])
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
@@ -537,7 +532,7 @@ android {
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4o1SQ1d07BhIs/JKPvfJNzXyOaaicCHs/Hkq+SueLLlZu9utcc6L7VtXArniSHijRXQ==",
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            partner_name: "chhkj_1",
                             project_id  : "206"
                     ]
             ])
@@ -558,7 +553,7 @@ android {
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4o4+Ecwg3JX5EWmSKpnM980Rn13sY2Vs2lgrh7IMWn9E/ZwjmKylW/ecd4j+ig1h1bA==",
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            partner_name: "chhkj_1",
                             project_id  : "212"
                     ]
             ])
@@ -600,7 +595,7 @@ android {
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4ozBQ9R7s+c9YKNfnDXO7YU6HQyXLqbQmkuewfQq+iHr3sCPstyoNJvxaWzBWH12JaA==",
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            partner_name: "chhkj_1",
                             project_id  : "190"
                     ]
             ])
@@ -621,7 +616,7 @@ android {
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4ozBQ9R7s+c9YKNfnDXO7YU6HQyXLqbQmkuewfQq+iHr3sCPstyoNJvxaWzBWH12JaA==",
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            partner_name: "chhkj_1",
                             project_id  : "190"
                     ]
             ])
@@ -691,8 +686,8 @@ android {
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
-                    versionCode         : 8,
-                    versionName         : "1.0.7",
+                    versionCode         : 9,
+                    versionName         : "1.0.8",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP",
@@ -700,10 +695,12 @@ android {
                     model               : "GOOGLE_AD_TV_DESKTOP",
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
-                            share_uid   : ""
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
         google_ad_tv_desktop_jm {
@@ -718,17 +715,19 @@ android {
                     model               : "GOOGLE_AD_TV_DESKTOP_JM",
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
-                            share_uid   : ""
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
         google_ad_tv_lockscreen {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.chihim.lockscreentv.play",
-                    versionCode         : 5,
-                    versionName         : "1.0.1",
+                    versionCode         : 6,
+                    versionName         : "1.0.2",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_LOCKSCREEN",
@@ -736,10 +735,12 @@ android {
                     model               : "GOOGLE_AD_TV_LOCKSCREEN",
                     backupDomain        : "https://api.bcytua.cc/",
                     manifestPlaceholders: [
-                            share_uid: ""
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~2413450468"
                     ]
             ])
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
         tcl_poly {
@@ -756,7 +757,7 @@ android {
                     manifestPlaceholders: [
                             share_uid   : "",
                             tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4ozBQ9R7s+c9YKNfnDXO7YU6HQyXLqbQmkuewfQq+iHr3sCPstyoNJvxaWzBWH12JaA==",
-                            partner_name: tclDemoGradleProperties.getProperty("TCL_PARTNER_NAME", ""),
+                            partner_name: "chhkj_1",
                             project_id  : "190"
                     ]
             ])
@@ -957,16 +958,19 @@ dependencies {
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktopImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_jmImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_lockscreenImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
 
     if (tclDemoLibsDir.exists()) {
         hq008Implementation fileTree(dir: tclDemoLibsDir, include: [

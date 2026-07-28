@@ -2,7 +2,7 @@ package com.smart.android.ad_app
 
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.bean.EmptyData
 import com.google.gson.Gson
 import com.speed.ext.getMacAddress
@@ -198,8 +198,35 @@ internal object Hq008AdReporter {
             "deviceModel" to Build.MODEL.orEmpty(),
             "deviceMake" to Build.MANUFACTURER.orEmpty()
         )
-        payload.putAll(extra)
+        payload.putAll(sanitizeExtra(extra))
         return gson.toJson(payload)
+    }
+
+    private fun sanitizeExtra(extra: Map<String, Any?>): Map<String, Any?> {
+        val sanitized = linkedMapOf<String, Any?>()
+        extra.forEach { (key, value) ->
+            if (shouldHashValue(key, value)) {
+                val raw = value as String
+                sanitized["${key}Hash"] = AdPrivacySanitizer.shortHash(raw)
+                sanitized["${key}Length"] = AdPrivacySanitizer.length(raw)
+            } else {
+                sanitized[key] = value
+            }
+        }
+        return sanitized
+    }
+
+    private fun shouldHashValue(key: String, value: Any?): Boolean {
+        if (value !is String || value.isBlank()) {
+            return false
+        }
+        val normalizedKey = key.lowercase()
+        if (normalizedKey.endsWith("hash") || normalizedKey.endsWith("length")) {
+            return false
+        }
+        return normalizedKey == "adtagurl" ||
+            normalizedKey.endsWith("url") ||
+            value.contains("://")
     }
 
     private fun resolveDeviceId(): String {

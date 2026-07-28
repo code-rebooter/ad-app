@@ -1,6 +1,6 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tcl.ff.component.overseahttp.http.HttpRequester

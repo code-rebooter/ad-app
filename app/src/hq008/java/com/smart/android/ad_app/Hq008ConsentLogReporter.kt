@@ -1,7 +1,7 @@
 package com.smart.android.ad_app
 
 import android.os.SystemClock
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.smart.android.ad_app.bean.EmptyData
@@ -297,6 +297,7 @@ internal object Hq008ConsentLogReporter {
         val startedSummary = if (hasEvent(steps, "AD_STARTED")) "开始播放=已回调" else "开始播放=未回调"
         val hiddenSummary = hidden?.let { "隐藏模式=${translateBooleanToken(it)}" }
         val requestSummary = requestId?.let { "请求ID=$it" }
+        val umpSummary = buildUmpAdFlowSummary(steps)
         val stageSummary = stage?.let { "阶段=${translateStageToken(it)}" }
         val reasonSummary = reason?.let { "原因=${translateReasonToken(it)}" }
         val rawErrorDetails = buildList {
@@ -339,6 +340,7 @@ internal object Hq008ConsentLogReporter {
             "广告阶段=已进入",
             requestSummary,
             hiddenSummary,
+            umpSummary,
             requestedSummary,
             loadedSummary,
             startedSummary,
@@ -353,6 +355,29 @@ internal object Hq008ConsentLogReporter {
             eventMessage = summaryMessage,
             adLog = null
         )
+    }
+
+    private fun buildUmpAdFlowSummary(steps: List<TraceStep>): String? {
+        if (!hasEvent(steps, "UMP_STATUS_AFTER_AUTHORIZED")) {
+            return null
+        }
+        val gdpr = findLastValue(steps, "UMP_STATUS_AFTER_AUTHORIZED", "gdpr")
+            ?.takeIf { it.isNotBlank() }
+            ?: "unknown"
+        val status = findLastValue(steps, "UMP_STATUS_AFTER_AUTHORIZED", "status")
+            ?.takeIf { it.isNotBlank() }
+            ?: "unknown"
+        val canRequestAds = findLastValue(steps, "UMP_STATUS_AFTER_AUTHORIZED", "canRequestAds")
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::translateBooleanToken)
+            ?: "未知"
+        val privacyOptions = findLastValue(steps, "UMP_STATUS_AFTER_AUTHORIZED", "privacyOptions")
+            ?.takeIf { it.isNotBlank() }
+            ?: "UNKNOWN"
+        val tcLength = findLastValue(steps, "UMP_STATUS_AFTER_AUTHORIZED", "tcLen")
+            ?.takeIf { it.isNotBlank() }
+            ?: "0"
+        return "UMP状态=可请求广告$canRequestAds，gdpr=$gdpr，status=$status，privacy=$privacyOptions，TC长度=$tcLength"
     }
 
     private fun buildFlowSummaryStep(
@@ -704,6 +729,19 @@ internal object Hq008ConsentLogReporter {
             "tcLength" -> "TC长度"
             "hasNewCampaign" -> "有新活动"
             "fallback" -> "兜底动作"
+            "sdk" -> "SDK"
+            "sdkEntry" -> "SDK入口"
+            "canRequestAds" -> "UMP允许请求广告"
+            "formAvailable" -> "UMP表单可用"
+            "privacyOptions" -> "隐私选项状态"
+            "gdpr" -> "GDPR适用"
+            "status" -> "UMP状态"
+            "tcLen" -> "TC长度"
+            "purposeLen" -> "目的同意串长度"
+            "vendorLen" -> "供应商同意串长度"
+            "consentMode" -> "Google ConsentMode"
+            "adTagUrlHash" -> "广告链接哈希"
+            "adTagUrlLength" -> "广告链接长度"
             else -> key
         }
     }
@@ -732,6 +770,8 @@ internal object Hq008ConsentLogReporter {
             "payload",
             "hasData",
             "hidden",
+            "canRequestAds",
+            "formAvailable",
             "hasNewCampaign" -> translateBooleanToken(value)
             "action",
             "remoteAction",
@@ -816,6 +856,12 @@ internal object Hq008ConsentLogReporter {
             value == "authorize_denied" -> "授权拒绝后结束"
             value == "authorize_fail" -> "授权失败后结束"
             value == "authorize_empty" -> "授权返回为空后结束"
+            value == "ump_cannot_request_ads" -> "UMP 不允许请求广告"
+            value == "gam_config_network_failed" -> "GAM 配置请求失败"
+            value == "gam_config_unavailable" -> "GAM 配置无可用广告"
+            value == "vast_player_failed" -> "VAST 播放器失败"
+            value == "request_timeout" -> "广告请求超时"
+            value == "request_ad_failed" -> "广告请求发起失败"
             value.startsWith("campaign_") -> "活动侧${translateReasonToken(value.removePrefix("campaign_"))}"
             value.startsWith("request_error:") -> "请求失败:${normalizeErrorToken(value.removePrefix("request_error:"))}"
             value.startsWith("unknown_action:") -> "未知动作:${translateActionToken(value.removePrefix("unknown_action:"))}"
@@ -830,10 +876,16 @@ internal object Hq008ConsentLogReporter {
             "container_post" -> "容器投递"
             "controller_start" -> "开始播放"
             "ad_request" -> "广告请求"
+            "request_ad" -> "广告请求"
             "sdk_callback" -> "SDK 回调"
             "container_size" -> "容器尺寸"
             "callback_timeout" -> "回调等待"
+            "request_timeout" -> "请求超时"
             "window_destroy" -> "窗口销毁"
+            "consent_container_prepare" -> "UMP 容器准备"
+            "ump_consent" -> "UMP 同意状态"
+            "config_container_prepare" -> "GAM 配置容器准备"
+            "vast_player" -> "VAST 播放器"
             else -> translateGenericToken(value)
         }
     }

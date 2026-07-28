@@ -3,6 +3,7 @@ package com.smart.android.ad_app
 import android.content.Context
 import android.os.Process
 import android.os.UserHandle
+import com.smart.android.ad_app.AdLocalLog as Log
 
 /**
  * 给指定包名的应用授权指定的权限
@@ -27,7 +28,7 @@ fun Context.grantPermission(packageName: String, permission: String) {
         method.invoke(pm, packageName, permission, Process.myUserHandle())
 
     } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e("PermissionExt", "grant permission failed: ${e.message}", e)
     }
 }
 

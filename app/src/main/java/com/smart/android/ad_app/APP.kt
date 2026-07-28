@@ -6,7 +6,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Process
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.speed.AppManager
 import java.io.File
 

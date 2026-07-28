@@ -1,7 +1,7 @@
 package com.smart.android.ad_app
 
 import android.view.ViewGroup
-import com.google.android.exoplayer2.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.tcl.ff.component.vastad.Ad
 import com.tcl.ff.component.vastad.Controller
 import com.tcl.ff.component.vastad.Initialization
@@ -10,7 +10,7 @@ import com.tcl.ff.component.vastad.core.callbacks.AdStatusListener
 object TclVastAdHelper {
 
     fun init(initLogLabel: String) {
-        println(initLogLabel)
+        adDebugPrintln(initLogLabel)
         Initialization.init(appContext)
     }
 

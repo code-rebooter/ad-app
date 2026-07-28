@@ -1,9 +1,8 @@
 package com.smart.android.ad_app
 
 import android.content.Context
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.speed.ext.isNetworkAvailable
-import com.speed.log.printLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,14 +45,14 @@ object AdRuntimeCoordinator {
                 Log.i(TAG, "正式链路：运行协调器进入主流程，flavor=${BuildConfig.FLAVOR}，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}")
                 ForegroundAppWatcher.start(appContext) { packageName ->
                     Log.i(TAG, "正式链路：监听到前台目标应用变化，packageName=$packageName，准备请求开屏广告")
-                    "当前打开的应用包名: $packageName".printLog()
+                    "当前打开的应用包名: $packageName".adDebugPrintLog()
                     AdConfigManager.getAdConfig(AdType.SPLASH)
                 }
 
                 val initialDelayMs = ScheduleManagerImpl.handlerInitialDelayTime().coerceAtLeast(0)
                 if (initialDelayMs > 0) {
                     Log.i(TAG, "正式链路：在启动定时调度前先等待 ${initialDelayMs}ms，避免进程刚启动就立刻请求广告")
-                    "Ad开始延迟 HandlerTaskScheduler 任务".printLog()
+                    "Ad开始延迟 HandlerTaskScheduler 任务".adDebugPrintLog()
                     delay(initialDelayMs)
                 }
 
@@ -66,12 +65,12 @@ object AdRuntimeCoordinator {
     private suspend fun waitForNetwork(context: Context) {
         while (currentCoroutineContext().isActive && !context.isNetworkAvailable()) {
             Log.w(TAG, "正式链路：当前网络不可用，等待恢复后再继续初始化广告能力")
-            "网络不可用，等待中...".printLog()
+            "网络不可用，等待中...".adDebugPrintLog()
             delay(networkRetryDelayMs)
         }
         if (context.isNetworkAvailable()) {
             Log.i(TAG, "正式链路：网络已恢复可用，继续执行广告初始化任务")
-            "网络正常，执行启动任务".printLog()
+            "网络正常，执行启动任务".adDebugPrintLog()
         }
     }
 }

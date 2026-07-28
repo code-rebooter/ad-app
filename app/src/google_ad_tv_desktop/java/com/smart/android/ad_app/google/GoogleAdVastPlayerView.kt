@@ -5,7 +5,7 @@ import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.widget.FrameLayout
 import androidx.core.net.toUri
 import androidx.media3.common.PlaybackException
@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.source.SilenceMediaSource
 import androidx.media3.exoplayer.source.ads.AdsMediaSource
 import androidx.media3.ui.PlayerView
 import com.google.ads.interactivemedia.v3.api.AdEvent
+import com.smart.android.ad_app.AdPrivacySanitizer
 
 @UnstableApi
 class GoogleAdVastPlayerView @JvmOverloads constructor(
@@ -57,7 +58,8 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     var onAdLoaded: (() -> Unit)? = null
     var onAdStarted: (() -> Unit)? = null
     var onAdFirstFrameRendered: (() -> Unit)? = null
-    var onAdFinished: (() -> Unit)? = null
+    var onAdFinished: ((String) -> Unit)? = null
+    var onAdSkipped: ((String) -> Unit)? = null
     var onAdFailed: ((String) -> Unit)? = null
 
     init {
@@ -86,7 +88,11 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
             adTagUrl = adTagUrl,
             adsId = "google_ad_tv_desktop_${System.currentTimeMillis()}"
         )
-        Log.i(TAG, "Requesting VAST ad: $adTagUrl")
+        Log.i(
+            TAG,
+            "Requesting VAST ad: adTagUrlHash=${AdPrivacySanitizer.shortHash(adTagUrl)}," +
+                "adTagUrlLength=${AdPrivacySanitizer.length(adTagUrl)}"
+        )
         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         mainHandler.postDelayed(
             adStartupTimeoutRunnable,
@@ -132,10 +138,16 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
                         }
                     }
                     AdEvent.AdEventType.COMPLETED,
-                    AdEvent.AdEventType.ALL_ADS_COMPLETED,
+                    AdEvent.AdEventType.ALL_ADS_COMPLETED -> {
+                        if (adStarted) {
+                            finishOnce(event.type.name)
+                        } else {
+                            failOnce("Ad did not start before content resumed")
+                        }
+                    }
                     AdEvent.AdEventType.SKIPPED -> {
                         if (adStarted) {
-                            finishOnce()
+                            skipOnce(event.type.name)
                         } else {
                             failOnce("Ad did not start before content resumed")
                         }
@@ -234,12 +246,20 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         playbackPlayer = null
     }
 
-    private fun finishOnce() {
+    private fun finishOnce(terminalEvent: String) {
         if (hasFinished) return
         hasFinished = true
         mainHandler.removeCallbacks(adStartupTimeoutRunnable)
-        Log.i(TAG, "Ad flow finished")
-        onAdFinished?.invoke()
+        Log.i(TAG, "Ad flow finished: terminalEvent=$terminalEvent")
+        onAdFinished?.invoke(terminalEvent)
+    }
+
+    private fun skipOnce(terminalEvent: String) {
+        if (hasFinished) return
+        hasFinished = true
+        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
+        Log.w(TAG, "Ad flow skipped: terminalEvent=$terminalEvent")
+        onAdSkipped?.invoke(terminalEvent)
     }
 
     private fun failOnce(message: String) {

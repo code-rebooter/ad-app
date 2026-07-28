@@ -1,6 +1,6 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.ViewGroup
 import com.zykj.vastplayer.manager.ZyVideoAd
 
@@ -12,7 +12,7 @@ object AdManagerImpl : IAdManager {
     private const val placementId = "3"
 
     override fun init() {
-        println("hq003的广告初始化")
+        adDebugPrintln("hq003的广告初始化")
     }
 
     override fun showAd(

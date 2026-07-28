@@ -1,7 +1,7 @@
 package com.smart.android.ad_app
 
 import android.os.Build
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 
 internal object HaierUserAgentInstaller {
 

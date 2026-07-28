@@ -9,7 +9,7 @@ import com.sjkj.ad.listener.AdPlayListener
 object AdManagerImpl : IAdManager {
     override fun init() {
         //广告初始化
-        println("hq004的广告初始化")
+        adDebugPrintln("hq004的广告初始化")
         val config = com.sjkj.ad.common.AdConfig.Builder()
             .appId("AD_SZ_20241213_9949413184") //appId，由sdk提供⽅分配
             .isDebug(BuildConfig.DEBUG) //可选，是否为debug模式，debug模式时会打印更多log，供调试
@@ -26,7 +26,7 @@ object AdManagerImpl : IAdManager {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        println("hq004的广告展示")
+        adDebugPrintln("hq004的广告展示")
         val adView = AdViewDynamic(appContext)
          manager = AdPlayManager()
         manager?.playAd(adView, object : AdPlayListener{

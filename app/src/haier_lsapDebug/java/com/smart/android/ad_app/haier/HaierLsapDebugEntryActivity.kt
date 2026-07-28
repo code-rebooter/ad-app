@@ -7,7 +7,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.KeyEvent
 import android.widget.FrameLayout
 import android.widget.TextView

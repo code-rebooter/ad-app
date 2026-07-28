@@ -1,6 +1,6 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.Position

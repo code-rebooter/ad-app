@@ -2,8 +2,7 @@ package com.smart.android.ad_app
 
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
-import com.speed.log.printLog
+import com.smart.android.ad_app.AdLocalLog as Log
 import com.speed.task.scheduler.TaskScheduler
 
 object HandlerAdTaskScheduler : TaskScheduler {
@@ -17,7 +16,7 @@ object HandlerAdTaskScheduler : TaskScheduler {
     override fun startOrUpdateTask(newInterval: Long?) {
         val intervalSeconds = newInterval?.takeIf { it > 0 } ?: run {
             Log.e(TAG, "Invalid interval: ${newInterval ?: 0}")
-            "AdHandlerTaskScheduler 启动失败，非法间隔: ${newInterval ?: 0}".printLog()
+            "AdHandlerTaskScheduler 启动失败，非法间隔: ${newInterval ?: 0}".adDebugPrintLog()
             shutdown()
             return
         }
@@ -26,12 +25,12 @@ object HandlerAdTaskScheduler : TaskScheduler {
             val runnable = taskRunnable
             if (runnable != null && currentIntervalSeconds == intervalSeconds) {
                 Log.i(TAG, "Already running with interval=${intervalSeconds}s")
-                "AdHandlerTaskScheduler 已运行，保持间隔: $intervalSeconds 秒".printLog()
+                "AdHandlerTaskScheduler 已运行，保持间隔: $intervalSeconds 秒".adDebugPrintLog()
                 return
             }
 
             Log.i(TAG, "Start scheduler interval=${intervalSeconds}s")
-            "AdHandlerTaskScheduler 启动，间隔: $intervalSeconds 秒".printLog()
+            "AdHandlerTaskScheduler 启动，间隔: $intervalSeconds 秒".adDebugPrintLog()
             val isFirstStart = runnable == null
             runnable?.let(handler::removeCallbacks)
 
@@ -50,7 +49,7 @@ object HandlerAdTaskScheduler : TaskScheduler {
                         Hq008LocalSchedulePolicy.markFloatingPollTriggered()
                     }
                     Log.i(TAG, "Run periodic task at=${System.currentTimeMillis()}")
-                    "AdHandlerTaskScheduler 开始执行周期任务: ${System.currentTimeMillis()}".printLog()
+                    "AdHandlerTaskScheduler 开始执行周期任务: ${System.currentTimeMillis()}".adDebugPrintLog()
                     AdConfigManager.getAdConfig(AdType.FLOATING)
 
                     val nextIntervalSeconds: Long?

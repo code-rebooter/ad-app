@@ -11,7 +11,6 @@ import android.view.*
 import androidx.core.net.toUri
 import androidx.viewbinding.ViewBinding
 import com.smart.android.ad_app.bean.Position
-import com.speed.log.printLog
 import java.lang.ref.WeakReference
 import java.lang.reflect.ParameterizedType
 import java.util.UUID
@@ -140,7 +139,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
         if (isShowing || !hasOverlayPermission()) {
-            "W: Cannot show: already showing or no overlay permission".printLog()
+            "W: Cannot show: already showing or no overlay permission".adDebugPrintLog()
             return
         }
 
@@ -164,11 +163,11 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 }
                 onWindowShown()
             } catch (e: SecurityException) {
-                "E: Failed to show window: permission denied - ${e.message}".printLog()
+                "E: Failed to show window: permission denied - ${e.message}".adDebugPrintLog()
                 isShowing = false
                 onPermissionDenied()
             }
-        } ?: run { "W: Root view is null, cannot show".printLog() }
+        } ?: run { "W: Root view is null, cannot show".adDebugPrintLog() }
     }
 
     /**
@@ -233,11 +232,11 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             }
             flags = if (config.isFocusable) {
-                "设置了获取焦点".printLog()
+                "设置了获取焦点".adDebugPrintLog()
                 (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             } else {
-                "设置了不获取焦点".printLog()
+                "设置了不获取焦点".adDebugPrintLog()
                 (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
@@ -367,7 +366,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
             instances.remove(config.id)
         }
         onWindowDestroyed()
-        "D: Floating window with id=${config.id} destroyed".printLog()
+        "D: Floating window with id=${config.id} destroyed".adDebugPrintLog()
     }
 
     companion object {
@@ -383,7 +382,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 }
                 instances.clear()
             }
-            "D: All floating windows closed".printLog()
+            "D: All floating windows closed".adDebugPrintLog()
         }
 
         /**
@@ -394,7 +393,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
                 instances[id]?.get()?.destroy()
                 instances.remove(id)
             }
-            "D: Floating window with id=$id closed".printLog()
+            "D: Floating window with id=$id closed".adDebugPrintLog()
         }
     }
 
@@ -407,7 +406,7 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
         } catch (_: IllegalArgumentException) {
             // View may already be removed by the system or a previous teardown path.
         } catch (e: Exception) {
-            "E: Failed to remove window - ${e.message}".printLog()
+            "E: Failed to remove window - ${e.message}".adDebugPrintLog()
         } finally {
             isShowing = false
             if (!hasDispatchedWindowHidden) {

@@ -1,6 +1,6 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.AdLocalLog as Log
 import java.io.BufferedReader
 
 internal object AdChannelResolver {

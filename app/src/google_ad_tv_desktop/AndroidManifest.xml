@@ -32,6 +32,17 @@
         android:usesCleartextTraffic="true"
         tools:replace="android:allowBackup">
 
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${ump_app_id}" />
+
+        <activity
+            android:name=".GoogleUmpConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="${ump_consent_activity_exported}"
+            android:launchMode="singleTop"
+            android:theme="@style/GoogleUmpConsentHostTheme" />
+
         <provider
             android:name=".AdProvider"
             android:authorities="${applicationId}.adprovider"

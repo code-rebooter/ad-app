@@ -6,6 +6,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import com.smart.android.ad_app.AdConfigManager
+import com.smart.android.ad_app.adDebugPrintln
 import java.lang.ref.WeakReference
 
 /**
@@ -37,7 +38,7 @@ object RtbAds {
 
     private fun debugLog(message: String) {
         if (isDebugMode) {
-            println(message)
+            adDebugPrintln(message)
         }
     }
 

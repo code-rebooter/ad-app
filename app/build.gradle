@@ -625,9 +625,9 @@ android {
 
         haier_lsap {
             applyCommonFlavorConfig(delegate, [
-                    applicationId       : "com.google.android.adhaierlsap",
-                    versionCode         : 5,
-                    versionName         : "1.0.5",
+                    applicationId       : "com.google.android.adengine",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
                     signingConfig       : signingConfigs.haierLsapRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "HAIER_LSAP",
@@ -785,9 +785,9 @@ android.applicationVariants.configureEach { variant ->
 def lsapPatchedAarSpecs = [
         haier_lsap : [
                 task  : "patchHaierLsapAar",
-                input : "libs/haier_lsap/lsapsdk-com.google.android.adhaierlsap-1.1.12.aar",
-                output: "generated/lsap-patched/haier_lsap/lsapsdk-com.google.android.adhaierlsap-1.1.12-patched.aar",
-                sha256: "2c405af3f7ba41c78baa8213992040f835db998a877c83cc0be64cc648d4ee6c"
+                input : "libs/haier_lsap/lsapsdk-com.google.android.adengine-270729.aar",
+                output: "generated/lsap-patched/haier_lsap/lsapsdk-com.google.android.adengine-270729-patched.aar",
+                sha256: "233ea5eea8862f71e2af086f1bd71944852941485b3319476d2df0582dc31cea"
         ],
         addy_hq1002: [
                 task  : "patchAddyHq1002LsapAar",

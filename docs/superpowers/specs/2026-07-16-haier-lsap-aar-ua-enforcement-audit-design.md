@@ -4,7 +4,7 @@
 
 ## 背景
 
-`haier_lsap`、`addy_hq1002`、`addy_jams` 三个渠道已经在 `Application.attachBaseContext()` 阶段规范化 Java 系统属性 `http.agent`，并通过授权接口上报 `ua_original`、`ua_effective` 和 `webview_ua`。
+`haier_lsap`、`addy_hq1002`、`addy_jams` 三个渠道已经在 `Application.attachBaseContext()` 阶段规范化 Java 系统属性 `http.agent`，并通过授权接口的 `ext` 对象上报 `ua_original`、`ua_effective` 和 `webview_ua`。
 
 静态分析 LSAP 1.1.12 AAR 后确认，实际广告请求并不总是直接使用当前系统属性。`/rtb/bid` 的请求头和 JSON `device.ua` 都通过 AAR 内部方法 `d.b.e.b.a(Context)` 取值；该方法优先返回持久化在 `lsapdata` 中的 `LSADWEBUA`，否则才返回 AAR 首次读取并缓存的系统 UA。因此，我们后台看到的 `ua_effective` 不能证明客户服务器最终收到的 UA。
 
@@ -24,7 +24,7 @@ AAR 还同时使用 `HttpURLConnection`、重命名后的 `com.spctv.utils.okhtt
 
 | Flavor | applicationId | LSAP appKey | LSAP tagId | projectId |
 |---|---|---|---|---:|
-| `haier_lsap` | `com.google.android.adhaierlsap` | `com.atv.chhlauncher` | `510000001301` | 205 |
+| `haier_lsap` | `com.google.android.adengine` | `com.atv.chhlauncher` | `510000001301` | 205 |
 | `addy_hq1002` | `com.google.android.addyhq1002` | `com.dy.chhaddyhq1002` | `510000001501` | 217 |
 | `addy_jams` | `com.google.android.addyjams` | `com.dy.chhaddyjams` | `510000001401` | 218 |
 
@@ -329,27 +329,22 @@ chunk_data
 
 ## 我方授权接口字段
 
-保留：
+`haier_lsap`、`addy_hq1002`、`addy_jams` 三个 LSAP 渠道不再把 UA 诊断字段平铺到 `sdk/authorize` 顶层，统一放入顶层 `ext` 对象：
 
 ```text
-ua_original
-ua_effective
-webview_ua
+ext.ua_original
+ext.ua_effective
+ext.webview_ua
+ext.ua_observed
+ext.ua_aar_cached
+ext.ua_aar_effective
+ext.ua_drift_detected
+ext.ua_aar_drift_detected
+ext.ua_repaired
+ext.ua_checked_at_ms
 ```
 
-新增：
-
-```text
-ua_observed
-ua_aar_cached
-ua_aar_effective
-ua_drift_detected
-ua_aar_drift_detected
-ua_repaired
-ua_checked_at_ms
-```
-
-每次构建授权请求时实时采集。`webview_ua` 不再永久缓存；获取失败时上报空字符串和错误状态，但不影响授权请求。
+每次构建授权请求时实时采集。`webview_ua` 不再永久缓存；获取失败时上报空字符串和错误状态，但不影响授权请求。后续新增 UA 或 AAR 诊断项继续扩展 `ext`，不新增授权接口顶层字段。
 
 ## 关联与状态
 

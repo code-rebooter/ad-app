@@ -73,7 +73,7 @@ class HaierUserAgentReportCollectorTest {
     }
 
     @Test
-    fun `authorize fields contain user agents and runtime audit state for supported channels`() {
+    fun `authorize fields wrap user agent diagnostics in ext for supported channels`() {
         val fields = HaierUserAgentAuthorizeFields.build(
             flavor = "haier_lsap",
             fallbackEffectiveUa = "fallback"
@@ -81,25 +81,34 @@ class HaierUserAgentReportCollectorTest {
             HaierUserAgentReport(
                 originalUa = "original",
                 effectiveUa = "effective",
-                webViewUa = "webview"
+                webViewUa = "webview",
+                observedUa = "observed",
+                aarCachedUa = "cached",
+                aarEffectiveUa = "aar-effective",
+                driftDetected = true,
+                aarDriftDetected = true,
+                repaired = true,
+                checkedAtMs = 123L
             )
         }
 
+        val ext = fields["ext"] as? Map<*, *> ?: error("supported channel should send diagnostics in ext")
         assertEquals(
             linkedMapOf(
                 "ua_original" to "original",
                 "ua_effective" to "effective",
                 "webview_ua" to "webview",
-                "ua_observed" to "effective",
-                "ua_aar_cached" to "",
-                "ua_aar_effective" to "effective",
-                "ua_drift_detected" to "false",
-                "ua_aar_drift_detected" to "false",
-                "ua_repaired" to "false",
-                "ua_checked_at_ms" to "0"
+                "ua_observed" to "observed",
+                "ua_aar_cached" to "cached",
+                "ua_aar_effective" to "aar-effective",
+                "ua_drift_detected" to true,
+                "ua_aar_drift_detected" to true,
+                "ua_repaired" to true,
+                "ua_checked_at_ms" to 123L
             ),
-            fields
+            ext
         )
+        assertEquals(setOf("ext"), fields.keys)
     }
 
     @Test
@@ -126,9 +135,13 @@ class HaierUserAgentReportCollectorTest {
             val fields = HaierUserAgentAuthorizeFields.build(flavor, "fallback") {
                 HaierUserAgentReport("original", "effective", "webview")
             }
-            assertTrue("$flavor should report original UA", fields.containsKey("ua_original"))
-            assertTrue("$flavor should report effective UA", fields.containsKey("ua_effective"))
-            assertTrue("$flavor should report WebView UA", fields.containsKey("webview_ua"))
+            val ext = fields["ext"] as? Map<*, *> ?: error("$flavor should report diagnostics in ext")
+            assertFalse("$flavor should not report original UA at top level", fields.containsKey("ua_original"))
+            assertFalse("$flavor should not report effective UA at top level", fields.containsKey("ua_effective"))
+            assertFalse("$flavor should not report WebView UA at top level", fields.containsKey("webview_ua"))
+            assertTrue("$flavor should report original UA in ext", ext.containsKey("ua_original"))
+            assertTrue("$flavor should report effective UA in ext", ext.containsKey("ua_effective"))
+            assertTrue("$flavor should report WebView UA in ext", ext.containsKey("webview_ua"))
         }
     }
 }

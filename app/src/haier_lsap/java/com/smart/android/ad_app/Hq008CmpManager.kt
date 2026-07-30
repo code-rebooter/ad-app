@@ -32,6 +32,8 @@ object Hq008CmpManager {
         onComplete()
     }
 
+    fun canContinueAfterRemoteDecision(): Boolean = true
+
     fun getConsentString(): String? = null
 
     fun isConsentExpired(context: Context): Boolean = false

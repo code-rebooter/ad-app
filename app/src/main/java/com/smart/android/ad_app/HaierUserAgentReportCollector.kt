@@ -85,23 +85,24 @@ internal object HaierUserAgentAuthorizeFields {
         flavor: String,
         fallbackEffectiveUa: String?,
         reportProvider: () -> HaierUserAgentReport
-    ): Map<String, String> {
+    ): Map<String, Any> {
         if (!HaierUserAgentInstaller.supportsFlavor(flavor)) {
             return linkedMapOf("ua" to fallbackEffectiveUa.orEmpty())
         }
 
         val report = reportProvider()
-        return linkedMapOf(
+        val ext = linkedMapOf<String, Any>(
             "ua_original" to report.originalUa,
             "ua_effective" to report.effectiveUa,
             "webview_ua" to report.webViewUa,
             "ua_observed" to report.observedUa,
             "ua_aar_cached" to report.aarCachedUa,
             "ua_aar_effective" to report.aarEffectiveUa,
-            "ua_drift_detected" to report.driftDetected.toString(),
-            "ua_aar_drift_detected" to report.aarDriftDetected.toString(),
-            "ua_repaired" to report.repaired.toString(),
-            "ua_checked_at_ms" to report.checkedAtMs.toString()
+            "ua_drift_detected" to report.driftDetected,
+            "ua_aar_drift_detected" to report.aarDriftDetected,
+            "ua_repaired" to report.repaired,
+            "ua_checked_at_ms" to report.checkedAtMs
         )
+        return linkedMapOf("ext" to ext)
     }
 }

@@ -1,7 +1,7 @@
 
 # LSAP AAR 补丁维护指南
 
-本文档用于供应商发布新版 LSAP AAR 后，重新生成 patched AAR、重新构建 APK，并验证 UA、设备型号和网络审计仍然生效。
+本文档用于供应商发布新版 LSAP AAR 后，重新生成 patched AAR、重新构建 APK，并验证 UA、设备型号、网络审计和运行时动态停用能力仍然生效。
 
 适用渠道：
 
@@ -36,7 +36,7 @@ APK
 2. 原始 AAR 的 so、资源和其他文件不会被删除或替换。
 3. patched AAR 中的 SDK class 会调用 APK 内的 HaierAarRuntimeBridge。
 4. patched AAR 不能脱离当前 APK 的桥接类单独使用。
-5. Titan native、so 和远程 Dex 没有被关闭；当前只包裹它们的 Java 入口，native/Dex 内部网络标记为未验证。
+5. Titan native、so 和远程 Dex 的 Java 入口会进入桥接层；运行时总闸关闭时这些 Java 入口会被 no-op 或直接阻断。native/Dex 内部自行创建的网络仍标记为未验证。
 
 ## 2. 代码位置
 
@@ -52,11 +52,12 @@ APK
 
 | 文件 | 作用 |
 | --- | --- |
-| app/src/haier_lsap/java/com/smart/android/ad_app/HaierAarRuntimeBridge.kt | AAR 调用的总桥接入口 |
+| app/src/haier_lsap/java/com/smart/android/ad_app/HaierAarRuntimeBridge.kt | AAR 调用的总桥接入口，维护运行时总闸 |
 | HaierAarOkHttpAudit.kt | 标准 OkHttp 最终请求边界 |
 | HaierAarUrlConnectionAudit.kt | URLConnection 请求生命周期 |
 | HaierAarWebViewAudit.kt | WebView UA、URL、POST 和资源请求 |
 | HaierAarUaPayloadNormalizer.kt | JSON、表单、Query 中的 UA/型号 |
+| app/src/hq008/java/com/smart/android/ad_app/Hq008SdkFlowControlClient.kt | 将后台 flow-control 的 enabled 结果同步给 LSAP 运行时总闸 |
 | app/src/main/java/com/smart/android/ad_app/HaierUserAgentInstaller.kt | http.agent 安装和运行时复核 |
 | app/src/main/java/com/smart/android/ad_app/HaierUserAgentNormalizer.kt | SDK_INT 对应的规范 UA |
 | app/src/main/java/com/smart/android/ad_app/HaierDeviceModelNormalizer.kt | 通用占位型号判定 |
@@ -130,6 +131,11 @@ LsapAarPatchTask 的流程：
 | URLConnection 生命周期 | 对应 connect/getStream/getResponseCode/disconnect 桥接 | 请求、响应、错误审计 |
 | OkHttpClient.newCall | newOkHttpCall | 创建带最终拦截器的 OkHttp |
 | DatagramSocket.send | sendDatagram | 记录 UDP，不改变发送 |
+| Handler.post/postDelayed | postHandler/postDelayedHandler | 运行时总闸关闭后不再入队新 Handler 任务 |
+| Timer.schedule/scheduleAtFixedRate | scheduleTimer* | 运行时总闸关闭后不再入队新 Timer 任务 |
+| ScheduledExecutorService.schedule/scheduleAtFixedRate/scheduleWithFixedDelay | scheduleExecutor* | 运行时总闸关闭后不再入队新 ScheduledExecutor 任务 |
+| AlarmManager.set/setExact/setRepeating 等 | set*Alarm | 运行时总闸关闭后不再注册新 Alarm |
+| JobScheduler.schedule | scheduleJob | 运行时总闸关闭后不再注册新 Job |
 | d/b/e/n.b(String,String) | normalizeStoredValue | 修正 LSADWEBUA 等缓存值 |
 | shaded OkHttp Header builder | normalizeHeaderValue | 修正 shaded 请求头 |
 | shaded OkHttp 最终 chain | executeShadedRequest | shaded OkHttp 最终请求边界 |
@@ -290,7 +296,37 @@ URLConnection 桥接覆盖 openConnection、setRequestProperty、addRequestPrope
 
 WebView 桥接覆盖默认 UA、WebSettings UA、loadUrl、带 Header 的 loadUrl、postUrl 和 WebViewClient 资源请求。postUrl 的表单 Body 会被修正。
 
-## 8. 网络审计上报
+## 8. 运行时总闸和动态停用
+
+LSAP SDK 仍然按正常流程初始化。运行中是否允许它继续产生有效行为，由 `HaierAarRuntimeBridge` 内的运行时总闸决定。
+
+总闸状态来源：
+
+- `Hq008SdkFlowControlClient` 请求 `api/v2/ad/sdk/flow-control` 成功且 `enabled=true`：打开总闸。
+- `Hq008SdkFlowControlClient` 请求成功且 `enabled=false`：关闭总闸。
+- `Hq008SdkFlowControlClient` 请求失败：沿用现有业务策略按关闭处理，也会关闭总闸。
+
+总闸状态会写入 `lsapdata/CHIHIM_SDK_RUNTIME_ENABLED`。进程内使用 `AtomicBoolean` 保存当前状态，下一次 flow-control 成功返回 `enabled=true` 后会重新打开，因此这是可恢复的动态开关。
+
+总闸关闭后的行为：
+
+- OkHttp、shaded OkHttp、URLConnection、WebView、UDP 等网络出口会直接失败、返回空响应或 no-op，不再向第三方服务器发出有效请求。
+- Titan `System.load`、`System.loadLibrary`、`TitanSDK.nativeStart` 和指定动态 Dex `Method.invoke` 会在 Java 入口被拦截。
+- Handler、Timer、ScheduledExecutorService、AlarmManager、JobScheduler 的新调度会被 no-op 或返回已完成的占位结果。
+- 已经排队或已经启动的线程不会被物理取消；这些任务醒来后只要再次经过上述出口，就会被继续拦截。
+- 我方自己的 flow-control、authorize、consent-log-report、ad-report 不通过 AAR patched 出口，不会因为 LSAP 总闸关闭而被拦。
+
+审计事件：
+
+~~~text
+AAR_SDK_GATE_CHANGED
+AAR_SDK_GATE_BLOCKED
+AAR_HTTP_BLOCKED
+~~~
+
+`AAR_SDK_GATE_BLOCKED` 带 60 秒限流，避免后台关闸后定时任务密集醒来导致本地审计缓存被刷爆。
+
+## 9. 网络审计上报
 
 单条 HaierAarAuditEvent 的主要字段：
 
@@ -381,13 +417,13 @@ adLog.sdk_network_logs_compressed
 - 单次 trace 最大 256000 字符。
 - 普通 SDK 网络 Payload 超过 120000 字符时 gzip + Base64。
 
-## 9. 新 AAR 的重新打补丁流程
+## 10. 新 AAR 的重新打补丁流程
 
-### 9.1 替换原始 AAR
+### 10.1 替换原始 AAR
 
 新版 AAR 必须放在 app/libs/<flavor>/ 下。不要把新版 AAR 直接放进 build/generated/lsap-patched；那里是构建产物。
 
-### 9.2 更新输入路径和 SHA
+### 10.2 更新输入路径和 SHA
 
 ~~~bash
 shasum -a 256 app/libs/<flavor>/<new-aar>.aar
@@ -395,7 +431,7 @@ shasum -a 256 app/libs/<flavor>/<new-aar>.aar
 
 把输出 SHA 更新到 app/build.gradle 对应 flavor 的 sha256，同时更新 input 文件名。
 
-### 9.3 更新 SDK 版本元数据
+### 10.3 更新 SDK 版本元数据
 
 如果 SDK 从 1.1.12 变更，检查并同步：
 
@@ -406,7 +442,7 @@ shasum -a 256 app/libs/<flavor>/<new-aar>.aar
 
 如果三个渠道 SDK 版本不同，不要继续使用全局硬编码版本。
 
-### 9.4 执行 patch task
+### 10.4 执行 patch task
 
 ~~~bash
 ./gradlew :app:patchHaierLsapAar
@@ -416,7 +452,7 @@ shasum -a 256 app/libs/<flavor>/<new-aar>.aar
 
 只更新一个渠道时，只执行对应任务。
 
-### 9.5 检查 metadata
+### 10.5 检查 metadata
 
 ~~~bash
 for aar in app/build/generated/lsap-patched/haier_lsap/*.aar app/build/generated/lsap-patched/addy_hq1002/*.aar app/build/generated/lsap-patched/addy_jams/*.aar; do
@@ -432,9 +468,10 @@ done
 - targetFlavor 正确。
 - lsapSdkVersion 正确。
 - modifiedClasses 不低于当前基线。
-- 11 个 networkSurface 类别全部存在。
+- 基础 11 个 networkSurface 类别全部存在。
+- 如果当前 AAR 使用运行时调度 API，metadata 还应能看到 handlerSchedule、timerSchedule、scheduledExecutor、alarmSchedule 或 jobSchedule 等类别。
 
-11 个类别：
+基础 11 个类别：
 
 ~~~text
 systemProperty
@@ -450,7 +487,28 @@ udpSend
 spctvOkHttpFinal
 ~~~
 
-### 9.6 处理 patch 失败
+当前 `haier_lsap` `adengine-270729` AAR 的补丁输出基线：
+
+~~~text
+urlConnectionLifecycle:70
+urlOpenConnection:13
+okhttp3Call:5
+handlerSchedule:141
+jobSchedule:1
+udpSend:2
+webViewUa:4
+systemProperty:18
+scheduledExecutor:2
+timerSchedule:2
+spctvOkHttpFinal:1
+webViewNetwork:11
+dynamicDexInvoke:1
+alarmSchedule:3
+nativeLoad:1
+titanStart:1
+~~~
+
+### 10.6 处理 patch 失败
 
 #### SHA mismatch
 
@@ -476,7 +534,7 @@ jar tf /tmp/lsap-aar-check/classes.jar | sort
 
 先比较新旧 classes.jar 的 class 列表和调用面，再决定是否更新规则。
 
-### 9.7 构建正式 APK
+### 10.7 构建正式 APK
 
 ~~~bash
 ./gradlew :app:assembleHaier_lsapRelease :app:assembleAddy_hq1002Release :app:assembleAddy_jamsRelease
@@ -486,13 +544,13 @@ jar tf /tmp/lsap-aar-check/classes.jar | sort
 
 | 渠道 | versionCode | versionName |
 | --- | ---: | --- |
-| haier_lsap | 1 | 1.0.1 |
+| haier_lsap | 6 | 1.0.6 |
 | addy_hq1002 | 4 | 1.0.4 |
 | addy_jams | 8 | 1.0.8 |
 
 新版 AAR 必须进入新 APK；只生成 patched AAR 但不重打 APK，设备不会使用新逻辑。
 
-## 10. APK 和真机验证
+## 11. APK 和真机验证
 
 用 JADX 检查 APK 内桥接类：
 
@@ -507,6 +565,9 @@ PATCH_VERSION = lsap-full-network-audit-2
 executeShadedRequest
 newOkHttpCall
 openUrlConnection
+updateSdkEnabled
+postDelayedHandler
+scheduleExecutorAtFixedRate
 device model normalization
 ~~~
 
@@ -539,7 +600,14 @@ adb logcat -v threadtime -s HaierUaNormalizer HaierAarBridge HaierAarAudit Haier
 9. 一次流程是否只发送一次 consent-log-report。
 10. 是否仍有独立 AAR /api/v2/ad/report 审计上报。
 
-## 11. 已知限制
+动态停用建议额外检查：
+
+1. 后台 flow-control 返回 `enabled=false` 后，日志出现 `AAR_SDK_GATE_CHANGED enabled=false`。
+2. LSAP AAR 后续请求出现 `AAR_SDK_GATE_BLOCKED` 或 `AAR_HTTP_BLOCKED`。
+3. 后台 flow-control 下一次返回 `enabled=true` 后，日志出现 `AAR_SDK_GATE_CHANGED enabled=true`。
+4. gate 重新打开后，新的 LSAP 网络请求和新调度可以继续执行。
+
+## 12. 已知限制
 
 ### native 和远程 Dex
 
@@ -551,6 +619,10 @@ coverage=dynamic_dex_unverified
 ~~~
 
 这不等于 native so 或远程 Dex 内部每条网络请求都经过 Java 最终拦截。
+
+### 已经排队的定时任务
+
+运行时总闸关闭后，不会物理清理第三方 SDK 已经排队的 Handler 消息、TimerTask、Executor 任务、Alarm 或 Job。当前策略是拦截后续新调度，并在任务醒来执行网络、WebView、native 或动态 Dex 等出口时继续阻断。
 
 ### URLConnection 流式 Body
 
@@ -564,7 +636,7 @@ WebView 资源回调一般能获得 URL、方法和请求头，但不一定能�
 
 设备授权拒绝、流控关闭或没有进入广告 SDK 时，不会刷新客户侧 UA。分析异常必须结合 MAC、请求时间、应用版本和具体 URL。
 
-## 12. 回滚
+## 13. 回滚
 
 1. 保留旧原始 AAR 和 SHA。
 2. 恢复 app/build.gradle 中旧 input 和 sha256。
@@ -572,7 +644,7 @@ WebView 资源回调一般能获得 URL、方法和请求头，但不一定能�
 4. 重新构建 release APK。
 5. 用 AAR metadata 和 APK 中 PATCH_VERSION 确认回滚版本。
 
-## 13. 最短维护命令
+## 14. 最短维护命令
 
 ~~~bash
 # 1. 替换 app/libs/<flavor>/ 下原始 AAR

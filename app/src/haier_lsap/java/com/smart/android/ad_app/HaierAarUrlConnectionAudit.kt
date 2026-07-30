@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -72,6 +73,14 @@ internal object HaierAarUrlConnectionAudit {
 
     @Throws(IOException::class)
     fun connect(connection: URLConnection) {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_connect",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "connect")
+            return
+        }
         prepare(connection)
         try {
             connection.connect()
@@ -83,6 +92,14 @@ internal object HaierAarUrlConnectionAudit {
 
     @Throws(IOException::class)
     fun getOutputStream(connection: URLConnection): OutputStream {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_output_stream",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "getOutputStream")
+            return ByteArrayOutputStream()
+        }
         prepare(connection)
         return try {
             val delegate = connection.outputStream
@@ -95,6 +112,14 @@ internal object HaierAarUrlConnectionAudit {
 
     @Throws(IOException::class)
     fun getInputStream(connection: URLConnection): InputStream {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_input_stream",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "getInputStream")
+            return ByteArrayInputStream(ByteArray(0))
+        }
         prepare(connection)
         recordRequest(connection)
         return try {
@@ -109,6 +134,14 @@ internal object HaierAarUrlConnectionAudit {
 
     @Throws(IOException::class)
     fun getResponseCode(connection: HttpURLConnection): Int {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_response_code",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "getResponseCode")
+            return HttpURLConnection.HTTP_UNAVAILABLE
+        }
         prepare(connection)
         recordRequest(connection)
         return try {
@@ -122,6 +155,14 @@ internal object HaierAarUrlConnectionAudit {
     }
 
     fun getErrorStream(connection: HttpURLConnection): InputStream? {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_error_stream",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "getErrorStream")
+            return ByteArrayInputStream(ByteArray(0))
+        }
         prepare(connection)
         recordRequest(connection)
         return try {
@@ -135,8 +176,39 @@ internal object HaierAarUrlConnectionAudit {
     }
 
     fun disconnect(connection: HttpURLConnection) {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                "urlconnection_disconnect",
+                connection.url?.toString().orEmpty()
+            )
+        ) {
+            recordBlocked(connection, "disconnect")
+            return
+        }
         if (!session(connection).requestRecorded) recordRequest(connection)
         connection.disconnect()
+    }
+
+    private fun recordBlocked(connection: URLConnection, action: String) {
+        val state = session(connection)
+        val snapshot = synchronized(state) {
+            if (!state.requestRecorded) state.requestRecorded = true
+            snapshot(state)
+        }
+        HaierAarAuditUploader.enqueue(
+            event(
+                connection = connection,
+                state = state,
+                snapshot = snapshot,
+                eventType = "AAR_HTTP_BLOCKED",
+                responseCode = if (connection is HttpURLConnection) {
+                    HttpURLConnection.HTTP_UNAVAILABLE
+                } else {
+                    null
+                },
+                errorMessage = "runtime_gate_disabled:$action"
+            ),
+            critical = true
+        )
     }
 
     private fun prepare(connection: URLConnection) {

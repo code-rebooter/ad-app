@@ -12,6 +12,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
 import java.util.UUID
 
 internal object HaierAarWebViewAudit {
@@ -27,6 +28,9 @@ internal object HaierAarWebViewAudit {
     fun loadUrl(webView: WebView, url: String?) {
         forceUa(webView)
         val normalizedUrl = normalizeAarUrlUa(url.orEmpty())
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction("webview_load_url", normalizedUrl)) {
+            return
+        }
         record(
             source = "webview_load_url",
             method = "GET",
@@ -39,6 +43,9 @@ internal object HaierAarWebViewAudit {
     fun loadUrl(webView: WebView, url: String?, headers: Map<String, String>?) {
         forceUa(webView)
         val normalizedUrl = normalizeAarUrlUa(url.orEmpty())
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction("webview_load_url_headers", normalizedUrl)) {
+            return
+        }
         val finalHeaders = LinkedHashMap<String, String>()
         headers.orEmpty().forEach { (name, value) ->
             if (!name.equals("User-Agent", ignoreCase = true)) finalHeaders[name] = value
@@ -56,6 +63,9 @@ internal object HaierAarWebViewAudit {
     fun postUrl(webView: WebView, url: String?, body: ByteArray?) {
         forceUa(webView)
         val normalizedUrl = normalizeAarUrlUa(url.orEmpty())
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction("webview_post_url", normalizedUrl)) {
+            return
+        }
         val bytes = body ?: ByteArray(0)
         val normalizedBody = normalizeAarPayloadUa(
             bytes.toString(Charsets.UTF_8),
@@ -118,6 +128,13 @@ internal object HaierAarWebViewAudit {
         private val delegate: WebViewClient
     ) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                    "webview_should_override_legacy",
+                    url
+                )
+            ) {
+                return true
+            }
             record(
                 source = "webview_should_override_legacy",
                 method = "GET",
@@ -131,11 +148,21 @@ internal object HaierAarWebViewAudit {
             view: WebView,
             request: WebResourceRequest
         ): Boolean {
+            if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                    "webview_should_override",
+                    request.url?.toString().orEmpty()
+                )
+            ) {
+                return true
+            }
             recordRequest("webview_should_override", request)
             return delegate.shouldOverrideUrlLoading(view, request)
         }
 
         override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? {
+            if (HaierAarRuntimeBridge.shouldBlockSdkAction("webview_intercept_legacy", url)) {
+                return emptyBlockedResponse()
+            }
             record(
                 source = "webview_intercept_legacy",
                 method = "GET",
@@ -149,6 +176,13 @@ internal object HaierAarWebViewAudit {
             view: WebView,
             request: WebResourceRequest
         ): WebResourceResponse? {
+            if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                    "webview_intercept",
+                    request.url?.toString().orEmpty()
+                )
+            ) {
+                return emptyBlockedResponse()
+            }
             recordRequest("webview_intercept", request)
             return delegate.shouldInterceptRequest(view, request)
         }
@@ -257,6 +291,14 @@ internal object HaierAarWebViewAudit {
             args: String
         ) {
             delegate.onReceivedLoginRequest(view, realm, account, args)
+        }
+
+        private fun emptyBlockedResponse(): WebResourceResponse {
+            return WebResourceResponse(
+                "text/plain",
+                "UTF-8",
+                ByteArrayInputStream(ByteArray(0))
+            )
         }
     }
 }

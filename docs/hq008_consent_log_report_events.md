@@ -19,7 +19,7 @@
 
 - `event_type` 是事件名，便于后台聚合统计
 - `event_message` 是事件补充信息，便于排查单次链路
-- `ad_log` 是结构化诊断 JSON，当前用于记录 TCL CMP SDK 内部接口的原始请求/响应
+- `ad_log` 是结构化诊断 JSON，当前用于记录 TCL CMP SDK 内部接口的原始请求/响应，以及 LSAP AAR 网络和运行时总闸诊断
 - `event_message` 当前最长会截断到 512 字符
 - 下文中的 `xxx=...` 为固定格式字符串，不是 JSON
 
@@ -28,6 +28,7 @@
 - `CONSENT_STATUS_START` / `CONSENT_STATUS_RESULT` / `CONSENT_STATUS_FAIL`
 - `CAMPAIGN_REQUEST_START` / `CAMPAIGN_REQUEST_SUCCESS` / `CAMPAIGN_REQUEST_SUPPRESSED` / `CAMPAIGN_REQUEST_FAIL`
 - `USER_ACTION_START` / `USER_ACTION_SUCCESS` / `USER_ACTION_FAIL`
+- `AD_SDK_HTTP_CAPTURE`
 
 `ad_log` JSON 主要字段：
 
@@ -43,6 +44,7 @@
 - `responseCode` / `responseMsg` / `dataIsNull`: 从响应中解析出的摘要
 - `campaignId` / `vendorListVersion`: campaign 响应存在有效 data 时的摘要
 - `errorType` / `errorMessage`: 请求或解析失败时的异常信息
+- `sdk_network_logs`: LSAP AAR patched 出口采集到的网络、native、Dex 和运行时总闸事件列表，仅 `AD_SDK_HTTP_CAPTURE` 使用
 
 ## 核心流程说明
 
@@ -93,6 +95,19 @@
   - `<error message>`
 - 含义：
   - `flow-control` 接口请求失败
+
+### `AAR_SDK_GATE_CHANGED`
+
+- `event_message` 格式：
+  - `source=flow_control,previous=false,enabled=true`
+  - `source=flow_control,previous=true,enabled=false`
+  - `source=flow_control_fail,previous=true,enabled=false`
+- 含义：
+  - 仅 LSAP 三渠道可能出现。
+  - `flow-control` 结果触发 LSAP AAR 运行时总闸状态变化。
+  - `enabled=false` 后，patched AAR 的网络、WebView、UDP、native/Dex Java 入口和新定时调度会被运行时总闸拦截。
+  - 请求失败沿用现有业务策略按关闭处理，因此也可能触发 `source=flow_control_fail`。
+  - 如果本次结果和上一次总闸状态一致，不会上报该事件。
 
 ## 二、CMP 门禁阶段
 
@@ -504,20 +519,41 @@
 - 含义：
   - `authorize` 明确返回允许，并记录最终隐藏模式
 
-## 十二、排查建议
+## 十二、LSAP AAR 诊断事件
+
+### `AD_SDK_HTTP_CAPTURE`
+
+- `event_message` 格式：
+  - `requestId=<request_id>,eventCount=<number>,criticalEventCount=<number>,terminalReason=<reason>`
+- `ad_log` 主要结构：
+  - `schema_version`
+  - `request_id`
+  - `terminal_reason`
+  - `event_count`
+  - `critical_event_count`
+  - `sdk_network_logs`
+- 含义：
+  - 仅 LSAP 三渠道可能出现。
+  - 一次 LSAP 广告流程结束时，把 patched AAR 出口采集到的网络、WebView、UDP、native、Dex 和运行时总闸事件合并到一条诊断日志。
+  - 运行时总闸关闭后，`sdk_network_logs` 内可能出现 `AAR_SDK_GATE_BLOCKED` 或 `AAR_HTTP_BLOCKED`。
+  - 如果 payload 过大，会按 `gzip+base64` 形式写入压缩字段。
+
+## 十三、排查建议
 
 后台对账时，建议优先按下面顺序串联：
 
 1. `FLOW_CONTROL_*`
-2. `CMP_GATE_*`
-3. `CONSENT_STATUS_*`
-4. `CAMPAIGN_REQUEST_*`
-5. `CMP_GATE_SKIP` 或 `POPUP_REQUEST_*`
-6. `POPUP_ACTION_*`
-7. `SDK_ACTION_*`
-8. `USER_ACTION_*`
-9. `CONSENT_REPORT_*`
-10. `AUTHORIZE_*`
+2. LSAP 三渠道同时看 `AAR_SDK_GATE_CHANGED`
+3. `CMP_GATE_*`
+4. `CONSENT_STATUS_*`
+5. `CAMPAIGN_REQUEST_*`
+6. `CMP_GATE_SKIP` 或 `POPUP_REQUEST_*`
+7. `POPUP_ACTION_*`
+8. `SDK_ACTION_*`
+9. `USER_ACTION_*`
+10. `CONSENT_REPORT_*`
+11. `AUTHORIZE_*`
+12. LSAP 三渠道广告流程结束后看 `AD_SDK_HTTP_CAPTURE`
 
 关键判断：
 
@@ -532,3 +568,4 @@
 - 出现 `POPUP_ACTION_UNKNOWN` 后，是否紧接着出现 `POPUP_ACTION_FALLBACK`
 - 出现 `USER_ACTION_FAIL` 后，后续是否出现 `PENDING_USER_ACTION_FOUND`
 - 出现 `CONSENT_REPORT_FAIL` 后，后续是否出现 `PENDING_CONSENT_REPORT_FOUND`
+- LSAP 三渠道如果后台关闭 flow-control，应看到 `AAR_SDK_GATE_CHANGED enabled=false`，随后 AAR 后续出口应在 `AD_SDK_HTTP_CAPTURE` 的 `sdk_network_logs` 内出现拦截事件

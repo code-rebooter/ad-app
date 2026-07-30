@@ -2,21 +2,27 @@ package com.smart.android.ad_app
 
 import com.smart.android.ad_app.AdLocalLog as Log
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.Buffer
+import okio.Timeout
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal object HaierAarOkHttpAudit {
     private const val TAG = "HaierAarOkHttp"
     private const val REPORT_PATH = "/api/v2/ad/report"
 
     fun newCall(client: OkHttpClient, request: Request): Call {
+        if (HaierAarRuntimeBridge.shouldBlockSdkAction("okhttp3_new_call", request.url.toString())) {
+            return BlockedCall(request)
+        }
         val effectiveUa = HaierAarRuntimeBridge.currentEffectiveUa()
         val prepared = prepareRequest(request).newBuilder()
             .header("User-Agent", effectiveUa)
@@ -33,6 +39,13 @@ internal object HaierAarOkHttpAudit {
             val incoming = chain.request()
             if (incoming.url.encodedPath == REPORT_PATH) {
                 return chain.proceed(incoming)
+            }
+            if (HaierAarRuntimeBridge.shouldBlockSdkAction(
+                    "okhttp3_interceptor",
+                    incoming.url.toString()
+                )
+            ) {
+                throw IOException("haier_lsap sdk disabled by runtime gate")
             }
 
             val auditId = UUID.randomUUID().toString()
@@ -166,5 +179,35 @@ internal object HaierAarOkHttpAudit {
 
     private fun elapsedMs(startedAtNs: Long): Long {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNs)
+    }
+
+    private class BlockedCall(
+        private val originalRequest: Request
+    ) : Call {
+        private val executed = AtomicBoolean(false)
+        private val failure: IOException
+            get() = IOException("haier_lsap sdk disabled by runtime gate")
+
+        override fun request(): Request = originalRequest
+
+        override fun execute(): Response {
+            check(executed.compareAndSet(false, true)) { "Already Executed" }
+            throw failure
+        }
+
+        override fun enqueue(responseCallback: Callback) {
+            check(executed.compareAndSet(false, true)) { "Already Executed" }
+            responseCallback.onFailure(this, failure)
+        }
+
+        override fun cancel() = Unit
+
+        override fun isExecuted(): Boolean = executed.get()
+
+        override fun isCanceled(): Boolean = true
+
+        override fun clone(): Call = BlockedCall(originalRequest)
+
+        override fun timeout(): Timeout = Timeout.NONE
     }
 }

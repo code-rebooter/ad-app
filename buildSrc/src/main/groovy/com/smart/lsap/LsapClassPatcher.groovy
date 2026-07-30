@@ -13,6 +13,10 @@ final class LsapClassPatcher implements Opcodes {
         'java/net/HttpURLConnection',
         'javax/net/ssl/HttpsURLConnection'
     ] as Set
+    private static final Set<String> SCHEDULED_EXECUTOR_OWNERS = [
+        'java/util/concurrent/ScheduledExecutorService',
+        'java/util/concurrent/ScheduledThreadPoolExecutor'
+    ] as Set
 
     static byte[] patch(String entryName, byte[] bytes) {
         ClassNode node = new ClassNode()
@@ -197,6 +201,148 @@ final class LsapClassPatcher implements Opcodes {
                         '(Ljava/net/DatagramSocket;Ljava/net/DatagramPacket;)V')
                     changed = true
                 }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/os/Handler' &&
+                    call.name == 'post' && call.desc == '(Ljava/lang/Runnable;)Z') {
+                    replaceWithStatic(call, 'postHandler',
+                        '(Landroid/os/Handler;Ljava/lang/Runnable;)Z')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/os/Handler' &&
+                    call.name == 'postDelayed' && call.desc == '(Ljava/lang/Runnable;J)Z') {
+                    replaceWithStatic(call, 'postDelayedHandler',
+                        '(Landroid/os/Handler;Ljava/lang/Runnable;J)Z')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/util/TimerTask;J)V') {
+                    replaceWithStatic(call, 'scheduleTimer',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;J)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/util/TimerTask;Ljava/util/Date;)V') {
+                    replaceWithStatic(call, 'scheduleTimerAtDate',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;Ljava/util/Date;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/util/TimerTask;JJ)V') {
+                    replaceWithStatic(call, 'scheduleTimerPeriod',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;JJ)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/util/TimerTask;Ljava/util/Date;J)V') {
+                    replaceWithStatic(call, 'scheduleTimerDatePeriod',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;Ljava/util/Date;J)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'scheduleAtFixedRate' &&
+                    call.desc == '(Ljava/util/TimerTask;JJ)V') {
+                    replaceWithStatic(call, 'scheduleTimerAtFixedRate',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;JJ)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+                    call.name == 'scheduleAtFixedRate' &&
+                    call.desc == '(Ljava/util/TimerTask;Ljava/util/Date;J)V') {
+                    replaceWithStatic(call, 'scheduleTimerAtFixedRateDate',
+                        '(Ljava/util/Timer;Ljava/util/TimerTask;Ljava/util/Date;J)V')
+                    changed = true
+                }
+                if ((call.opcode == INVOKEINTERFACE || call.opcode == INVOKEVIRTUAL) &&
+                    SCHEDULED_EXECUTOR_OWNERS.contains(call.owner) &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/lang/Runnable;JLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;') {
+                    replaceWithStatic(call, 'scheduleExecutorRunnable',
+                        '(Ljava/util/concurrent/ScheduledExecutorService;Ljava/lang/Runnable;JLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;')
+                    changed = true
+                }
+                if ((call.opcode == INVOKEINTERFACE || call.opcode == INVOKEVIRTUAL) &&
+                    SCHEDULED_EXECUTOR_OWNERS.contains(call.owner) &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Ljava/util/concurrent/Callable;JLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;') {
+                    replaceWithStatic(call, 'scheduleExecutorCallable',
+                        '(Ljava/util/concurrent/ScheduledExecutorService;Ljava/util/concurrent/Callable;JLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;')
+                    changed = true
+                }
+                if ((call.opcode == INVOKEINTERFACE || call.opcode == INVOKEVIRTUAL) &&
+                    SCHEDULED_EXECUTOR_OWNERS.contains(call.owner) &&
+                    call.name == 'scheduleAtFixedRate' &&
+                    call.desc == '(Ljava/lang/Runnable;JJLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;') {
+                    replaceWithStatic(call, 'scheduleExecutorAtFixedRate',
+                        '(Ljava/util/concurrent/ScheduledExecutorService;Ljava/lang/Runnable;JJLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;')
+                    changed = true
+                }
+                if ((call.opcode == INVOKEINTERFACE || call.opcode == INVOKEVIRTUAL) &&
+                    SCHEDULED_EXECUTOR_OWNERS.contains(call.owner) &&
+                    call.name == 'scheduleWithFixedDelay' &&
+                    call.desc == '(Ljava/lang/Runnable;JJLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;') {
+                    replaceWithStatic(call, 'scheduleExecutorWithFixedDelay',
+                        '(Ljava/util/concurrent/ScheduledExecutorService;Ljava/lang/Runnable;JJLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'set' &&
+                    call.desc == '(IJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setAlarm',
+                        '(Landroid/app/AlarmManager;IJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setExact' &&
+                    call.desc == '(IJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setExactAlarm',
+                        '(Landroid/app/AlarmManager;IJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setAndAllowWhileIdle' &&
+                    call.desc == '(IJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setAndAllowWhileIdleAlarm',
+                        '(Landroid/app/AlarmManager;IJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setExactAndAllowWhileIdle' &&
+                    call.desc == '(IJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setExactAndAllowWhileIdleAlarm',
+                        '(Landroid/app/AlarmManager;IJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setRepeating' &&
+                    call.desc == '(IJJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setRepeatingAlarm',
+                        '(Landroid/app/AlarmManager;IJJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setInexactRepeating' &&
+                    call.desc == '(IJJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setInexactRepeatingAlarm',
+                        '(Landroid/app/AlarmManager;IJJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+                    call.name == 'setWindow' &&
+                    call.desc == '(IJJLandroid/app/PendingIntent;)V') {
+                    replaceWithStatic(call, 'setWindowAlarm',
+                        '(Landroid/app/AlarmManager;IJJLandroid/app/PendingIntent;)V')
+                    changed = true
+                }
+                if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/job/JobScheduler' &&
+                    call.name == 'schedule' &&
+                    call.desc == '(Landroid/app/job/JobInfo;)I') {
+                    replaceWithStatic(call, 'scheduleJob',
+                        '(Landroid/app/job/JobScheduler;Landroid/app/job/JobInfo;)I')
+                    changed = true
+                }
                 if (call.opcode == INVOKESTATIC && call.owner == 'd/b/e/n' &&
                     call.name == 'b' && call.desc == '(Ljava/lang/String;Ljava/lang/String;)V') {
                     InsnList before = new InsnList()
@@ -341,6 +487,22 @@ final class LsapClassPatcher implements Opcodes {
             call.name == 'newCall') return 'okhttp3Call'
         if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/net/DatagramSocket' &&
             call.name == 'send') return 'udpSend'
+        if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/os/Handler' &&
+            ['post', 'postDelayed'].contains(call.name)) return 'handlerSchedule'
+        if (call.opcode == INVOKEVIRTUAL && call.owner == 'java/util/Timer' &&
+            ['schedule', 'scheduleAtFixedRate'].contains(call.name)) return 'timerSchedule'
+        if ((call.opcode == INVOKEINTERFACE || call.opcode == INVOKEVIRTUAL) &&
+            SCHEDULED_EXECUTOR_OWNERS.contains(call.owner) &&
+            ['schedule', 'scheduleAtFixedRate', 'scheduleWithFixedDelay'].contains(call.name)) {
+            return 'scheduledExecutor'
+        }
+        if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/AlarmManager' &&
+            ['set', 'setExact', 'setAndAllowWhileIdle', 'setExactAndAllowWhileIdle',
+             'setRepeating', 'setInexactRepeating', 'setWindow'].contains(call.name)) {
+            return 'alarmSchedule'
+        }
+        if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/app/job/JobScheduler' &&
+            call.name == 'schedule') return 'jobSchedule'
         if (entryName == 'com/spctv/utils/okhttp3/b0/e/a.class' &&
             call.opcode == INVOKEINTERFACE && call.owner == 'com/spctv/utils/okhttp3/s\$a' &&
             call.name == 'a') return 'spctvOkHttpFinal'

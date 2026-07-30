@@ -43,6 +43,7 @@ internal object Hq008SdkFlowControlClient {
         ) { response, error ->
             if (error != null) {
                 Log.e(TAG, "flow-control：请求失败，error=${error.message}", error)
+                RuntimeSdkGateHook.update(false, "flow_control_fail")
                 Hq008ConsentLogReporter.report(
                     eventType = "FLOW_CONTROL_FAIL",
                     eventMessage = error.message ?: "network error"
@@ -57,6 +58,7 @@ internal object Hq008SdkFlowControlClient {
             )
             val popupLogEnabled = response?.popup_log_enabled != false
             val skipCmp = response?.skip_cmp == true
+            RuntimeSdkGateHook.update(response?.enabled == true, "flow_control")
             Hq008ConsentLogReporter.updatePopupLogEnabled(popupLogEnabled)
             Hq008ConsentLogReporter.report(
                 eventType = "FLOW_CONTROL_RESULT",
@@ -73,6 +75,23 @@ internal object Hq008SdkFlowControlClient {
             }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
+    }
+
+    private object RuntimeSdkGateHook {
+        private const val HAIER_AAR_BRIDGE = "com.smart.android.ad_app.HaierAarRuntimeBridge"
+
+        fun update(enabled: Boolean, source: String) {
+            if (!BuildFlavor.isHaierLsap()) {
+                return
+            }
+            runCatching {
+                Class.forName(HAIER_AAR_BRIDGE)
+                    .getMethod("updateSdkEnabled", java.lang.Boolean.TYPE, String::class.java)
+                    .invoke(null, enabled, source)
+            }.onFailure { error ->
+                Log.w(TAG, "flow-control：同步 haier_lsap AAR运行时总闸失败，error=${error.message}")
+            }
+        }
     }
 }
 

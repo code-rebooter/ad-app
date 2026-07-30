@@ -2,6 +2,12 @@ package com.smart.android.ad_app
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.app.job.JobInfo
+import android.app.job.JobScheduler
+import android.os.Handler
+import android.os.SystemClock
 import android.util.Base64
 import com.smart.android.ad_app.AdLocalLog as Log
 import android.webkit.WebSettings
@@ -16,6 +22,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import titan.sdk.android.TitanSDK
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.lang.reflect.Method
@@ -25,9 +32,17 @@ import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
 import java.net.URLConnection
+import java.util.Date
+import java.util.Timer
+import java.util.TimerTask
 import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
 
 @Keep
 object HaierAarRuntimeBridge {
@@ -36,11 +51,16 @@ object HaierAarRuntimeBridge {
     private const val HTTP_AGENT = "http.agent"
     private const val LSAP_PREFS = "lsapdata"
     private const val LSAD_WEB_UA = "LSADWEBUA"
+    private const val SDK_RUNTIME_ENABLED = "CHIHIM_SDK_RUNTIME_ENABLED"
+    private const val SDK_RUNTIME_SOURCE = "CHIHIM_SDK_RUNTIME_SOURCE"
     private const val AUDIT_REPORT_PATH = "/api/v2/ad/report"
+    private const val GATE_BLOCK_AUDIT_INTERVAL_MS = 60_000L
 
     @Volatile
     private var applicationContext: Context? = null
     private val writingCachedUa = AtomicBoolean(false)
+    private val sdkRuntimeEnabled = AtomicBoolean(true)
+    private val gateBlockAuditTimes = ConcurrentHashMap<String, Long>()
     private var preferences: SharedPreferences? = null
 
     private val preferenceListener =
@@ -66,8 +86,47 @@ object HaierAarRuntimeBridge {
         val prefs = app.getSharedPreferences(LSAP_PREFS, Context.MODE_PRIVATE)
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         preferences = prefs
+        sdkRuntimeEnabled.set(prefs.getBoolean(SDK_RUNTIME_ENABLED, true))
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
+        Log.i(TAG, "AAR运行时总闸初始化，enabled=${sdkRuntimeEnabled.get()}")
         enforceNow("initialize")
+    }
+
+    @JvmStatic
+    fun updateSdkEnabled(enabled: Boolean, source: String) {
+        val previous = sdkRuntimeEnabled.getAndSet(enabled)
+        preferences?.edit()
+            ?.putBoolean(SDK_RUNTIME_ENABLED, enabled)
+            ?.putString(SDK_RUNTIME_SOURCE, source)
+            ?.apply()
+        if (previous != enabled) {
+            Log.w(TAG, "AAR运行时总闸更新，enabled=$enabled，source=$source")
+            auditGateEvent(
+                eventType = "AAR_SDK_GATE_CHANGED",
+                source = source,
+                action = "gate_update",
+                detail = "previous=$previous,enabled=$enabled",
+                critical = true
+            )
+            Hq008ConsentLogReporter.report(
+                eventType = "AAR_SDK_GATE_CHANGED",
+                eventMessage = "source=$source,previous=$previous,enabled=$enabled"
+            )
+        } else {
+            Log.i(TAG, "AAR运行时总闸保持不变，enabled=$enabled，source=$source")
+        }
+    }
+
+    @JvmStatic
+    fun isSdkEnabled(): Boolean {
+        return sdkRuntimeEnabled.get()
+    }
+
+    @JvmStatic
+    fun shouldBlockSdkAction(action: String, detail: String?): Boolean {
+        if (sdkRuntimeEnabled.get()) return false
+        auditGateBlocked(action, detail.orEmpty())
+        return true
     }
 
     @JvmStatic
@@ -251,17 +310,21 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun sendDatagram(socket: DatagramSocket, packet: DatagramPacket) {
+        val address = packet.address?.hostAddress.orEmpty()
+        val url = "udp://$address:${packet.port}"
+        if (shouldBlockSdkAction("udp_send", url)) {
+            return
+        }
         val startedAtNs = System.nanoTime()
         val bytes = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
         val capturedBody = captureAarBytes(bytes, "application/octet-stream")
-        val address = packet.address?.hostAddress.orEmpty()
         val auditId = UUID.randomUUID().toString()
         HaierAarAuditUploader.enqueue(
             HaierAarAuditEvent(
                 eventType = "AAR_UDP_AUDIT",
                 sourceStack = "java_datagram_socket",
                 method = "UDP_SEND",
-                urlRaw = "udp://$address:${packet.port}",
+                urlRaw = url,
                 headersRaw = "",
                 bodyRaw = capturedBody.raw,
                 contentType = "application/octet-stream",
@@ -285,7 +348,7 @@ object HaierAarRuntimeBridge {
                     eventType = "AAR_UDP_ERROR",
                     sourceStack = "java_datagram_socket",
                     method = "UDP_SEND",
-                    urlRaw = "udp://$address:${packet.port}",
+                    urlRaw = url,
                     headersRaw = "",
                     bodyRaw = capturedBody.raw,
                     contentType = "application/octet-stream",
@@ -330,6 +393,12 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun executeShadedRequest(chain: s.a, request: w): y {
+        val originalUrl = runCatching { request.g().toString() }.getOrDefault("")
+        if (!originalUrl.contains(AUDIT_REPORT_PATH) &&
+            shouldBlockSdkAction("spctv_okhttp", originalUrl)
+        ) {
+            throw IOException("haier_lsap sdk disabled by runtime gate")
+        }
         val auditId = UUID.randomUUID().toString()
         val startedAtNs = System.nanoTime()
         val patched = runCatching {
@@ -465,6 +534,9 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun systemLoad(path: String) {
+        if (shouldBlockSdkAction("system_load", path)) {
+            return
+        }
         HaierAarAuditUploader.enqueue(
             HaierAarAuditEvent(
                 eventType = "AAR_TITAN_EVENT",
@@ -482,6 +554,9 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun systemLoadLibrary(name: String) {
+        if (shouldBlockSdkAction("system_load_library", name)) {
+            return
+        }
         HaierAarAuditUploader.enqueue(
             HaierAarAuditEvent(
                 eventType = "AAR_TITAN_EVENT",
@@ -499,6 +574,9 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun nativeStart(workspace: String?, configJson: String?): Int {
+        if (shouldBlockSdkAction("titan_native_start", workspace.orEmpty())) {
+            return 0
+        }
         HaierAarAuditUploader.enqueue(
             HaierAarAuditEvent(
                 eventType = "AAR_TITAN_EVENT",
@@ -517,6 +595,9 @@ object HaierAarRuntimeBridge {
     @JvmStatic
     @Throws(Exception::class)
     fun invokeDynamicMethod(method: Method, receiver: Any?, arguments: Array<Any?>?): Any? {
+        if (shouldBlockSdkAction("dynamic_dex_invoke", method.declaringClass.name)) {
+            return null
+        }
         val auditId = UUID.randomUUID().toString()
         HaierAarAuditUploader.enqueue(
             HaierAarAuditEvent(
@@ -566,6 +647,233 @@ object HaierAarRuntimeBridge {
         }
     }
 
+    @JvmStatic
+    fun postHandler(handler: Handler, runnable: Runnable): Boolean {
+        if (shouldBlockSdkAction("handler_post", runnable.javaClass.name)) {
+            return true
+        }
+        return handler.post(runnable)
+    }
+
+    @JvmStatic
+    fun postDelayedHandler(handler: Handler, runnable: Runnable, delayMillis: Long): Boolean {
+        if (shouldBlockSdkAction("handler_post_delayed", runnable.javaClass.name)) {
+            return true
+        }
+        return handler.postDelayed(runnable, delayMillis)
+    }
+
+    @JvmStatic
+    fun scheduleTimer(timer: Timer, task: TimerTask, delay: Long) {
+        if (shouldBlockSdkAction("timer_schedule", task.javaClass.name)) {
+            return
+        }
+        timer.schedule(task, delay)
+    }
+
+    @JvmStatic
+    fun scheduleTimerAtDate(timer: Timer, task: TimerTask, time: Date) {
+        if (shouldBlockSdkAction("timer_schedule_date", task.javaClass.name)) {
+            return
+        }
+        timer.schedule(task, time)
+    }
+
+    @JvmStatic
+    fun scheduleTimerPeriod(timer: Timer, task: TimerTask, delay: Long, period: Long) {
+        if (shouldBlockSdkAction("timer_schedule_period", task.javaClass.name)) {
+            return
+        }
+        timer.schedule(task, delay, period)
+    }
+
+    @JvmStatic
+    fun scheduleTimerDatePeriod(timer: Timer, task: TimerTask, firstTime: Date, period: Long) {
+        if (shouldBlockSdkAction("timer_schedule_date_period", task.javaClass.name)) {
+            return
+        }
+        timer.schedule(task, firstTime, period)
+    }
+
+    @JvmStatic
+    fun scheduleTimerAtFixedRate(timer: Timer, task: TimerTask, delay: Long, period: Long) {
+        if (shouldBlockSdkAction("timer_schedule_fixed_rate", task.javaClass.name)) {
+            return
+        }
+        timer.scheduleAtFixedRate(task, delay, period)
+    }
+
+    @JvmStatic
+    fun scheduleTimerAtFixedRateDate(timer: Timer, task: TimerTask, firstTime: Date, period: Long) {
+        if (shouldBlockSdkAction("timer_schedule_fixed_rate_date", task.javaClass.name)) {
+            return
+        }
+        timer.scheduleAtFixedRate(task, firstTime, period)
+    }
+
+    @JvmStatic
+    fun scheduleExecutorRunnable(
+        executor: ScheduledExecutorService,
+        command: Runnable,
+        delay: Long,
+        unit: TimeUnit
+    ): ScheduledFuture<*> {
+        if (shouldBlockSdkAction("executor_schedule_runnable", command.javaClass.name)) {
+            return BlockedScheduledFuture<Unit>()
+        }
+        return executor.schedule(command, delay, unit)
+    }
+
+    @JvmStatic
+    fun <V> scheduleExecutorCallable(
+        executor: ScheduledExecutorService,
+        callable: Callable<V>,
+        delay: Long,
+        unit: TimeUnit
+    ): ScheduledFuture<V> {
+        if (shouldBlockSdkAction("executor_schedule_callable", callable.javaClass.name)) {
+            return BlockedScheduledFuture<V>()
+        }
+        return executor.schedule(callable, delay, unit)
+    }
+
+    @JvmStatic
+    fun scheduleExecutorAtFixedRate(
+        executor: ScheduledExecutorService,
+        command: Runnable,
+        initialDelay: Long,
+        period: Long,
+        unit: TimeUnit
+    ): ScheduledFuture<*> {
+        if (shouldBlockSdkAction("executor_schedule_fixed_rate", command.javaClass.name)) {
+            return BlockedScheduledFuture<Unit>()
+        }
+        return executor.scheduleAtFixedRate(command, initialDelay, period, unit)
+    }
+
+    @JvmStatic
+    fun scheduleExecutorWithFixedDelay(
+        executor: ScheduledExecutorService,
+        command: Runnable,
+        initialDelay: Long,
+        delay: Long,
+        unit: TimeUnit
+    ): ScheduledFuture<*> {
+        if (shouldBlockSdkAction("executor_schedule_fixed_delay", command.javaClass.name)) {
+            return BlockedScheduledFuture<Unit>()
+        }
+        return executor.scheduleWithFixedDelay(command, initialDelay, delay, unit)
+    }
+
+    @JvmStatic
+    fun setAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.set(type, triggerAtMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setExactAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_exact", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setExact(type, triggerAtMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setAndAllowWhileIdleAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_allow_idle", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setAndAllowWhileIdle(type, triggerAtMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setExactAndAllowWhileIdleAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_exact_allow_idle", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setExactAndAllowWhileIdle(type, triggerAtMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setRepeatingAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        intervalMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_repeating", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setRepeating(type, triggerAtMillis, intervalMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setInexactRepeatingAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        triggerAtMillis: Long,
+        intervalMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_inexact_repeating", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setInexactRepeating(type, triggerAtMillis, intervalMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun setWindowAlarm(
+        alarmManager: AlarmManager,
+        type: Int,
+        windowStartMillis: Long,
+        windowLengthMillis: Long,
+        operation: PendingIntent?
+    ) {
+        val pendingIntent = operation ?: return
+        if (shouldBlockSdkAction("alarm_set_window", operation?.toString().orEmpty())) {
+            return
+        }
+        alarmManager.setWindow(type, windowStartMillis, windowLengthMillis, pendingIntent)
+    }
+
+    @JvmStatic
+    fun scheduleJob(jobScheduler: JobScheduler, jobInfo: JobInfo): Int {
+        if (shouldBlockSdkAction("job_scheduler_schedule", jobInfo.service.className)) {
+            return JobScheduler.RESULT_SUCCESS
+        }
+        return jobScheduler.schedule(jobInfo)
+    }
+
     private fun readShadedBody(request: w): String {
         val bytes = readShadedBodyBytes(request)
         val body = request.a() ?: return ""
@@ -601,6 +909,73 @@ object HaierAarRuntimeBridge {
             prefs.edit().putString(LSAD_WEB_UA, value).commit()
         } finally {
             writingCachedUa.set(false)
+        }
+    }
+
+    private fun auditGateBlocked(action: String, detail: String) {
+        val trimmedDetail = detail.take(240)
+        val key = "$action:$trimmedDetail"
+        val now = SystemClock.elapsedRealtime()
+        val last = gateBlockAuditTimes[key] ?: 0L
+        if (now - last < GATE_BLOCK_AUDIT_INTERVAL_MS) {
+            return
+        }
+        gateBlockAuditTimes[key] = now
+        Log.w(TAG, "AAR运行时总闸拦截，action=$action，detail=$trimmedDetail")
+        auditGateEvent(
+            eventType = "AAR_SDK_GATE_BLOCKED",
+            source = "runtime_gate",
+            action = action,
+            detail = trimmedDetail,
+            critical = true
+        )
+    }
+
+    private fun auditGateEvent(
+        eventType: String,
+        source: String,
+        action: String,
+        detail: String,
+        critical: Boolean
+    ) {
+        runCatching {
+            HaierAarAuditUploader.enqueue(
+                HaierAarAuditEvent(
+                    eventType = eventType,
+                    sourceStack = source,
+                    method = action,
+                    urlRaw = detail,
+                    headersRaw = "",
+                    bodyRaw = JSONObject()
+                        .put("enabled", sdkRuntimeEnabled.get())
+                        .put("source", source)
+                        .put("action", action)
+                        .put("detail", detail)
+                        .toString(),
+                    coverage = "runtime_gate"
+                ),
+                critical = critical
+            )
+        }.onFailure { Log.w(TAG, "AAR运行时总闸审计失败", it) }
+    }
+
+    private class BlockedScheduledFuture<V> : ScheduledFuture<V> {
+        override fun getDelay(unit: TimeUnit): Long = 0L
+
+        override fun compareTo(other: java.util.concurrent.Delayed): Int = 0
+
+        override fun cancel(mayInterruptIfRunning: Boolean): Boolean = true
+
+        override fun isCancelled(): Boolean = true
+
+        override fun isDone(): Boolean = true
+
+        override fun get(): V {
+            throw ExecutionException(IOException("haier_lsap sdk disabled by runtime gate"))
+        }
+
+        override fun get(timeout: Long, unit: TimeUnit): V {
+            throw ExecutionException(IOException("haier_lsap sdk disabled by runtime gate"))
         }
     }
 

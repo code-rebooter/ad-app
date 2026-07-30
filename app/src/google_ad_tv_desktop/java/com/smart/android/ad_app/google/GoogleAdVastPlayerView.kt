@@ -2,8 +2,6 @@ package com.smart.android.ad_app.google
 
 import android.content.Context
 import android.graphics.Color
-import android.os.Handler
-import android.os.Looper
 import android.util.AttributeSet
 import com.smart.android.ad_app.AdLocalLog as Log
 import android.widget.FrameLayout
@@ -39,13 +37,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         setKeepContentOnPlayerReset(false)
         setShutterBackgroundColor(Color.BLACK)
     }
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val adStartupTimeoutRunnable = Runnable {
-        if (!hasFinished && !adStarted) {
-            failOnce("Ad start timeout")
-        }
-    }
-
     private var playbackPlayer: ExoPlayer? = null
     private var adsLoader: ImaAdsLoader? = null
     private var hasFinished = false
@@ -53,7 +44,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     private var adStarted = false
     private var firstFrameRendered = false
     private var firstFrameNotified = false
-    private var adStartupTimeoutMs = GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS
 
     var onAdLoaded: (() -> Unit)? = null
     var onAdStarted: (() -> Unit)? = null
@@ -81,7 +71,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         adStarted = false
         firstFrameRendered = false
         firstFrameNotified = false
-        this.adStartupTimeoutMs = adStartupTimeoutMs
         initializePlayer(adLoadTimeoutMs)
 
         val playbackSpec = GoogleAdVastPlaybackSpec(
@@ -93,12 +82,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
             "Requesting VAST ad: adTagUrlHash=${AdPrivacySanitizer.shortHash(adTagUrl)}," +
                 "adTagUrlLength=${AdPrivacySanitizer.length(adTagUrl)}"
         )
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
-        mainHandler.postDelayed(
-            adStartupTimeoutRunnable,
-            adStartupTimeoutMs
-        )
-
         playbackPlayer?.apply {
             volume = if (soundEnabled) 1f else 0f
             setMediaSource(createAdMediaSource(playbackSpec))
@@ -109,7 +92,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
 
     fun release() {
         releasePlayerOnly()
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
     }
 
     private fun initializePlayer(adLoadTimeoutMs: Int) {
@@ -120,15 +102,11 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
                 when (event.type) {
                     AdEvent.AdEventType.LOADED -> {
                         notifyLoadedOnce()
-                        extendAdStartupTimeout()
                     }
-                    AdEvent.AdEventType.CONTENT_PAUSE_REQUESTED -> {
-                        extendAdStartupTimeout()
-                    }
+                    AdEvent.AdEventType.CONTENT_PAUSE_REQUESTED -> Unit
                     AdEvent.AdEventType.STARTED -> {
                         notifyLoadedOnce()
                         adStarted = true
-                        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
                         onAdStarted?.invoke()
                         notifyAdFirstFrameOnce()
                     }
@@ -212,15 +190,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         onAdFirstFrameRendered?.invoke()
     }
 
-    private fun extendAdStartupTimeout() {
-        if (hasFinished || adStarted) return
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
-        mainHandler.postDelayed(
-            adStartupTimeoutRunnable,
-            adStartupTimeoutMs
-        )
-    }
-
     private fun createAdMediaSource(playbackSpec: GoogleAdVastPlaybackSpec): AdsMediaSource {
         val contentSource = SilenceMediaSource(GoogleAdTvDesktopVastConfig.SILENCE_CONTENT_DURATION_US)
         val adMediaSourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(context))
@@ -235,7 +204,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     }
 
     private fun releasePlayerOnly() {
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         adsLoader?.setPlayer(null)
         adsLoader?.release()
         adsLoader = null
@@ -249,7 +217,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     private fun finishOnce(terminalEvent: String) {
         if (hasFinished) return
         hasFinished = true
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         Log.i(TAG, "Ad flow finished: terminalEvent=$terminalEvent")
         onAdFinished?.invoke(terminalEvent)
     }
@@ -257,7 +224,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     private fun skipOnce(terminalEvent: String) {
         if (hasFinished) return
         hasFinished = true
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         Log.w(TAG, "Ad flow skipped: terminalEvent=$terminalEvent")
         onAdSkipped?.invoke(terminalEvent)
     }
@@ -265,7 +231,6 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
     private fun failOnce(message: String) {
         if (hasFinished) return
         hasFinished = true
-        mainHandler.removeCallbacks(adStartupTimeoutRunnable)
         Log.w(TAG, "Ad flow failed: $message")
         onAdFailed?.invoke(message)
     }

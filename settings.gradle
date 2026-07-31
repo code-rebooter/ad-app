@@ -29,5 +29,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "AD_APP"
 include ':app'
-include ':google-video-ad-sdk'
+include ':ad-sdk'
+include ':ad-sdk-modern'
 include ':hq008-flow-sdk'

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application>
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${adAppId}" />
+
+        <meta-data
+            android:name="com.smart.android.adsdk.CHANNEL_ID"
+            android:value="${adChannelId}" />
+
+        <activity
+            android:name=".internal.AdConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/AdConsentHostTheme" />
+    </application>
+</manifest>

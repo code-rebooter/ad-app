@@ -1,0 +1,32 @@
+apply plugin: 'maven-publish'
+
+android {
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                groupId = findProperty('PUBLISH_GROUP_ID')
+                    ?: System.getenv('GROUP')
+                    ?: 'com.github.code-rebooter.ad-app'
+                artifactId = findProperty('PUBLISH_ARTIFACT_ID') ?: project.name
+                version = findProperty('PUBLISH_VERSION')
+                    ?: System.getenv('VERSION')
+                    ?: '0.0.0-local'
+
+                pom {
+                    name = project.name
+                    description = "Android ad SDK module ${project.name}"
+                }
+            }
+        }
+    }
+}

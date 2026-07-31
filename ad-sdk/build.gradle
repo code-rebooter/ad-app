@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+apply from: "$rootDir/gradle/jitpack-publish.gradle"
+
 base {
     archivesName = 'ad-sdk'
 }

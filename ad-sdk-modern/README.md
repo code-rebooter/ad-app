@@ -46,6 +46,12 @@ dependencies {
 如果宿主通过本地 AAR 接入，宿主应用需要同时声明以下外部依赖：
 
 ```groovy
+android {
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+    }
+}
+
 dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:2.3.0')
 

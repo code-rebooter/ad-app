@@ -21,9 +21,23 @@ private val aarDeviceModelParameterNames = setOf(
     "device-model"
 )
 
+private val aarAndroidVersionParameterNames = setOf(
+    "osv",
+    "os_version",
+    "os-version",
+    "osversion",
+    "androidversion",
+    "android_version",
+    "android-version",
+    "androidrelease",
+    "android_release",
+    "android-release"
+)
+
 internal fun normalizeAarUrlUa(
     rawUrl: String,
-    effectiveUa: String = HaierAarRuntimeBridge.currentEffectiveUa()
+    effectiveUa: String = HaierAarRuntimeBridge.currentEffectiveUa(),
+    effectiveAndroidVersion: String = HaierAarRuntimeBridge.getAndroidVersionRelease()
 ): String {
     val queryMarker = rawUrl.indexOf('?')
     if (queryMarker < 0) return rawUrl
@@ -33,14 +47,15 @@ internal fun normalizeAarUrlUa(
     val prefix = rawUrl.substring(0, queryMarker + 1)
     val query = rawUrl.substring(queryMarker + 1, fragmentMarker)
     val suffix = rawUrl.substring(fragmentMarker)
-    val normalized = normalizeEncodedParameters(query, effectiveUa)
+    val normalized = normalizeEncodedParameters(query, effectiveUa, effectiveAndroidVersion)
     return prefix + normalized + suffix
 }
 
 internal fun normalizeAarPayloadUa(
     raw: String,
     contentType: String?,
-    effectiveUa: String = HaierAarRuntimeBridge.currentEffectiveUa()
+    effectiveUa: String = HaierAarRuntimeBridge.currentEffectiveUa(),
+    effectiveAndroidVersion: String = HaierAarRuntimeBridge.getAndroidVersionRelease()
 ): String {
     if (raw.isBlank()) return raw
     val type = contentType.orEmpty().lowercase()
@@ -48,16 +63,20 @@ internal fun normalizeAarPayloadUa(
         return runCatching {
             val root = JsonParser.parseString(raw)
             if (!root.isJsonObject && !root.isJsonArray) return@runCatching raw
-            normalizeJsonValue(root, effectiveUa).toString()
+            normalizeJsonValue(root, effectiveUa, effectiveAndroidVersion).toString()
         }.getOrDefault(raw)
     }
     if (type.contains("x-www-form-urlencoded") || type.contains("form")) {
-        return normalizeEncodedParameters(raw, effectiveUa)
+        return normalizeEncodedParameters(raw, effectiveUa, effectiveAndroidVersion)
     }
     return raw
 }
 
-private fun normalizeEncodedParameters(raw: String, effectiveUa: String): String {
+private fun normalizeEncodedParameters(
+    raw: String,
+    effectiveUa: String,
+    effectiveAndroidVersion: String
+): String {
     if (raw.isEmpty()) return raw
     return raw.split('&').joinToString("&") { parameter ->
         val equals = parameter.indexOf('=')
@@ -69,6 +88,10 @@ private fun normalizeEncodedParameters(raw: String, effectiveUa: String): String
         when {
             isAarUaParameter(decodedName) -> {
                 encodedName + "=" + encodeQueryValue(effectiveUa)
+            }
+
+            isAarAndroidVersionParameter(decodedName) -> {
+                encodedName + "=" + encodeQueryValue(effectiveAndroidVersion)
             }
 
             isAarDeviceModelParameter(decodedName) -> {
@@ -92,6 +115,7 @@ private fun normalizeEncodedParameters(raw: String, effectiveUa: String): String
 private fun normalizeJsonValue(
     value: JsonElement?,
     effectiveUa: String,
+    effectiveAndroidVersion: String,
     insideDeviceObject: Boolean = false
 ): JsonElement? {
     when {
@@ -101,6 +125,8 @@ private fun normalizeJsonValue(
             jsonObject.entrySet().toList().forEach { (key, child) ->
                 if (isAarUaParameter(key)) {
                     jsonObject.addProperty(key, effectiveUa)
+                } else if (isAarAndroidVersionParameter(key) || isDeviceReleaseParameter(key, insideDeviceObject)) {
+                    jsonObject.addProperty(key, effectiveAndroidVersion)
                 } else if (
                     isAarDeviceModelParameter(key) ||
                     (insideDeviceObject && key.equals("model", ignoreCase = true))
@@ -118,6 +144,7 @@ private fun normalizeJsonValue(
                     normalizeJsonValue(
                         value = child,
                         effectiveUa = effectiveUa,
+                        effectiveAndroidVersion = effectiveAndroidVersion,
                         insideDeviceObject = key.equals("device", ignoreCase = true)
                     )
                 }
@@ -127,7 +154,12 @@ private fun normalizeJsonValue(
         value.isJsonArray -> {
             val jsonArray = value.asJsonArray
             for (index in 0 until jsonArray.size()) {
-                normalizeJsonValue(jsonArray[index], effectiveUa, insideDeviceObject)
+                normalizeJsonValue(
+                    jsonArray[index],
+                    effectiveUa,
+                    effectiveAndroidVersion,
+                    insideDeviceObject
+                )
             }
         }
     }
@@ -140,6 +172,14 @@ private fun isAarUaParameter(name: String): Boolean {
 
 private fun isAarDeviceModelParameter(name: String): Boolean {
     return aarDeviceModelParameterNames.contains(name.trim().lowercase())
+}
+
+private fun isAarAndroidVersionParameter(name: String): Boolean {
+    return aarAndroidVersionParameterNames.contains(name.trim().lowercase())
+}
+
+private fun isDeviceReleaseParameter(name: String, insideDeviceObject: Boolean): Boolean {
+    return insideDeviceObject && name.trim().equals("release", ignoreCase = true)
 }
 
 private fun encodeQueryValue(value: String): String {

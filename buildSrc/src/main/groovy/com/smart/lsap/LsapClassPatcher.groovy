@@ -26,9 +26,29 @@ final class LsapClassPatcher implements Opcodes {
 
         node.methods.each { MethodNode method ->
             for (AbstractInsnNode instruction = method.instructions.first;
-                 instruction != null;
-                 instruction = instruction.next) {
-                if (!(instruction instanceof MethodInsnNode)) continue
+                 instruction != null;) {
+                AbstractInsnNode nextInstruction = instruction.next
+                if (instruction instanceof FieldInsnNode) {
+                    FieldInsnNode field = (FieldInsnNode) instruction
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build$VERSION' &&
+                        field.name == 'RELEASE' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidVersionRelease',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                }
+                if (!(instruction instanceof MethodInsnNode)) {
+                    instruction = nextInstruction
+                    continue
+                }
                 MethodInsnNode call = (MethodInsnNode) instruction
 
                 if (call.opcode == INVOKESTATIC && call.owner == 'java/lang/System' &&
@@ -372,6 +392,7 @@ final class LsapClassPatcher implements Opcodes {
                         '(Lcom/spctv/utils/okhttp3/s\$a;Lcom/spctv/utils/okhttp3/w;)Lcom/spctv/utils/okhttp3/y;')
                     changed = true
                 }
+                instruction = nextInstruction
             }
 
             if (entryName == 'd/b/e/b.class' && method.name == 'a' &&
@@ -456,6 +477,24 @@ final class LsapClassPatcher implements Opcodes {
                 String category = patchCategory(entryName, call)
                 if (category != null) {
                     result << "${entryName}:${method.name}${method.desc}:${category}:${call.owner}.${call.name}${call.desc}"
+                }
+            }
+        }
+        return result
+    }
+
+    static List<String> findResidualAndroidVersionReads(String entryName, byte[] bytes) {
+        List<String> result = []
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.findAll { it instanceof FieldInsnNode }?.each { instruction ->
+                FieldInsnNode field = (FieldInsnNode) instruction
+                if (field.opcode == GETSTATIC &&
+                    field.owner == 'android/os/Build$VERSION' &&
+                    field.name == 'RELEASE' &&
+                    field.desc == 'Ljava/lang/String;') {
+                    result << "${entryName}:${method.name}${method.desc}:androidVersionRelease:${field.owner}.${field.name}:${field.desc}"
                 }
             }
         }

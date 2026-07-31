@@ -9,7 +9,7 @@
 - addy_hq1002
 - addy_jams
 
-当前补丁版本：lsap-full-network-audit-2  
+当前补丁版本：lsap-full-network-audit-3
 当前 SDK 版本：1.1.12
 
 ## 1. 架构概览
@@ -37,6 +37,7 @@ APK
 3. patched AAR 中的 SDK class 会调用 APK 内的 HaierAarRuntimeBridge。
 4. patched AAR 不能脱离当前 APK 的桥接类单独使用。
 5. Titan native、so 和远程 Dex 的 Java 入口会进入桥接层；运行时总闸关闭时这些 Java 入口会被 no-op 或直接阻断。native/Dex 内部自行创建的网络仍标记为未验证。
+6. 版本名字段会和 UA 一起按 `SDK_INT` 规范化，避免 ROM 伪装导致的 `Build.VERSION.RELEASE` 误报。
 
 ## 2. 代码位置
 
@@ -56,7 +57,7 @@ APK
 | HaierAarOkHttpAudit.kt | 标准 OkHttp 最终请求边界 |
 | HaierAarUrlConnectionAudit.kt | URLConnection 请求生命周期 |
 | HaierAarWebViewAudit.kt | WebView UA、URL、POST 和资源请求 |
-| HaierAarUaPayloadNormalizer.kt | JSON、表单、Query 中的 UA/型号 |
+| HaierAarUaPayloadNormalizer.kt | JSON、表单、Query 中的 UA/型号/Android 版本名 |
 | app/src/hq008/java/com/smart/android/ad_app/Hq008SdkFlowControlClient.kt | 将后台 flow-control 的 enabled 结果同步给 LSAP 运行时总闸 |
 | app/src/main/java/com/smart/android/ad_app/HaierUserAgentInstaller.kt | http.agent 安装和运行时复核 |
 | app/src/main/java/com/smart/android/ad_app/HaierUserAgentNormalizer.kt | SDK_INT 对应的规范 UA |
@@ -463,7 +464,7 @@ done
 
 必须确认：
 
-- patchVersion 是 lsap-full-network-audit-2。
+- patchVersion 是 lsap-full-network-audit-3。
 - originalAarSha256 等于新 AAR SHA。
 - targetFlavor 正确。
 - lsapSdkVersion 正确。
@@ -561,7 +562,7 @@ jadx --single-class com.smart.android.ad_app.HaierAarRuntimeBridge -d /tmp/jadx-
 至少确认：
 
 ~~~text
-PATCH_VERSION = lsap-full-network-audit-2
+PATCH_VERSION = lsap-full-network-audit-3
 executeShadedRequest
 newOkHttpCall
 openUrlConnection

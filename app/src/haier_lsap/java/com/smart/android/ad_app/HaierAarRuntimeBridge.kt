@@ -6,6 +6,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
+import android.os.Build
 import android.os.Handler
 import android.os.SystemClock
 import android.util.Base64
@@ -46,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Keep
 object HaierAarRuntimeBridge {
-    const val PATCH_VERSION = "lsap-full-network-audit-2"
+    const val PATCH_VERSION = "lsap-full-network-audit-3"
     private const val TAG = "HaierAarBridge"
     private const val HTTP_AGENT = "http.agent"
     private const val LSAP_PREFS = "lsapdata"
@@ -156,6 +157,12 @@ object HaierAarRuntimeBridge {
     @JvmStatic
     fun currentEffectiveUa(): String {
         return HaierUserAgentInstaller.ensureEffectiveForCurrentProcess().effectiveUa
+    }
+
+    @JvmStatic
+    fun getAndroidVersionRelease(): String {
+        return HaierUserAgentNormalizer.canonicalAndroidVersionFor(Build.VERSION.SDK_INT)
+            ?: Build.VERSION.RELEASE.orEmpty()
     }
 
     @JvmStatic

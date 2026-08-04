@@ -214,6 +214,9 @@
   <div class="warning callout">
     <code>channelId</code> 必须使用双方约定的正式渠道值，示例中的 <code>TCL_FFA</code> 需要按实际渠道替换。
   </div>
+  <div class="warning callout">
+    SDK 2.0.8 起只使用 <code>init(...)</code> 完成初始化并自动启动流程，广告展示组件只注册当前可展示广告的回调。
+  </div>
 
   <h2>4. 注册广告授权回调</h2>
   <p>下面代码放在真正能够展示广告的 Activity、Service、Fragment 或业务控制器中，不要求写在 Application。</p>
@@ -325,18 +328,7 @@ public void onAdError(int errorCode) {
     流程 SDK 自动上报并安排下一轮
   </div>
 
-  <h2>7. 可选控制</h2>
-  <table>
-    <thead>
-      <tr><th>调用</th><th>用途</th></tr>
-    </thead>
-    <tbody>
-      <tr><td><code>Hq008FlowSdk.triggerNow()</code></td><td>联调时立即触发一轮；必须已经调用 <code>init()</code>。</td></tr>
-      <tr><td><code>Hq008FlowSdk.stop()</code></td><td>停止后续定时任务，并结束当前流程会话。</td></tr>
-    </tbody>
-  </table>
-
-  <h2>8. 接入检查</h2>
+  <h2>7. 接入检查</h2>
   <ul class="checklist">
     <li>已集成并成功初始化 TCL 视频广告 SDK；</li>
     <li>Application 中已调用 <code>Hq008FlowSdk.init</code>；</li>

@@ -22,7 +22,6 @@ public class MainApplication extends Application {
 说明：
 
 - `init()` 会自动启动全局定时流程。
-- 客户不需要再调用 `Hq008FlowSdk.start()`。
 - 客户不需要手动请求 `flow-control` 或 `authorize`，这些都由 SDK 内部完成。
 - 渠道号按后台实际分配填写；客户当前 APK 使用的是 `ADHQ1001`。
 
@@ -72,8 +71,6 @@ public class SystemScreensaverService extends DreamService {
 
 说明：
 
-- 不再调用 `attachAdHost()`。
-- 不再调用 `detachAdHost()`。
 - 广告展示在哪个组件，就在哪个组件调用 `setAdCallback()`。
 - 组件退出或不能展示广告时，调用 `clearAdCallback()`。
 

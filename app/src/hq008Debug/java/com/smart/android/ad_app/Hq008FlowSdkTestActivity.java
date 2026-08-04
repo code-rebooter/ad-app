@@ -7,14 +7,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.smart.android.hq008flow.Hq008AdHost;
+import com.smart.android.hq008flow.Hq008AdCallback;
 import com.smart.android.hq008flow.Hq008AdSession;
 import com.smart.android.hq008flow.Hq008FlowSdk;
 import com.tcl.ff.component.overseabase.base.constant.AdType;
@@ -40,9 +38,8 @@ public final class Hq008FlowSdkTestActivity extends Activity {
     private TextView statusView;
     private Hq008AdSession currentSession;
     private Controller currentController;
-    private boolean flowStarted;
 
-    private final Hq008AdHost adHost = new Hq008AdHost() {
+    private final Hq008AdCallback adCallback = new Hq008AdCallback() {
         @Override
         public void onAdAuthorized(Hq008AdSession session) {
             currentSession = session;
@@ -56,31 +53,30 @@ public final class Hq008FlowSdkTestActivity extends Activity {
         super.onCreate(savedInstanceState);
         buildUi();
 
-        Hq008FlowSdk.initialize(getApplicationContext(), BuildConfig.CHANNEL);
-        appendStatus("Hq008FlowSdk 已初始化，channel=" + BuildConfig.CHANNEL);
+        Hq008FlowSdk.init(getApplicationContext(), BuildConfig.CHANNEL);
+        appendStatus("Hq008FlowSdk 已初始化并启动，channel=" + BuildConfig.CHANNEL);
         waitForTclSdkReady(0);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        Hq008FlowSdk.attachAdHost(adHost);
-        appendStatus("广告 UI Host 已绑定");
+        Hq008FlowSdk.setAdCallback(adCallback);
+        appendStatus("广告回调已设置");
     }
 
     @Override
     protected void onStop() {
-        Hq008FlowSdk.detachAdHost(adHost);
+        Hq008FlowSdk.clearAdCallback();
         finishSessionAsError("UI_STOPPED");
         releaseTclAd();
-        appendStatus("广告 UI Host 已解绑");
+        appendStatus("广告回调已清除");
         super.onStop();
     }
 
     @Override
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
-        Hq008FlowSdk.stop();
         super.onDestroy();
     }
 
@@ -95,34 +91,6 @@ public final class Hq008FlowSdkTestActivity extends Activity {
         title.setTextColor(Color.WHITE);
         title.setTextSize(22f);
         root.addView(title, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.START);
-
-        Button triggerButton = new Button(this);
-        triggerButton.setText("立即执行流程");
-        triggerButton.setOnClickListener(view -> {
-            appendStatus("手动触发 Hq008FlowSdk.triggerNow()");
-            Hq008FlowSdk.triggerNow();
-        });
-        actions.addView(triggerButton);
-
-        Button stopButton = new Button(this);
-        stopButton.setText("停止流程");
-        stopButton.setOnClickListener(view -> {
-            Hq008FlowSdk.stop();
-            finishSessionAsError("MANUAL_STOP");
-            releaseTclAd();
-            flowStarted = false;
-            appendStatus("流程已手动停止");
-        });
-        actions.addView(stopButton);
-
-        root.addView(actions, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -149,11 +117,7 @@ public final class Hq008FlowSdkTestActivity extends Activity {
 
     private void waitForTclSdkReady(int pollCount) {
         if (Initialization.isHasInit()) {
-            if (!flowStarted) {
-                flowStarted = true;
-                Hq008FlowSdk.start();
-                appendStatus("TCL 广告 SDK 已初始化，Hq008FlowSdk 已启动");
-            }
+            appendStatus("TCL 广告 SDK 已初始化");
             return;
         }
         if (pollCount >= TCL_INIT_MAX_POLLS) {

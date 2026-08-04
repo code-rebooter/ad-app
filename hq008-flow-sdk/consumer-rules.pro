@@ -2,4 +2,3 @@
 -keep public class com.smart.android.hq008flow.Hq008FlowConfig { public *; }
 -keep public class com.smart.android.hq008flow.Hq008AdSession { public *; }
 -keep public interface com.smart.android.hq008flow.Hq008AdCallback { public *; }
--keep public interface com.smart.android.hq008flow.Hq008AdHost { public *; }

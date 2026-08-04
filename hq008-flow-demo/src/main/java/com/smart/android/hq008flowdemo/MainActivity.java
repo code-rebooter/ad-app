@@ -85,7 +85,6 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         destroyed = true;
         mainHandler.removeCallbacksAndMessages(null);
-        Hq008FlowSdk.stop();
         super.onDestroy();
     }
 
@@ -121,12 +120,7 @@ public final class MainActivity extends Activity {
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.START);
 
-        actions.addView(makeButton("启动流程", view -> startFlow()));
-        actions.addView(makeButton("立即执行", view -> {
-            appendStatus("手动触发 Hq008FlowSdk.triggerNow()");
-            Hq008FlowSdk.triggerNow();
-        }));
-        actions.addView(makeButton("停止流程", view -> stopFlow()));
+        actions.addView(makeButton("重启流程", view -> restartFlow()));
         actions.addView(makeButton("清空日志", view -> statusView.setText("")));
 
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
@@ -220,16 +214,10 @@ public final class MainActivity extends Activity {
         mainHandler.postDelayed(() -> waitForTclSdkReady(pollCount + 1), TCL_INIT_POLL_MS);
     }
 
-    private void startFlow() {
-        Hq008FlowSdk.start();
-        appendStatus("Hq008FlowSdk.start() 已调用");
-    }
-
-    private void stopFlow() {
-        Hq008FlowSdk.stop();
-        finishSessionAsError("MANUAL_STOP");
-        releaseTclAd();
-        appendStatus("流程已手动停止");
+    private void restartFlow() {
+        initializeFlowSdk();
+        Hq008FlowSdk.setAdCallback(adCallback);
+        appendStatus("广告回调已重新设置");
     }
 
     private void requestTclAd() {

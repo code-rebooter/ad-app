@@ -56,6 +56,17 @@ class GoogleAdTvDesktopFlavorContractTest {
     }
 
     @Test
+    fun `google gam resolve request should pass project mac field`() {
+        val gamConfigClientSource = readProjectFile(
+            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt"
+        )
+
+        assertTrue(gamConfigClientSource.contains("import com.speed.ext.getMacAddress"))
+        assertTrue(gamConfigClientSource.contains("\"mac\" to"))
+        assertFalse(gamConfigClientSource.contains("\"macAddress\" to"))
+    }
+
+    @Test
     fun `google_ad_tv_desktop should wire vast player through haier style ad manager flow`() {
         val managerSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt")
         val bridgeSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/AdManagerImpl.kt")
@@ -110,6 +121,9 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(gamConfigClientSource.contains("\${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/google-gam/resolve"))
         assertTrue(gamConfigClientSource.contains("CHANNEL_ID = \"GOOGLE_AD_TV_DESKTOP\""))
         assertTrue(gamConfigClientSource.contains("\"channel_id\" to requestChannelId"))
+        assertTrue(gamConfigClientSource.contains("import com.speed.ext.getMacAddress"))
+        assertTrue(gamConfigClientSource.contains("\"mac\" to"))
+        assertFalse(gamConfigClientSource.contains("\"macAddress\" to"))
         assertTrue(gamConfigClientSource.contains("NetworkHelper.makeRequest<GoogleGamAdConfigResponseData>"))
         assertTrue(gamConfigClientSource.contains("response?.ad_tag_url?.takeIf { it.isNotBlank() }"))
         assertTrue(gamConfigClientSource.contains("GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS"))

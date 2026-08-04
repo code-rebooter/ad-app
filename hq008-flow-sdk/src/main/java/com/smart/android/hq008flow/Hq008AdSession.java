@@ -1,6 +1,9 @@
 package com.smart.android.hq008flow;
 
-/** One authorized ad attempt. Forward the existing TCL callbacks to this object. */
+/**
+ * One authorized ad attempt. Call exactly one terminal method, completed() or
+ * failed(...), after the ad finishes.
+ */
 public final class Hq008AdSession {
     private final Delegate delegate;
 

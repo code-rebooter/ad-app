@@ -86,7 +86,7 @@ public final class Hq008FlowConfig {
         private String adSdkVersion = "2.8.02";
         private long initialDelaySeconds = 30L;
         private long fallbackIntervalSeconds = 1_200L;
-        private long adCallbackTimeoutSeconds = 120L;
+        private long adCallbackTimeoutSeconds = 180L;
         private String apiBaseUrl = DEFAULT_API_BASE_URL;
 
         private Builder(String channelId) {

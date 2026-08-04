@@ -15,6 +15,13 @@ import java.util.WeakHashMap
 import java.util.concurrent.TimeUnit
 
 internal object HaierAarUrlConnectionAudit {
+    private const val MAX_NORMALIZED_BODY_BYTES = 512 * 1024
+
+    private interface PendingBodyWriter {
+        @Throws(IOException::class)
+        fun flushPendingBody()
+    }
+
     private data class Session(
         val auditId: String = UUID.randomUUID().toString(),
         val startedAtNs: Long = System.nanoTime(),
@@ -22,7 +29,8 @@ internal object HaierAarUrlConnectionAudit {
         val body: ByteArrayOutputStream = ByteArrayOutputStream(),
         var method: String = "GET",
         var requestRecorded: Boolean = false,
-        var responseRecorded: Boolean = false
+        var responseRecorded: Boolean = false,
+        var pendingBodyWriter: PendingBodyWriter? = null
     )
 
     private val sessions = Collections.synchronizedMap(
@@ -83,6 +91,7 @@ internal object HaierAarUrlConnectionAudit {
         }
         prepare(connection)
         try {
+            flushPendingBody(connection)
             connection.connect()
         } catch (error: Throwable) {
             recordError(connection, error)
@@ -103,7 +112,22 @@ internal object HaierAarUrlConnectionAudit {
         prepare(connection)
         return try {
             val delegate = connection.outputStream
-            CapturingOutputStream(delegate, session(connection))
+            val state = session(connection)
+            val output = CapturingOutputStream(
+                delegate = delegate,
+                state = state,
+                contentTypeProvider = { headerValue(state, "Content-Type") },
+                contentLengthUpdater = { length ->
+                    if (headerValue(state, "Content-Length").isNotBlank()) {
+                        runCatching {
+                            connection.setRequestProperty("Content-Length", length.toString())
+                        }
+                        setHeader(state, "Content-Length", length.toString(), append = false)
+                    }
+                }
+            )
+            synchronized(state) { state.pendingBodyWriter = output }
+            output
         } catch (error: Throwable) {
             recordError(connection, error)
             throw error
@@ -121,8 +145,9 @@ internal object HaierAarUrlConnectionAudit {
             return ByteArrayInputStream(ByteArray(0))
         }
         prepare(connection)
-        recordRequest(connection)
         return try {
+            flushPendingBody(connection)
+            recordRequest(connection)
             val input = connection.inputStream
             recordResponse(connection, responseCode(connection))
             input
@@ -143,8 +168,9 @@ internal object HaierAarUrlConnectionAudit {
             return HttpURLConnection.HTTP_UNAVAILABLE
         }
         prepare(connection)
-        recordRequest(connection)
         return try {
+            flushPendingBody(connection)
+            recordRequest(connection)
             val code = connection.responseCode
             recordResponse(connection, code)
             code
@@ -164,8 +190,9 @@ internal object HaierAarUrlConnectionAudit {
             return ByteArrayInputStream(ByteArray(0))
         }
         prepare(connection)
-        recordRequest(connection)
         return try {
+            flushPendingBody(connection)
+            recordRequest(connection)
             val input = connection.errorStream
             recordResponse(connection, responseCode(connection))
             input
@@ -209,6 +236,20 @@ internal object HaierAarUrlConnectionAudit {
             ),
             critical = true
         )
+    }
+
+    @Throws(IOException::class)
+    private fun flushPendingBody(connection: URLConnection) {
+        val state = session(connection)
+        val pending = synchronized(state) {
+            state.pendingBodyWriter
+        } ?: return
+        pending.flushPendingBody()
+        synchronized(state) {
+            if (state.pendingBodyWriter === pending) {
+                state.pendingBodyWriter = null
+            }
+        }
     }
 
     private fun prepare(connection: URLConnection) {
@@ -390,29 +431,64 @@ internal object HaierAarUrlConnectionAudit {
 
     private class CapturingOutputStream(
         private val delegate: OutputStream,
-        private val state: Session
-    ) : OutputStream() {
+        private val state: Session,
+        private val contentTypeProvider: () -> String,
+        private val contentLengthUpdater: (Int) -> Unit
+    ) : OutputStream(), PendingBodyWriter {
+        private val buffer = ByteArrayOutputStream()
+        private var bufferFlushed = false
+
         override fun write(value: Int) {
-            delegate.write(value)
-            synchronized(state) { state.body.write(value) }
+            if (bufferFlushed) {
+                delegate.write(value)
+                synchronized(state) { state.body.write(value) }
+            } else {
+                buffer.write(value)
+            }
         }
 
         override fun write(bytes: ByteArray) {
-            delegate.write(bytes)
-            synchronized(state) { state.body.write(bytes) }
+            write(bytes, 0, bytes.size)
         }
 
         override fun write(bytes: ByteArray, offset: Int, length: Int) {
-            delegate.write(bytes, offset, length)
-            synchronized(state) { state.body.write(bytes, offset, length) }
+            if (bufferFlushed) {
+                delegate.write(bytes, offset, length)
+                synchronized(state) { state.body.write(bytes, offset, length) }
+            } else {
+                buffer.write(bytes, offset, length)
+            }
         }
 
         override fun flush() {
+            flushPendingBody()
             delegate.flush()
         }
 
         override fun close() {
+            flushPendingBody()
             delegate.close()
+        }
+
+        override fun flushPendingBody() {
+            if (bufferFlushed) return
+            bufferFlushed = true
+            val originalBytes = buffer.toByteArray()
+            if (originalBytes.isEmpty()) return
+            val finalBytes = if (originalBytes.size <= MAX_NORMALIZED_BODY_BYTES) {
+                val original = originalBytes.toString(Charsets.UTF_8)
+                val normalized = normalizeAarPayloadUa(original, contentTypeProvider())
+                if (normalized != original) {
+                    normalized.toByteArray(Charsets.UTF_8)
+                } else {
+                    originalBytes
+                }
+            } else {
+                originalBytes
+            }
+            contentLengthUpdater(finalBytes.size)
+            delegate.write(finalBytes)
+            synchronized(state) { state.body.write(finalBytes) }
         }
     }
 }

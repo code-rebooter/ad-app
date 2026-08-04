@@ -111,6 +111,10 @@ internal object HaierUserAgentNormalizer {
         return profiles[sdkInt]?.androidVersion
     }
 
+    fun canonicalBuildIdFor(sdkInt: Int): String? {
+        return profiles[sdkInt]?.buildId
+    }
+
     private fun isRecognizedBuildCompatible(buildId: String, sdkInt: Int): Boolean {
         val compatibleSdkRange = recognizedBuildSdkRange(buildId) ?: return true
         return sdkInt in compatibleSdkRange

@@ -44,6 +44,105 @@ final class LsapClassPatcher implements Opcodes {
                         )
                         changed = true
                     }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build$VERSION' &&
+                        field.name == 'SDK_INT' && field.desc == 'I' &&
+                        entryName == 'd/a/a/a.class') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidSdkInt',
+                                '()I',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'MODEL' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidDeviceModel',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'ID' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidBuildId',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'BRAND' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidBrand',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'DEVICE' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidDevice',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'MANUFACTURER' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidManufacturer',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
+                    if (field.opcode == GETSTATIC && field.owner == 'android/os/Build' &&
+                        field.name == 'PRODUCT' && field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(
+                                INVOKESTATIC,
+                                BRIDGE,
+                                'getAndroidProduct',
+                                '()Ljava/lang/String;',
+                                false
+                            )
+                        )
+                        changed = true
+                    }
                 }
                 if (!(instruction instanceof MethodInsnNode)) {
                     instruction = nextInstruction
@@ -73,6 +172,18 @@ final class LsapClassPatcher implements Opcodes {
                     call.name == 'nativeStart' && call.desc == '(Ljava/lang/String;Ljava/lang/String;)I') {
                     call.owner = BRIDGE
                     call.name = 'nativeStart'
+                    changed = true
+                }
+                if (call.opcode == INVOKESTATIC && call.owner == 'titan/sdk/android/TitanSDK' &&
+                    call.name == 'setNetwork' && call.desc == '(I)I') {
+                    call.owner = BRIDGE
+                    call.name = 'setTitanNetwork'
+                    changed = true
+                }
+                if (call.opcode == INVOKESTATIC && call.owner == 'titan/sdk/android/TitanSDK' &&
+                    call.name == 'nativeStop' && call.desc == '()V') {
+                    call.owner = BRIDGE
+                    call.name = 'nativeStop'
                     changed = true
                 }
                 if (entryName == 'd/b/d/a.class' &&
@@ -407,6 +518,86 @@ final class LsapClassPatcher implements Opcodes {
                 changed = true
             }
 
+            if (entryName == 'd/b/d/a.class' && method.name == 'a' &&
+                method.desc == '()V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockSdkUpdateEntry',
+                    '()V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/d/a.class' && method.name == 'a' &&
+                method.desc == '(Ljava/lang/String;Ljava/lang/String;ILcom/spctv/data/SDKUpdateInfo;)V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockSdkUpdateDownload',
+                    '(Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/d/a.class' && method.name == 'a' &&
+                method.desc == '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockSdkUpdateExecute',
+                    '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/d/a.class' && method.name == 'b' &&
+                method.desc == '()V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockSdkUpdateStoredConfig',
+                    '()V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/c/a.class' && method.name == 'a' &&
+                method.desc == '(Ljava/lang/String;Ljava/lang/String;)V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockTitanDownload',
+                    '(Ljava/lang/String;Ljava/lang/String;)V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/c/a.class' && method.name == 'a' &&
+                method.desc == '()V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockTitanEntry',
+                    '()V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'd/b/c/a.class' && method.name == 'b' &&
+                method.desc == '()V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockTitanEntry',
+                    '()V'
+                )
+                changed = true
+            }
+
+            if (entryName == 'titan/sdk/android/d.class' && method.name == 'a' &&
+                method.desc == '(Landroid/content/Context;)V') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'blockTitanCoreStart',
+                    '(Landroid/content/Context;)V'
+                )
+                changed = true
+            }
+
             if (entryName == 'd/b/b/b.class' && method.name == 'a' &&
                 method.desc == '(Landroid/content/Context;Lcom/spctv/data/LSAPAdRequest;)Ljava/lang/String;') {
                 method.instructions.toArray().findAll { it.opcode == ARETURN }.each { returnInsn ->
@@ -441,6 +632,49 @@ final class LsapClassPatcher implements Opcodes {
                 audit.add(new MethodInsnNode(INVOKESTATIC, BRIDGE, 'captureAarCallbackResponse',
                     '(Ljava/lang/String;Ljava/lang/String;I)V', false))
                 method.instructions.insert(audit)
+                changed = true
+            }
+
+            if ((entryName == 'd/b/e/l.class' || entryName == 'd/b/e/p.class' ||
+                entryName == 'com/mofeng/ff/component/open/l.class' ||
+                entryName == 'com/mofeng/ff/component/open/u.class') &&
+                method.name == 'a' &&
+                method.desc == '(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'getAndroidSystemProperty',
+                    '(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;'
+                )
+                changed = true
+            }
+
+            if (entryName == 'a/a/a/a/a/h/b.class' && method.name == 'b' &&
+                method.desc == '(Ljava/lang/String;)Ljava/lang/String;') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'getAndroidSystemPropertyOrEmpty',
+                    '(Ljava/lang/String;)Ljava/lang/String;'
+                )
+                changed = true
+            }
+
+            if (entryName == 'a/a/a/a/a/h/b.class' && method.name == 'c' &&
+                method.desc == '()Ljava/lang/String;') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'getAndroidProduct',
+                    '()Ljava/lang/String;'
+                )
+                changed = true
+            }
+
+            if (entryName == 'a/a/a/a/a/h/b.class' && method.name == 'd' &&
+                method.desc == '()Ljava/lang/String;') {
+                replaceMethodBodyWithBridgeCall(
+                    method,
+                    'getAndroidBuildId',
+                    '()Ljava/lang/String;'
+                )
                 changed = true
             }
         }
@@ -483,7 +717,7 @@ final class LsapClassPatcher implements Opcodes {
         return result
     }
 
-    static List<String> findResidualAndroidVersionReads(String entryName, byte[] bytes) {
+    static List<String> findResidualBuildIdentityReads(String entryName, byte[] bytes) {
         List<String> result = []
         ClassNode node = new ClassNode()
         new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
@@ -495,6 +729,19 @@ final class LsapClassPatcher implements Opcodes {
                     field.name == 'RELEASE' &&
                     field.desc == 'Ljava/lang/String;') {
                     result << "${entryName}:${method.name}${method.desc}:androidVersionRelease:${field.owner}.${field.name}:${field.desc}"
+                }
+                if (field.opcode == GETSTATIC &&
+                    field.owner == 'android/os/Build$VERSION' &&
+                    field.name == 'SDK_INT' &&
+                    field.desc == 'I' &&
+                    entryName == 'd/a/a/a.class') {
+                    result << "${entryName}:${method.name}${method.desc}:androidSdkInt:${field.owner}.${field.name}:${field.desc}"
+                }
+                if (field.opcode == GETSTATIC &&
+                    field.owner == 'android/os/Build' &&
+                    ['MODEL', 'ID', 'BRAND', 'DEVICE', 'MANUFACTURER', 'PRODUCT'].contains(field.name) &&
+                    field.desc == 'Ljava/lang/String;') {
+                    result << "${entryName}:${method.name}${method.desc}:androidBuildIdentity:${field.owner}.${field.name}:${field.desc}"
                 }
             }
         }
@@ -508,6 +755,8 @@ final class LsapClassPatcher implements Opcodes {
             (call.name == 'load' || call.name == 'loadLibrary')) return 'nativeLoad'
         if (call.opcode == INVOKESTATIC && call.owner == 'titan/sdk/android/TitanSDK' &&
             call.name == 'nativeStart') return 'titanStart'
+        if (call.opcode == INVOKESTATIC && call.owner == 'titan/sdk/android/TitanSDK' &&
+            ['setNetwork', 'nativeStop'].contains(call.name)) return 'titanNativeControl'
         if (entryName == 'd/b/d/a.class' && call.opcode == INVOKEVIRTUAL &&
             call.owner == 'java/lang/reflect/Method' && call.name == 'invoke') return 'dynamicDexInvoke'
         if (call.opcode == INVOKEVIRTUAL && call.owner == 'android/webkit/WebSettings' &&
@@ -554,6 +803,32 @@ final class LsapClassPatcher implements Opcodes {
         call.name = name
         call.desc = desc
         call.itf = false
+    }
+
+    private static void replaceMethodBodyWithBridgeCall(
+        MethodNode method,
+        String bridgeMethodName,
+        String bridgeMethodDesc
+    ) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        InsnList replacement = new InsnList()
+        int localIndex = (method.access & ACC_STATIC) != 0 ? 0 : 1
+        Type.getArgumentTypes(method.desc).each { Type argumentType ->
+            replacement.add(new VarInsnNode(argumentType.getOpcode(ILOAD), localIndex))
+            localIndex += argumentType.size
+        }
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            BRIDGE,
+            bridgeMethodName,
+            bridgeMethodDesc,
+            false
+        ))
+        replacement.add(new InsnNode(Type.getReturnType(method.desc).getOpcode(IRETURN)))
+        method.instructions.add(replacement)
     }
 
     private static final class SafeClassWriter extends ClassWriter {

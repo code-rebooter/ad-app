@@ -626,8 +626,8 @@ android {
         haier_lsap {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adengine",
-                    versionCode         : 6,
-                    versionName         : "1.0.6",
+                    versionCode         : 7,
+                    versionName         : "1.0.7",
                     signingConfig       : signingConfigs.haierLsapRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "HAIER_LSAP",

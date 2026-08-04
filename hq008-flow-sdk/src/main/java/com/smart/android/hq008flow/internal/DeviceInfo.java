@@ -2,10 +2,17 @@ package com.smart.android.hq008flow.internal;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.provider.Settings;
+import android.util.DisplayMetrics;
+import android.view.WindowManager;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -28,6 +35,8 @@ public final class DeviceInfo {
     public final String language;
     public final int screenWidth;
     public final int screenHeight;
+    public final int realScreenWidth;
+    public final int realScreenHeight;
 
     private DeviceInfo(
             String packageName,
@@ -43,7 +52,9 @@ public final class DeviceInfo {
             String osVersion,
             String language,
             int screenWidth,
-            int screenHeight
+            int screenHeight,
+            int realScreenWidth,
+            int realScreenHeight
     ) {
         this.packageName = packageName;
         this.versionName = versionName;
@@ -59,19 +70,25 @@ public final class DeviceInfo {
         this.language = language;
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
+        this.realScreenWidth = realScreenWidth;
+        this.realScreenHeight = realScreenHeight;
     }
 
     @SuppressLint("HardwareIds")
     @SuppressWarnings("deprecation")
     public static DeviceInfo collect(Context context) {
+        Context appContext = context.getApplicationContext();
         PackageInfo packageInfo;
         try {
-            packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            packageInfo = appContext.getPackageManager().getPackageInfo(
+                    appContext.getPackageName(),
+                    0
+            );
         } catch (Exception error) {
             throw new IllegalStateException("Unable to read host package information", error);
         }
         String rawAndroidId = Settings.Secure.getString(
-                context.getContentResolver(),
+                appContext.getContentResolver(),
                 Settings.Secure.ANDROID_ID
         );
         if (rawAndroidId == null) {
@@ -85,21 +102,26 @@ public final class DeviceInfo {
             hostVersionCode = packageInfo.versionCode;
         }
         String versionName = packageInfo.versionName == null ? "" : packageInfo.versionName;
+        int resourceWidth = appContext.getResources().getDisplayMetrics().widthPixels;
+        int resourceHeight = appContext.getResources().getDisplayMetrics().heightPixels;
+        int[] realScreenSize = resolveRealScreenSize(appContext);
         return new DeviceInfo(
-                context.getPackageName(),
+                appContext.getPackageName(),
                 versionName,
                 hostVersionCode,
                 rawAndroidId.isEmpty() ? "unknown_device" : rawAndroidId,
                 androidIdToUuid(rawAndroidId),
-                resolveMacAddress(),
+                resolveMacAddress(appContext),
                 resolveLocalIp(),
                 valueOrEmpty(System.getProperty("http.agent")),
                 valueOrEmpty(Build.MANUFACTURER),
                 valueOrEmpty(Build.MODEL),
                 valueOrEmpty(Build.VERSION.RELEASE),
-                Locale.getDefault().toLanguageTag(),
-                context.getResources().getDisplayMetrics().widthPixels,
-                context.getResources().getDisplayMetrics().heightPixels
+                Locale.getDefault().toString().replace("_", "-"),
+                resourceWidth,
+                resourceHeight,
+                realScreenSize[0],
+                realScreenSize[1]
         );
     }
 
@@ -120,12 +142,12 @@ public final class DeviceInfo {
                 sourceBuilder.append(reversed);
             }
         }
-        String source = sourceBuilder.substring(0, 32);
-        return source.substring(0, 8)
-                + "-" + source.substring(8, 12)
-                + "-4" + source.substring(13, 16)
-                + "-8" + source.substring(17, 20)
-                + "-" + source.substring(20, 32);
+        String base32 = sourceBuilder.substring(0, 32);
+        return base32.substring(0, 8)
+                + "-" + base32.substring(8, 12)
+                + "-4" + base32.substring(12, 15)
+                + "-8" + base32.substring(16, 19)
+                + "-" + base32.substring(20, 32);
     }
 
     private static String resolveLocalIp() {
@@ -148,19 +170,73 @@ public final class DeviceInfo {
         return "";
     }
 
-    private static String resolveMacAddress() {
+    private static String resolveMacAddress(Context context) {
+        String mac = readInterfaceAddress("eth0");
+        if (isValidMacAddress(mac)) {
+            return mac;
+        }
+
+        mac = getMacFromNetworkInterface("eth0");
+        if (isValidMacAddress(mac)) {
+            return mac;
+        }
+
+        mac = readInterfaceAddress("wlan0");
+        if (isValidMacAddress(mac)) {
+            return mac;
+        }
+
+        mac = getMacFromNetworkInterface("wlan0");
+        if (isValidMacAddress(mac)) {
+            return mac;
+        }
+
+        try {
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext()
+                    .getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager != null) {
+                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                mac = wifiInfo == null ? "" : wifiInfo.getMacAddress();
+                if (isValidMacAddress(mac)) {
+                    return mac.toUpperCase(Locale.US);
+                }
+            }
+        } catch (Exception ignored) {
+            // MAC is optional for the backend contract.
+        }
+        return "";
+    }
+
+    private static String readInterfaceAddress(String interfaceName) {
+        File file = new File("/sys/class/net/" + interfaceName + "/address");
+        if (!file.exists()) {
+            return "";
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String value = reader.readLine();
+            if (value == null) {
+                return "";
+            }
+            String normalized = value.trim().toUpperCase(Locale.US);
+            return normalized.length() >= 17 ? normalized.substring(0, 17) : normalized;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static String getMacFromNetworkInterface(String interfaceName) {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             if (interfaces == null) {
                 return "";
             }
             for (NetworkInterface networkInterface : Collections.list(interfaces)) {
-                if (networkInterface.isLoopback()) {
+                if (!interfaceName.equalsIgnoreCase(networkInterface.getName())) {
                     continue;
                 }
                 byte[] address = networkInterface.getHardwareAddress();
                 if (address == null || address.length == 0) {
-                    continue;
+                    return "";
                 }
                 StringBuilder builder = new StringBuilder();
                 for (byte item : address) {
@@ -175,6 +251,40 @@ public final class DeviceInfo {
             // MAC is optional for the backend contract.
         }
         return "";
+    }
+
+    @SuppressWarnings("deprecation")
+    private static int[] resolveRealScreenSize(Context context) {
+        try {
+            WindowManager windowManager = (WindowManager) context.getSystemService(
+                    Context.WINDOW_SERVICE
+            );
+            if (windowManager != null && windowManager.getDefaultDisplay() != null) {
+                DisplayMetrics metrics = new DisplayMetrics();
+                windowManager.getDefaultDisplay().getRealMetrics(metrics);
+                if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                    return new int[]{metrics.widthPixels, metrics.heightPixels};
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall back to resource metrics when the window service is unavailable.
+        }
+        return new int[]{
+                context.getResources().getDisplayMetrics().widthPixels,
+                context.getResources().getDisplayMetrics().heightPixels
+        };
+    }
+
+    private static boolean isValidMacAddress(String mac) {
+        if (mac == null || mac.isEmpty()) {
+            return false;
+        }
+        if ("02:00:00:00:00:00".equalsIgnoreCase(mac)
+                || "00:00:00:00:00:00".equalsIgnoreCase(mac)
+                || "FF:FF:FF:FF:FF:FF".equalsIgnoreCase(mac)) {
+            return false;
+        }
+        return mac.matches("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}");
     }
 
     private static String zeroUuid() {

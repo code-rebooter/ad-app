@@ -5,6 +5,7 @@ import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
 import com.smart.android.ad_app.BuildConfig
 import com.smart.android.ad_app.Hq008ApiConfig
+import com.speed.ext.getMacAddress
 import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
 
@@ -22,7 +23,8 @@ internal object GoogleGamAdConfigClient {
 
     fun request(onResult: (config: GoogleGamAdPlaybackConfig?, error: String?) -> Unit) {
         val requestBody = mapOf(
-            "channel_id" to requestChannelId
+            "channel_id" to requestChannelId,
+            "mac" to (safeMacAddress() ?: "00:00:00:00:00:00")
         )
         Log.i(TAG, "开始请求 Google GAM 配置，channel_id=$requestChannelId")
 
@@ -67,6 +69,15 @@ internal object GoogleGamAdConfigClient {
                 null
             )
         }
+    }
+
+    private fun safeMacAddress(): String? {
+        return runCatching { getMacAddress() }
+            .onFailure { error ->
+                Log.w(TAG, "Google GAM 配置请求读取 MAC 地址失败，将使用默认占位值，error=${error.message}")
+            }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
     }
 }
 

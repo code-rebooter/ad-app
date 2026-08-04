@@ -2,7 +2,6 @@ package com.smart.android.hq008flow.internal;
 
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -31,6 +30,7 @@ public final class FlowApiClient {
     private final Gson gson = new Gson();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final OkHttpClient client = new OkHttpClient.Builder()
+            .addInterceptor(new SdkHttpLoggingInterceptor())
             .connectTimeout(20L, TimeUnit.SECONDS)
             .readTimeout(30L, TimeUnit.SECONDS)
             .writeTimeout(30L, TimeUnit.SECONDS)
@@ -79,7 +79,7 @@ public final class FlowApiClient {
     public void report(Map<String, Object> requestBody) {
         post("api/v2/ad/report", requestBody, (data, error) -> {
             if (error != null) {
-                Log.w(TAG, "广告事件上报失败: " + error.getMessage());
+                SdkLog.w(TAG, "广告事件上报失败: " + safeMessage(error), error);
             }
         });
     }
@@ -121,6 +121,7 @@ public final class FlowApiClient {
                     }
                     deliver(callback, parseData(raw), null);
                 } catch (Throwable error) {
+                    SdkLog.w(TAG, "解析接口响应失败: " + safeMessage(error), error);
                     deliver(callback, null, error);
                 }
             }
@@ -188,6 +189,13 @@ public final class FlowApiClient {
 
     private <T> void deliver(ApiCallback<T> callback, T data, Throwable error) {
         mainHandler.post(() -> callback.onResult(data, error));
+    }
+
+    private String safeMessage(Throwable error) {
+        String message = error.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? error.getClass().getSimpleName()
+                : message;
     }
 
     public interface ApiCallback<T> {

@@ -31,19 +31,25 @@ class HaierAarUaPayloadNormalizerTest {
                 "userAgent":"bad",
                 "deviceModel":"TVBOX",
                 "specific":{"deviceModel":"TX9 PRO"},
-                "device":{"ua":"bad","model":"Smart TV"},
+                "device":{"ua":"bad","model":"Smart TV","build":"bad"},
                 "content":{"model":"TV BOX"}
             }""".trimIndent()
 
         val result = JsonParser.parseString(
-            normalizeAarPayloadUa(input, "application/json", effectiveUa)
+            normalizeAarPayloadUa(
+                raw = input,
+                contentType = "application/json",
+                effectiveUa = effectiveUa,
+                effectiveBuildId = "QP1A.190711.019"
+            )
         ).asJsonObject
 
         assertEquals(effectiveUa, result.get("userAgent").asString)
         assertEquals("X96_NEXT", result.get("deviceModel").asString)
-        assertEquals("TX9 PRO", result.getAsJsonObject("specific").get("deviceModel").asString)
+        assertEquals("X96_NEXT", result.getAsJsonObject("specific").get("deviceModel").asString)
         assertEquals(effectiveUa, result.getAsJsonObject("device").get("ua").asString)
         assertEquals("X96_NEXT", result.getAsJsonObject("device").get("model").asString)
+        assertEquals("QP1A.190711.019", result.getAsJsonObject("device").get("build").asString)
         assertEquals("TV BOX", result.getAsJsonObject("content").get("model").asString)
     }
 }

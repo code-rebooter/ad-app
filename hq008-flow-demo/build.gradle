@@ -1,0 +1,87 @@
+import java.util.Properties
+
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+def tclDemoProjectDir = rootProject.file("../tcl_ad_demo")
+def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
+def tclDemoSigningPropertiesFile = new File(tclDemoProjectDir, "signing/release-signing.properties")
+def tclDemoSigningProperties = new Properties()
+if (tclDemoSigningPropertiesFile.exists()) {
+    tclDemoSigningPropertiesFile.withInputStream { stream ->
+        tclDemoSigningProperties.load(stream)
+    }
+}
+
+android {
+    namespace 'com.smart.android.hq008flowdemo'
+    compileSdk 36
+
+    signingConfigs {
+        tclDemoRelease {
+            if (tclDemoSigningPropertiesFile.exists()) {
+                storeFile new File(tclDemoProjectDir, tclDemoSigningProperties.getProperty("storeFile"))
+                storePassword tclDemoSigningProperties.getProperty("storePassword")
+                keyAlias tclDemoSigningProperties.getProperty("keyAlias")
+                keyPassword tclDemoSigningProperties.getProperty("keyPassword")
+                storeType tclDemoSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.google.android.adffa"
+        minSdk 23
+        targetSdk 36
+        versionCode 18
+        versionName "1.0.17"
+        manifestPlaceholders = [
+                tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4owsqw9j3Y1AnhbAOJWhOOU0L2PnLfCGJ39cXus/jcmTHJ2CPvE0qclHv3OimV+X5AA==",
+                partner_name: "chhkj_1",
+                project_id  : "178"
+        ]
+        buildConfigField "String", "FLOW_API_BASE_URL", "\"https://api.kytira.cc/\""
+        buildConfigField "String", "FLOW_APP_NAME", "\"hq008\""
+        buildConfigField "String", "TCL_AD_SDK_VERSION", "\"2.8.02\""
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            signingConfig signingConfigs.tclDemoRelease
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.tclDemoRelease
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation project(':hq008-flow-sdk')
+    implementation fileTree(dir: tclDemoLibsDir, include: [
+            'adsdk_overseas_base_business-*.aar',
+            'adsdk_overseas_media_ad-*.aar',
+            'adsdk_overseas_player-*.aar'
+    ])
+    implementation 'com.google.guava:guava:31.1-android'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.leanback:leanback:1.0.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    implementation 'com.github.bumptech.glide:glide:4.11.0'
+    implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+}

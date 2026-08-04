@@ -22,7 +22,6 @@ import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import titan.sdk.android.TitanSDK
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -34,6 +33,7 @@ import java.net.Proxy
 import java.net.URL
 import java.net.URLConnection
 import java.util.Date
+import java.util.Locale
 import java.util.Timer
 import java.util.TimerTask
 import java.util.UUID
@@ -47,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Keep
 object HaierAarRuntimeBridge {
-    const val PATCH_VERSION = "lsap-full-network-audit-3"
+    const val PATCH_VERSION = "lsap-full-network-audit-7"
     private const val TAG = "HaierAarBridge"
     private const val HTTP_AGENT = "http.agent"
     private const val LSAP_PREFS = "lsapdata"
@@ -161,13 +161,57 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun getAndroidVersionRelease(): String {
-        return HaierUserAgentNormalizer.canonicalAndroidVersionFor(Build.VERSION.SDK_INT)
-            ?: Build.VERSION.RELEASE.orEmpty()
+        return HaierBuildIdentityNormalizer.androidVersion()
+    }
+
+    @JvmStatic
+    fun getAndroidSdkInt(): Int {
+        return HaierBuildIdentityNormalizer.sdkInt()
+    }
+
+    @JvmStatic
+    fun getAndroidDeviceModel(): String {
+        return HaierDeviceModelNormalizer.FIXED_MODEL
+    }
+
+    @JvmStatic
+    fun getAndroidBuildId(): String {
+        return HaierBuildIdentityNormalizer.buildId()
+    }
+
+    @JvmStatic
+    fun getAndroidBrand(): String {
+        return HaierBuildIdentityNormalizer.brand()
+    }
+
+    @JvmStatic
+    fun getAndroidDevice(): String {
+        return HaierBuildIdentityNormalizer.device()
+    }
+
+    @JvmStatic
+    fun getAndroidManufacturer(): String {
+        return HaierBuildIdentityNormalizer.manufacturer()
+    }
+
+    @JvmStatic
+    fun getAndroidProduct(): String {
+        return HaierBuildIdentityNormalizer.product()
     }
 
     @JvmStatic
     fun getSystemProperty(name: String?): String? {
         return if (name == HTTP_AGENT) currentEffectiveUa() else name?.let(System::getProperty)
+    }
+
+    @JvmStatic
+    fun getAndroidSystemProperty(name: String?, defaultValue: String?): String? {
+        return HaierBuildIdentityNormalizer.systemProperty(name, defaultValue)
+    }
+
+    @JvmStatic
+    fun getAndroidSystemPropertyOrEmpty(name: String?): String {
+        return HaierBuildIdentityNormalizer.systemProperty(name, "").orEmpty()
     }
 
     @JvmStatic
@@ -182,12 +226,36 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun normalizeStoredValue(key: String?, value: String?): String? {
-        if (key != LSAD_WEB_UA) return value
-        val effective = currentEffectiveUa()
-        if (!value.isNullOrEmpty() && value != effective) {
-            auditUaEvent("AAR_UA_DRIFT", "aar_store", value, effective)
+        if (key == LSAD_WEB_UA) {
+            val effective = currentEffectiveUa()
+            if (!value.isNullOrEmpty() && value != effective) {
+                auditUaEvent("AAR_UA_DRIFT", "aar_store", value, effective)
+            }
+            return effective
         }
-        return effective
+        sanitizeDynamicConfigValue(key, value)?.let { sanitized ->
+            if (sanitized != value) {
+                auditDynamicConfigSanitized(key.orEmpty(), value.orEmpty(), sanitized)
+            }
+            return sanitized
+        }
+        return value
+    }
+
+    private fun sanitizeDynamicConfigValue(key: String?, value: String?): String? {
+        val normalizedKey = key?.trim().orEmpty()
+        if (normalizedKey.isEmpty()) return null
+        val upperKey = normalizedKey.uppercase(Locale.ROOT)
+        return when {
+            upperKey == "CONFIG_HOTUPADATE_INFO" -> ""
+            upperKey == "ISDK_UPDATE_URL" -> ""
+            upperKey.startsWith("TITANOPEN_") -> "false"
+            upperKey.startsWith("TITANLIBURL_") -> ""
+            upperKey.startsWith("TITOKEN_") -> ""
+            upperKey.startsWith("TITAG_") -> ""
+            upperKey.startsWith("TITANQUOTA_") -> ""
+            else -> null
+        }
     }
 
     @JvmStatic
@@ -382,12 +450,33 @@ object HaierAarRuntimeBridge {
             val original = device.optString("ua")
             val effective = currentEffectiveUa()
             device.put("ua", effective)
+            listOf("make", "manufacturer")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidManufacturer()) }
+            listOf("brand", "dev_brand")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidBrand()) }
             if (device.has("model")) {
-                val originalModel = device.optString("model")
-                if (HaierDeviceModelNormalizer.isGeneric(originalModel)) {
-                    device.put("model", HaierDeviceModelNormalizer.normalize(originalModel))
-                }
+                device.put("model", getAndroidDeviceModel())
             }
+            listOf("device", "deviceName", "device_name", "device-name")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidDevice()) }
+            listOf("product", "dev_name", "devName")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidProduct()) }
+            listOf("osv", "os_version", "androidVersion", "android_version", "release")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidVersionRelease()) }
+            listOf("sysVersion", "sys_version", "sys-version")
+                .filter(device::has)
+                .forEach { key -> device.put(key, HaierBuildIdentityNormalizer.systemVersionLabel()) }
+            listOf("build", "buildId", "build_id", "android_build_id")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidBuildId()) }
+            listOf("romVersion", "rom_version", "tclOsVersion", "tcl_os_version")
+                .filter(device::has)
+                .forEach { key -> device.put(key, getAndroidBuildId()) }
             if (original != effective) {
                 auditUaEvent("AAR_UA_REPAIRED", "rtb_device_ua", original, effective)
             }
@@ -524,7 +613,8 @@ object HaierAarRuntimeBridge {
 
     @JvmStatic
     fun captureHeziEncryptionInput(value: String?): String? {
-        if (!value.isNullOrEmpty()) {
+        val normalized = value?.let(::normalizeAarHeziPlaintext)
+        if (!normalized.isNullOrEmpty()) {
             HaierAarAuditUploader.enqueue(
                 HaierAarAuditEvent(
                     eventType = "AAR_HEZI_PLAINTEXT",
@@ -532,126 +622,113 @@ object HaierAarRuntimeBridge {
                     method = "ENCRYPT",
                     urlRaw = "",
                     headersRaw = "",
-                    bodyRaw = value
+                    bodyRaw = normalized,
+                    extra = mapOf(
+                        "hezi_normalized" to (normalized != value)
+                    )
                 )
             )
         }
-        return value
+        return normalized
     }
 
     @JvmStatic
     fun systemLoad(path: String) {
-        if (shouldBlockSdkAction("system_load", path)) {
-            return
-        }
-        HaierAarAuditUploader.enqueue(
-            HaierAarAuditEvent(
-                eventType = "AAR_TITAN_EVENT",
-                sourceStack = "system_load",
-                method = "LOAD",
-                urlRaw = path,
-                headersRaw = "",
-                bodyRaw = path,
-                coverage = "native_unverified"
-            ),
-            critical = true
-        )
-        System.load(path)
+        blockDynamicCode("system_load", path, path)
     }
 
     @JvmStatic
     fun systemLoadLibrary(name: String) {
-        if (shouldBlockSdkAction("system_load_library", name)) {
-            return
-        }
-        HaierAarAuditUploader.enqueue(
-            HaierAarAuditEvent(
-                eventType = "AAR_TITAN_EVENT",
-                sourceStack = "system_load_library",
-                method = "LOAD_LIBRARY",
-                urlRaw = name,
-                headersRaw = "",
-                bodyRaw = name,
-                coverage = "native_unverified"
-            ),
-            critical = true
-        )
-        System.loadLibrary(name)
+        blockDynamicCode("system_load_library", name, name)
     }
 
     @JvmStatic
     fun nativeStart(workspace: String?, configJson: String?): Int {
-        if (shouldBlockSdkAction("titan_native_start", workspace.orEmpty())) {
-            return 0
-        }
-        HaierAarAuditUploader.enqueue(
-            HaierAarAuditEvent(
-                eventType = "AAR_TITAN_EVENT",
-                sourceStack = "titan_native_start",
-                method = "JNI",
-                urlRaw = workspace.orEmpty(),
-                headersRaw = "",
-                bodyRaw = configJson.orEmpty(),
-                coverage = "native_unverified"
-            ),
-            critical = true
-        )
-        return TitanSDK.nativeStart(workspace, configJson)
+        blockDynamicCode("titan_native_start", workspace.orEmpty(), configJson.orEmpty())
+        return 0
+    }
+
+    @JvmStatic
+    fun setTitanNetwork(networkType: Int): Int {
+        blockDynamicCode("titan_set_network", networkType.toString(), networkType.toString())
+        return 0
+    }
+
+    @JvmStatic
+    fun nativeStop() {
+        blockDynamicCode("titan_native_stop", "", "")
     }
 
     @JvmStatic
     @Throws(Exception::class)
     fun invokeDynamicMethod(method: Method, receiver: Any?, arguments: Array<Any?>?): Any? {
-        if (shouldBlockSdkAction("dynamic_dex_invoke", method.declaringClass.name)) {
-            return null
-        }
-        val auditId = UUID.randomUUID().toString()
-        HaierAarAuditUploader.enqueue(
-            HaierAarAuditEvent(
-                eventType = "AAR_DEX_EVENT",
-                sourceStack = "dynamic_dex_invoke",
-                method = method.name,
-                urlRaw = method.declaringClass.name,
-                headersRaw = "",
-                bodyRaw = arguments?.contentDeepToString().orEmpty(),
-                coverage = "dynamic_dex_unverified",
-                auditId = auditId
-            ),
-            critical = true
+        blockDynamicCode(
+            action = "dynamic_dex_invoke",
+            detail = "${method.declaringClass.name}#${method.name}",
+            body = arguments?.contentDeepToString().orEmpty()
         )
-        return try {
-            method.invoke(receiver, *(arguments ?: emptyArray())).also { result ->
-                HaierAarAuditUploader.enqueue(
-                    HaierAarAuditEvent(
-                        eventType = "AAR_DEX_RESULT",
-                        sourceStack = "dynamic_dex_invoke",
-                        method = method.name,
-                        urlRaw = method.declaringClass.name,
-                        headersRaw = "",
-                        bodyRaw = result?.toString().orEmpty(),
-                        coverage = "dynamic_dex_unverified",
-                        auditId = auditId
-                    ),
-                    critical = true
-                )
-            }
-        } catch (error: Throwable) {
-            HaierAarAuditUploader.enqueue(
-                HaierAarAuditEvent(
-                    eventType = "AAR_DEX_ERROR",
-                    sourceStack = "dynamic_dex_invoke",
-                    method = method.name,
-                    urlRaw = method.declaringClass.name,
-                    headersRaw = "",
-                    bodyRaw = arguments?.contentDeepToString().orEmpty(),
-                    errorMessage = "${error.javaClass.name}: ${error.message.orEmpty()}",
-                    coverage = "dynamic_dex_unverified",
-                    auditId = auditId
-                ),
-                critical = true
-            )
-            throw error
-        }
+        return null
+    }
+
+    @JvmStatic
+    fun blockSdkUpdateEntry() {
+        blockDynamicCode("sdk_update_entry", "", "")
+    }
+
+    @JvmStatic
+    fun blockSdkUpdateDownload(
+        url: String?,
+        md5: String?,
+        version: Int,
+        updateInfo: Any?
+    ) {
+        blockDynamicCode(
+            action = "sdk_update_download",
+            detail = listOfNotNull(url, md5).joinToString(" | ").take(240),
+            body = "version=$version,info=${updateInfo?.javaClass?.name.orEmpty()}"
+        )
+    }
+
+    @JvmStatic
+    fun blockSdkUpdateExecute(
+        className: String?,
+        methodName: String?,
+        value: String?,
+        dexPath: String?
+    ) {
+        blockDynamicCode(
+            action = "sdk_update_execute",
+            detail = "${className.orEmpty()}#${methodName.orEmpty()}@${dexPath.orEmpty()}",
+            body = value.orEmpty()
+        )
+    }
+
+    @JvmStatic
+    fun blockSdkUpdateStoredConfig() {
+        blockDynamicCode("sdk_update_stored_config", "", "")
+    }
+
+    @JvmStatic
+    fun blockTitanEntry() {
+        blockDynamicCode("titan_entry", "", "")
+    }
+
+    @JvmStatic
+    fun blockTitanDownload(url: String?, saveDir: String?) {
+        blockDynamicCode(
+            action = "titan_download",
+            detail = url.orEmpty(),
+            body = saveDir.orEmpty()
+        )
+    }
+
+    @JvmStatic
+    fun blockTitanCoreStart(context: Context?) {
+        blockDynamicCode(
+            action = "titan_core_start",
+            detail = context?.packageName.orEmpty(),
+            body = ""
+        )
     }
 
     @JvmStatic
@@ -919,6 +996,26 @@ object HaierAarRuntimeBridge {
         }
     }
 
+    private fun blockDynamicCode(action: String, detail: String, body: String) {
+        val trimmedDetail = detail.take(240)
+        Log.w(TAG, "AAR动态代码入口已阻断，action=$action，detail=$trimmedDetail")
+        runCatching {
+            HaierAarAuditUploader.enqueue(
+                HaierAarAuditEvent(
+                    eventType = "AAR_DYNAMIC_CODE_BLOCKED",
+                    sourceStack = "patch_dynamic_code_block",
+                    method = action,
+                    urlRaw = trimmedDetail,
+                    headersRaw = "",
+                    bodyRaw = body.take(2000),
+                    coverage = "dynamic_code_blocked",
+                    errorMessage = "disabled_by_patch"
+                ),
+                critical = true
+            )
+        }.onFailure { Log.w(TAG, "AAR动态代码阻断审计失败", it) }
+    }
+
     private fun auditGateBlocked(action: String, detail: String) {
         val trimmedDetail = detail.take(240)
         val key = "$action:$trimmedDetail"
@@ -964,6 +1061,26 @@ object HaierAarRuntimeBridge {
                 critical = critical
             )
         }.onFailure { Log.w(TAG, "AAR运行时总闸审计失败", it) }
+    }
+
+    private fun auditDynamicConfigSanitized(key: String, observed: String, effective: String) {
+        runCatching {
+            HaierAarAuditUploader.enqueue(
+                HaierAarAuditEvent(
+                    eventType = "AAR_DYNAMIC_CONFIG_SANITIZED",
+                    sourceStack = "aar_store_dynamic_config",
+                    method = key,
+                    urlRaw = key.take(240),
+                    headersRaw = "",
+                    bodyRaw = JSONObject()
+                        .put("observed", observed)
+                        .put("effective", effective)
+                        .toString(),
+                    coverage = "dynamic_config_sanitized"
+                ),
+                critical = true
+            )
+        }.onFailure { Log.w(TAG, "AAR动态配置清洗审计失败", it) }
     }
 
     private class BlockedScheduledFuture<V> : ScheduledFuture<V> {

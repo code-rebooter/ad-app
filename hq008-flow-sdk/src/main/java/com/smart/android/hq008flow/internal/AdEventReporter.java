@@ -1,7 +1,9 @@
 package com.smart.android.hq008flow.internal;
 
+import android.content.Context;
 import android.os.SystemClock;
 
+import com.smart.android.hq008flow.BuildConfig;
 import com.smart.android.hq008flow.Hq008FlowConfig;
 
 import com.google.gson.Gson;
@@ -10,21 +12,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class AdEventReporter {
-    private static final String FLOW_SDK_VERSION = "1.0.0";
-
     private final FlowApiClient apiClient;
     private final Hq008FlowConfig config;
-    private final DeviceInfo deviceInfo;
+    private final Context appContext;
     private final Gson gson = new Gson();
 
     public AdEventReporter(
             FlowApiClient apiClient,
             Hq008FlowConfig config,
-            DeviceInfo deviceInfo
+            Context context
     ) {
         this.apiClient = apiClient;
         this.config = config;
-        this.deviceInfo = deviceInfo;
+        this.appContext = context.getApplicationContext();
     }
 
     public void requested(String requestId, long createdAtMs) {
@@ -86,8 +86,11 @@ public final class AdEventReporter {
             String message,
             Map<String, Object> eventDiagnostics
     ) {
+        DeviceInfo deviceInfo = DeviceInfo.collect(appContext);
         Map<String, Object> diagnosticInfo = new LinkedHashMap<>();
-        diagnosticInfo.put("flowSdkVersion", FLOW_SDK_VERSION);
+        diagnosticInfo.put("flowSdkVersion", BuildConfig.SDK_VERSION_NAME);
+        diagnosticInfo.put("flowSdkVersionCode", BuildConfig.SDK_VERSION_CODE);
+        diagnosticInfo.put("flowSdkBuildTime", BuildConfig.SDK_BUILD_TIME);
         diagnosticInfo.put("adSdkVersion", config.getAdSdkVersion());
         diagnosticInfo.putAll(eventDiagnostics);
 
@@ -96,19 +99,22 @@ public final class AdEventReporter {
         body.put("event_type", eventType);
         body.put("uuid", deviceInfo.androidId);
         body.put("channel_id", config.getChannelId());
-        body.put("local_ip", deviceInfo.localIp);
         body.put("mac", deviceInfo.mac.isEmpty() ? "00:00:00:00:00:00" : deviceInfo.mac);
         body.put("app_id", deviceInfo.packageName);
-        body.put("app_name", config.getAppName());
-        body.put("bundle", deviceInfo.packageName);
         body.put("make", deviceInfo.make);
         body.put("model", deviceInfo.model);
-        body.put("os", "Android");
-        body.put("osv", deviceInfo.osVersion);
-        body.put("language", deviceInfo.language);
         body.put("ad_version", deviceInfo.versionCode);
         body.put("message", message);
         body.put("diagnostic_info", gson.toJson(diagnosticInfo));
+        if (!deviceInfo.localIp.isEmpty()) {
+            body.put("local_ip", deviceInfo.localIp);
+        }
+        SdkLog.i(
+                "Hq008FlowReport",
+                "report event requestId=" + requestId
+                        + " eventType=" + eventType
+                        + " message=" + message
+        );
         apiClient.report(body);
     }
 }

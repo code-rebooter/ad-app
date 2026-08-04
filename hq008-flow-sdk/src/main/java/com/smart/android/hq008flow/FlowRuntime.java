@@ -5,12 +5,12 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 
 import com.smart.android.hq008flow.internal.AdEventReporter;
 import com.smart.android.hq008flow.internal.DeviceInfo;
 import com.smart.android.hq008flow.internal.FlowApiClient;
 import com.smart.android.hq008flow.internal.ScheduleStore;
+import com.smart.android.hq008flow.internal.SdkLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,26 +19,25 @@ import java.util.UUID;
 final class FlowRuntime {
     private static final String TAG = "Hq008FlowSdk";
 
+    private final Context appContext;
     private final Hq008FlowConfig config;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final DeviceInfo deviceInfo;
     private final FlowApiClient apiClient;
     private final AdEventReporter reporter;
     private final ScheduleStore scheduleStore;
 
     private boolean running;
-    private boolean pendingTrigger;
     private Runnable scheduledRunnable;
     private Runnable timeoutRunnable;
-    private Hq008AdHost adHost;
+    private Hq008AdCallback adCallback;
     private ActiveRun activeRun;
 
     FlowRuntime(Context context, Hq008FlowConfig config) {
         Context appContext = context.getApplicationContext();
+        this.appContext = appContext;
         this.config = config;
-        this.deviceInfo = DeviceInfo.collect(appContext);
         this.apiClient = new FlowApiClient(config.getApiBaseUrl());
-        this.reporter = new AdEventReporter(apiClient, config, deviceInfo);
+        this.reporter = new AdEventReporter(apiClient, config, appContext);
         this.scheduleStore = new ScheduleStore(
                 appContext,
                 config.getChannelId(),
@@ -56,7 +55,7 @@ final class FlowRuntime {
                     System.currentTimeMillis(),
                     config.getInitialDelaySeconds()
             );
-            Log.i(TAG, "流程启动，channel=" + config.getChannelId() + "，首次延迟=" + delayMs + "ms");
+            SdkLog.i(TAG, "流程启动，channel=" + config.getChannelId() + "，首次延迟=" + delayMs + "ms");
             schedule(delayMs);
         });
     }
@@ -67,7 +66,6 @@ final class FlowRuntime {
                 return;
             }
             running = false;
-            pendingTrigger = false;
             if (scheduledRunnable != null) {
                 mainHandler.removeCallbacks(scheduledRunnable);
                 scheduledRunnable = null;
@@ -84,14 +82,14 @@ final class FlowRuntime {
             }
             activeRun = null;
             apiClient.cancelAll();
-            Log.i(TAG, "流程已停止");
+            SdkLog.i(TAG, "流程已停止");
         });
     }
 
     void triggerNow() {
         runOnMain(() -> {
             if (!running) {
-                Log.w(TAG, "triggerNow 已忽略：流程尚未 start");
+                SdkLog.w(TAG, "triggerNow 已忽略：流程尚未 start");
                 return;
             }
             if (scheduledRunnable != null) {
@@ -102,28 +100,27 @@ final class FlowRuntime {
         });
     }
 
-    void attachAdHost(Hq008AdHost host) {
+    void setAdCallback(Hq008AdCallback callback) {
         runOnMain(() -> {
-            adHost = host;
-            Log.i(TAG, "广告 UI 已绑定");
-            if (running && pendingTrigger && activeRun == null) {
-                pendingTrigger = false;
-                if (scheduledRunnable != null) {
-                    mainHandler.removeCallbacks(scheduledRunnable);
-                    scheduledRunnable = null;
-                }
-                triggerDue();
-            }
+            adCallback = callback;
+            SdkLog.i(TAG, "广告回调已设置");
         });
     }
 
-    void detachAdHost(Hq008AdHost host) {
+    void clearAdCallback() {
         runOnMain(() -> {
-            if (adHost != host) {
+            adCallback = null;
+            SdkLog.i(TAG, "广告回调已清除");
+        });
+    }
+
+    void clearAdCallback(Hq008AdCallback callback) {
+        runOnMain(() -> {
+            if (adCallback != callback) {
                 return;
             }
-            adHost = null;
-            Log.i(TAG, "广告 UI 已解绑");
+            adCallback = null;
+            SdkLog.i(TAG, "广告回调已清除");
         });
     }
 
@@ -132,12 +129,7 @@ final class FlowRuntime {
             return;
         }
         if (activeRun != null) {
-            Log.i(TAG, "上一轮流程尚未结束，本轮触发已跳过");
-            return;
-        }
-        if (adHost == null) {
-            pendingTrigger = true;
-            Log.i(TAG, "当前没有绑定的广告 UI，等待 UI attach 后再执行");
+            SdkLog.i(TAG, "上一轮流程尚未结束，本轮触发已跳过");
             return;
         }
 
@@ -152,31 +144,32 @@ final class FlowRuntime {
                 SystemClock.elapsedRealtime()
         );
         activeRun = run;
-        Log.i(TAG, "开始 flow-control，requestId=" + localRequestId);
+        SdkLog.i(TAG, "开始 flow-control，requestId=" + localRequestId);
         apiClient.requestFlowControl(buildFlowControlBody(), (response, error) -> {
             if (!isActive(run)) {
                 return;
             }
             if (error != null) {
-                Log.w(TAG, "flow-control 失败，按关闭处理: " + error.getMessage());
+                SdkLog.w(TAG, "flow-control 失败，按关闭处理: " + safeMessage(error));
                 finishRun(run);
             } else if (response == null || !response.enabled) {
-                Log.i(TAG, "flow-control enabled=false，本轮结束");
+                SdkLog.i(TAG, "flow-control enabled=false，本轮结束");
                 finishRun(run);
             } else {
+                SdkLog.i(TAG, "flow-control 通过，requestId=" + localRequestId);
                 requestAuthorize(run);
             }
         });
     }
 
     private void requestAuthorize(ActiveRun run) {
-        Log.i(TAG, "开始 authorize，requestId=" + run.requestId);
+        SdkLog.i(TAG, "开始 authorize，requestId=" + run.requestId);
         apiClient.requestAuthorize(buildAuthorizeBody(run.requestId), (response, error) -> {
             if (!isActive(run)) {
                 return;
             }
             if (error != null || response == null) {
-                Log.w(TAG, "authorize 失败: " + (error == null ? "empty response" : error.getMessage()));
+                SdkLog.w(TAG, "authorize 失败: " + (error == null ? "empty response" : safeMessage(error)));
                 finishRun(run);
                 return;
             }
@@ -184,19 +177,25 @@ final class FlowRuntime {
             if (response.requestId != null && !response.requestId.trim().isEmpty()) {
                 run.requestId = response.requestId;
             }
+            SdkLog.i(
+                    TAG,
+                    "authorize 返回 requestId=" + run.requestId
+                            + " authorized=" + response.authorized
+                            + " next_request_seconds=" + response.nextRequestSeconds
+            );
             if (!response.authorized) {
-                Log.i(TAG, "authorize authorized=false，本轮结束");
+                SdkLog.i(TAG, "authorize authorized=false，本轮结束");
                 finishRun(run);
                 return;
             }
-            dispatchToAdHost(run);
+            dispatchToAdCallback(run);
         });
     }
 
-    private void dispatchToAdHost(ActiveRun run) {
-        Hq008AdHost currentHost = adHost;
-        if (currentHost == null) {
-            pendingTrigger = true;
+    private void dispatchToAdCallback(ActiveRun run) {
+        Hq008AdCallback currentCallback = adCallback;
+        if (currentCallback == null) {
+            SdkLog.i(TAG, "authorize 已通过，但当前没有广告回调，本轮不派发展示");
             finishRun(run);
             return;
         }
@@ -225,9 +224,9 @@ final class FlowRuntime {
             }
         });
         try {
-            currentHost.onAdAuthorized(session);
+            currentCallback.onAdAuthorized(session);
         } catch (Throwable error) {
-            onFailed(run, null, "AD_HOST_CALLBACK_ERROR:" + safeMessage(error));
+            onFailed(run, null, "AD_CALLBACK_ERROR:" + safeMessage(error));
         }
     }
 
@@ -236,6 +235,7 @@ final class FlowRuntime {
             return;
         }
         run.loaded = true;
+        SdkLog.i(TAG, "广告已加载，requestId=" + run.requestId);
         reporter.loaded(run.requestId, run.createdAtMs);
     }
 
@@ -244,6 +244,11 @@ final class FlowRuntime {
             return;
         }
         run.started = true;
+        SdkLog.i(
+                TAG,
+                "广告开始播放，requestId=" + run.requestId
+                        + (progress == null ? "" : " progress=" + progress)
+        );
         reporter.started(run.requestId, run.createdAtMs, progress);
     }
 
@@ -251,6 +256,7 @@ final class FlowRuntime {
         if (!markTerminal(run)) {
             return;
         }
+        SdkLog.i(TAG, "广告播放完成，requestId=" + run.requestId);
         reporter.completed(run.requestId, run.createdAtMs);
         finishRun(run);
     }
@@ -262,6 +268,12 @@ final class FlowRuntime {
         String resolvedMessage = message == null || message.trim().isEmpty()
                 ? "AD_ERROR"
                 : message;
+        SdkLog.w(
+                TAG,
+                "广告播放失败，requestId=" + run.requestId
+                        + " code=" + code
+                        + " message=" + resolvedMessage
+        );
         reporter.failed(run.requestId, run.createdAtMs, code, resolvedMessage);
         finishRun(run);
     }
@@ -272,6 +284,7 @@ final class FlowRuntime {
             if (!markTerminal(run)) {
                 return;
             }
+            SdkLog.w(TAG, "广告回调超时，requestId=" + run.requestId);
             reporter.failed(run.requestId, run.createdAtMs, null, "TIMEOUT");
             finishRun(run);
         };
@@ -313,7 +326,7 @@ final class FlowRuntime {
             triggerDue();
         };
         mainHandler.postDelayed(scheduledRunnable, Math.max(0L, delayMs));
-        Log.i(TAG, "下一轮已安排，delay=" + delayMs + "ms");
+        SdkLog.i(TAG, "下一轮已安排，delay=" + delayMs + "ms");
     }
 
     private void clearTimeout() {
@@ -324,21 +337,21 @@ final class FlowRuntime {
     }
 
     private Map<String, Object> buildFlowControlBody() {
+        DeviceInfo deviceInfo = DeviceInfo.collect(appContext);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel_id", config.getChannelId());
         body.put("mac", deviceInfo.mac);
-        body.put("app_version", deviceInfo.versionName);
         body.put("ad_version", deviceInfo.versionCode);
         body.put("android_sdk_version", Build.VERSION.SDK_INT);
         return body;
     }
 
     private Map<String, Object> buildAuthorizeBody(String localRequestId) {
+        DeviceInfo deviceInfo = DeviceInfo.collect(appContext);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("request_id", localRequestId);
         body.put("uuid", deviceInfo.uuid);
         body.put("channel_id", config.getChannelId());
-        body.put("app_version", deviceInfo.versionName);
         body.put("ad_version", deviceInfo.versionCode);
         body.put("app_id", deviceInfo.packageName);
         body.put("app_name", config.getAppName());
@@ -352,8 +365,8 @@ final class FlowRuntime {
         body.put("language", deviceInfo.language);
         body.put("video_w", deviceInfo.screenWidth);
         body.put("video_h", deviceInfo.screenHeight);
-        body.put("screen_w", deviceInfo.screenWidth);
-        body.put("screen_h", deviceInfo.screenHeight);
+        body.put("screen_w", deviceInfo.realScreenWidth);
+        body.put("screen_h", deviceInfo.realScreenHeight);
         body.put("local_ip", deviceInfo.localIp);
         body.put("mac", deviceInfo.mac);
         return body;

@@ -10,6 +10,31 @@ public final class Hq008FlowSdk {
     private Hq008FlowSdk() {
     }
 
+    /** Recommended entry: initialize once and start the global flow scheduler. */
+    public static void init(Context context, String channelId) {
+        init(context, new Hq008FlowConfig(channelId));
+    }
+
+    /** Recommended entry when advanced configuration is required. */
+    public static void init(Context context, Hq008FlowConfig config) {
+        initialize(context, config);
+        start();
+    }
+
+    /** Convenience entry for integrations that register a process-wide callback. */
+    public static void init(Context context, String channelId, Hq008AdCallback callback) {
+        init(context, new Hq008FlowConfig(channelId), callback);
+    }
+
+    /** Convenience entry for integrations that register a process-wide callback. */
+    public static void init(Context context, Hq008FlowConfig config, Hq008AdCallback callback) {
+        initialize(context, config);
+        if (callback != null) {
+            setAdCallback(callback);
+        }
+        start();
+    }
+
     /** Call once from Application.onCreate(). */
     public static void initialize(Context context, String channelId) {
         initialize(context, new Hq008FlowConfig(channelId));
@@ -32,7 +57,7 @@ public final class Hq008FlowSdk {
         }
     }
 
-    /** Call after the customer's TCL media ad SDK has initialized successfully. */
+    /** Compatibility entry. New integrations should use init(...), which starts automatically. */
     public static void start() {
         requireRuntime().start();
     }
@@ -45,24 +70,48 @@ public final class Hq008FlowSdk {
         }
     }
 
-    /** Debug integration entry: trigger immediately when an ad UI host is attached. */
+    /** Debug integration entry: trigger the flow immediately. */
     public static void triggerNow() {
         requireRuntime().triggerNow();
     }
 
-    /** Call from the ad UI's onStart(). */
+    /** Register the current ad display callback from any component that can show an ad. */
+    public static void setAdCallback(Hq008AdCallback callback) {
+        if (callback == null) {
+            throw new IllegalArgumentException("callback must not be null");
+        }
+        requireRuntime().setAdCallback(callback);
+    }
+
+    /** Clear the current ad display callback. */
+    public static void clearAdCallback() {
+        FlowRuntime current = runtime;
+        if (current != null) {
+            current.clearAdCallback();
+        }
+    }
+
+    /**
+     * @deprecated Use {@link #setAdCallback(Hq008AdCallback)}. Kept for source
+     * compatibility with existing integrations.
+     */
+    @Deprecated
     public static void attachAdHost(Hq008AdHost host) {
         if (host == null) {
             throw new IllegalArgumentException("host must not be null");
         }
-        requireRuntime().attachAdHost(host);
+        requireRuntime().setAdCallback(host);
     }
 
-    /** Call from the corresponding ad UI's onStop() with the same host instance. */
+    /**
+     * @deprecated Use {@link #clearAdCallback()}. Kept for source compatibility
+     * with existing integrations.
+     */
+    @Deprecated
     public static void detachAdHost(Hq008AdHost host) {
         FlowRuntime current = runtime;
         if (current != null && host != null) {
-            current.detachAdHost(host);
+            current.clearAdCallback(host);
         }
     }
 
@@ -70,7 +119,7 @@ public final class Hq008FlowSdk {
         FlowRuntime current = runtime;
         if (current == null) {
             throw new IllegalStateException(
-                    "Hq008FlowSdk.initialize(context, channelId) must be called first"
+                    "Hq008FlowSdk.init(context, channelId) or initialize(context, channelId) must be called first"
             );
         }
         return current;

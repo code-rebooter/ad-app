@@ -60,7 +60,7 @@ abstract class LsapAarPatchTask extends DefaultTask {
         int modifiedClasses = 0
         Map<String, Integer> networkSurface = [:].withDefault { 0 }
         List<String> residualNetworkCalls = []
-        List<String> residualAndroidVersionReads = []
+        List<String> residualBuildIdentityReads = []
         JarInputStream jarInput = new JarInputStream(new ByteArrayInputStream(originalClasses))
         JarEntry jarEntry
         while ((jarEntry = jarInput.nextJarEntry) != null) {
@@ -75,8 +75,8 @@ abstract class LsapAarPatchTask extends DefaultTask {
                 residualNetworkCalls.addAll(
                     LsapClassPatcher.findResidualNetworkCalls(jarEntry.name, patched)
                 )
-                residualAndroidVersionReads.addAll(
-                    LsapClassPatcher.findResidualAndroidVersionReads(jarEntry.name, patched)
+                residualBuildIdentityReads.addAll(
+                    LsapClassPatcher.findResidualBuildIdentityReads(jarEntry.name, patched)
                 )
                 classEntries[jarEntry.name] = patched
             } else {
@@ -111,10 +111,10 @@ abstract class LsapAarPatchTask extends DefaultTask {
                     residualNetworkCalls.take(50).join('\n')
             )
         }
-        if (!residualAndroidVersionReads.isEmpty()) {
+        if (!residualBuildIdentityReads.isEmpty()) {
             throw new GradleException(
-                "Unpatched LSAP Android version reads remain for ${targetFlavor.get()}:\n" +
-                    residualAndroidVersionReads.take(50).join('\n')
+                "Unpatched LSAP Android build identity reads remain for ${targetFlavor.get()}:\n" +
+                    residualBuildIdentityReads.take(50).join('\n')
             )
         }
         if (modifiedClasses < 20) {
@@ -134,7 +134,7 @@ abstract class LsapAarPatchTask extends DefaultTask {
         byte[] patchedClasses = classesOutput.toByteArray()
 
         String metadata = [
-            'patchVersion=lsap-full-network-audit-3',
+            'patchVersion=lsap-full-network-audit-7',
             "originalAarSha256=${actualHash}",
             "patchedClassesJarSha256=${sha256(patchedClasses)}",
             "targetFlavor=${targetFlavor.get()}",

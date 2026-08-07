@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.0'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.1'
 ```
 
 ## 1. 仓库
@@ -32,7 +32,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.0'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.1'
 }
 ```
 

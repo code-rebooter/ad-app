@@ -77,19 +77,13 @@ object Hq008CmpManager {
                 eventMessage = result.toGateEventMessage()
             )
             if (result.canRequestAds) {
-                if (result.privacyOptionsStatus == "REQUIRED") {
-                    Log.i(TAG, "UMP 门禁：当前可请求广告且 privacy options 可用，继续请求远端 consent-popup 以支持静默切换")
-                    requestRemoteDecision(
-                        appContext = appContext,
-                        reason = "privacy_options_required",
-                        canContinueWithoutDecision = true,
-                        onComplete = onComplete
-                    )
-                } else {
-                    Log.i(TAG, "UMP 门禁：当前可请求广告且无需 privacy options，跳过远端 consent-popup 决策")
-                    continueAfterRemoteDecision = true
-                    onComplete()
-                }
+                Log.i(TAG, "UMP 门禁：当前已允许请求广告，本轮跳过远端 consent-popup 决策")
+                continueAfterRemoteDecision = true
+                Hq008ConsentLogReporter.report(
+                    eventType = "UMP_GATE_SKIP_REMOTE",
+                    eventMessage = "reason=already_can_request_ads,${result.toGateEventMessage()}"
+                )
+                onComplete()
                 return@requestConsent
             }
 

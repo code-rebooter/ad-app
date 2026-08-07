@@ -3,13 +3,13 @@
 当前仓库远程地址为 GitHub 时，JitPack 依赖坐标格式为：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.0'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk:v1.0.1'
 ```
 
 或：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.0'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.1'
 ```
 
 客户侧需要添加 JitPack 仓库：
@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 发版前先提交所有代码，然后执行：
 
 ```bash
-./scripts/release_jitpack.sh v1.0.0
+./scripts/release_jitpack.sh v1.0.1
 ```
 
 脚本会执行：

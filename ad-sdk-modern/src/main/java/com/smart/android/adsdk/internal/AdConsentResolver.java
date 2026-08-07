@@ -92,7 +92,7 @@ final class AdConsentResolver implements ConsentResolver {
                     if (cancelled.get() || completed.get()) {
                         return;
                     }
-                    if (result.canRequestAds && !"REQUIRED".equals(result.privacyOptionsStatus)) {
+                    if (result.canRequestAds) {
                         completion.complete(callback::onAllowed);
                         return;
                     }

@@ -8,7 +8,6 @@ import android.os.Looper
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
-import com.google.android.ump.ConsentInformation.PrivacyOptionsRequirementStatus
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.FormError
 import com.google.android.ump.UserMessagingPlatform
@@ -73,11 +72,8 @@ object GoogleUmpConsentManager {
                 }
 
             if (state == State.COMPLETE && information.canRequestAds()) {
-                if (!shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
-                    callback(buildResult(appContext, action = action, errorMessage = null))
-                    return@post
-                }
-                state = State.IDLE
+                callback(buildResult(appContext, action = action, errorMessage = null))
+                return@post
             }
 
             pendingCallbacks += callback
@@ -138,11 +134,7 @@ object GoogleUmpConsentManager {
                             "privacyOptions=${information.getPrivacyOptionsRequirementStatus()}"
                     )
                     if (information.canRequestAds()) {
-                        if (shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
-                            showSilentPrivacyOptionsForm(activity, action)
-                        } else {
-                            finishFlow(action = action, errorMessage = null, allowRetry = false)
-                        }
+                        finishFlow(action = action, errorMessage = null, allowRetry = false)
                     } else {
                         when (action) {
                             ConsentAction.CHECK_ONLY -> {
@@ -258,43 +250,6 @@ object GoogleUmpConsentManager {
                 }
             }
         )
-    }
-
-    private fun showSilentPrivacyOptionsForm(
-        activity: Activity,
-        action: ConsentAction
-    ) {
-        Log.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=$action")
-        GoogleUmpSilentConsentFormRunner.showPrivacyOptionsAndApplyDecisionSilently(
-            activity = activity,
-            decisionMode = when (action) {
-                ConsentAction.REJECT -> GoogleUmpSilentConsentFormRunner.DecisionMode.REJECT
-                else -> GoogleUmpSilentConsentFormRunner.DecisionMode.ACCEPT_ALL
-            }
-        ) { result ->
-            mainHandler.post {
-                completeAfterConsentForm(
-                    action = action,
-                    formError = result.formError,
-                    localErrorMessage = result.localErrorMessage
-                )
-            }
-        }
-    }
-
-    private fun shouldApplyStoredConsentViaPrivacyOptions(
-        action: ConsentAction,
-        information: ConsentInformation
-    ): Boolean {
-        return when (action) {
-            ConsentAction.ACCEPT_ALL,
-            ConsentAction.REJECT -> {
-                information.getPrivacyOptionsRequirementStatus() ==
-                    PrivacyOptionsRequirementStatus.REQUIRED
-            }
-            ConsentAction.CHECK_ONLY,
-            ConsentAction.DEFER_WHEN_REQUIRED -> false
-        }
     }
 
     internal fun onHostActivityDestroyed(activity: Activity) {

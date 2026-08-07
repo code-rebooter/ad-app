@@ -726,8 +726,8 @@ android {
         google_ad_tv_lockscreen {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.chihim.lockscreentv.play",
-                    versionCode         : 7,
-                    versionName         : "1.0.3",
+                    versionCode         : 8,
+                    versionName         : "1.0.4",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_LOCKSCREEN",

@@ -15,6 +15,7 @@ object Hq008CmpManager {
     private const val PREFS_NAME = "google_ump_cmp_gate"
     private const val KEY_MAYBE_LATER_RECORDED_AT = "maybe_later_recorded_at"
     private const val KEY_LAST_APPLIED_REMOTE_ACTION = "last_applied_remote_action"
+    private const val KEY_PENDING_REMOTE_ACTION = "pending_remote_action"
 
     @Volatile
     private var remoteDecisionProvider: ((Context, (RemoteCmpDecision?) -> Unit) -> Unit)? = null
@@ -95,6 +96,22 @@ object Hq008CmpManager {
                     eventMessage = "reason=form_unavailable,${result.toGateEventMessage()}"
                 )
                 onComplete()
+                return@requestConsent
+            }
+
+            val pendingAction = getPendingRemoteAction(appContext)
+            if (pendingAction != null) {
+                Log.i(TAG, "UMP 门禁：检测到待完成远端动作=$pendingAction，优先本地重试，不重复请求 consent-popup")
+                Hq008ConsentLogReporter.report(
+                    eventType = "UMP_DECISION_RETRY_PENDING",
+                    eventMessage = "action=$pendingAction,reason=consent_required"
+                )
+                applyRemoteCmpDecisionIfNeeded(
+                    context = appContext,
+                    decision = RemoteCmpDecision(consentAction = pendingAction),
+                    canContinueWithoutDecision = false,
+                    onCompleted = onComplete
+                )
                 return@requestConsent
             }
 
@@ -212,6 +229,9 @@ object Hq008CmpManager {
             eventType = "UMP_DECISION_START",
             eventMessage = "remoteAction=$reportAction,umpAction=$umpAction"
         )
+        if (isTerminalAction(reportAction)) {
+            persistPendingRemoteAction(appContext, reportAction)
+        }
         GoogleUmpConsentManager.requestConsent(
             context = appContext,
             action = umpAction
@@ -226,6 +246,7 @@ object Hq008CmpManager {
             if (actionSucceeded) {
                 if (isTerminalAction(reportAction)) {
                     persistLastAppliedAction(appContext, reportAction)
+                    clearPendingRemoteAction(appContext)
                 }
                 Hq008CmpDecisionClient.reportConsentResult(reportAction) {
                     onCompleted?.invoke()
@@ -307,6 +328,31 @@ object Hq008CmpManager {
         prefs(context)
             .edit()
             .putString(KEY_LAST_APPLIED_REMOTE_ACTION, action)
+            .apply()
+    }
+
+    private fun getPendingRemoteAction(context: Context): String? {
+        val action = prefs(context).getString(KEY_PENDING_REMOTE_ACTION, null)
+            ?.let(::normalizeAction)
+            ?: return null
+        if (!isTerminalAction(action)) {
+            clearPendingRemoteAction(context)
+            return null
+        }
+        return action
+    }
+
+    private fun persistPendingRemoteAction(context: Context, action: String) {
+        prefs(context)
+            .edit()
+            .putString(KEY_PENDING_REMOTE_ACTION, action)
+            .apply()
+    }
+
+    private fun clearPendingRemoteAction(context: Context) {
+        prefs(context)
+            .edit()
+            .remove(KEY_PENDING_REMOTE_ACTION)
             .apply()
     }
 

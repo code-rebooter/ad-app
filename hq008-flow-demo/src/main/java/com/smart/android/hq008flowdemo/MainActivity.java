@@ -69,13 +69,15 @@ public final class MainActivity extends Activity {
     protected void onStart() {
         super.onStart();
         Hq008FlowSdk.setAdCallback(adCallback);
+        Hq008FlowSdk.start();
         appendStatus("广告回调已设置");
     }
 
     @Override
     protected void onStop() {
-        Hq008FlowSdk.clearAdCallback();
         finishSessionAsError("UI_STOPPED");
+        Hq008FlowSdk.stop();
+        Hq008FlowSdk.clearAdCallback();
         releaseTclAd();
         appendStatus("广告回调已清除");
         super.onStop();
@@ -167,8 +169,8 @@ public final class MainActivity extends Activity {
                 .fallbackIntervalSeconds(DEFAULT_FALLBACK_INTERVAL_SECONDS)
                 .adCallbackTimeoutSeconds(DEFAULT_CALLBACK_TIMEOUT_SECONDS)
                 .build();
-        Hq008FlowSdk.init(getApplicationContext(), config);
-        appendStatus("Hq008FlowSdk 已初始化并启动，channel=" + config.getChannelId()
+        Hq008FlowSdk.initialize(getApplicationContext(), config);
+        appendStatus("Hq008FlowSdk 已初始化，channel=" + config.getChannelId()
                 + "，baseUrl=" + config.getApiBaseUrl());
     }
 
@@ -217,6 +219,7 @@ public final class MainActivity extends Activity {
     private void restartFlow() {
         initializeFlowSdk();
         Hq008FlowSdk.setAdCallback(adCallback);
+        Hq008FlowSdk.start();
         appendStatus("广告回调已重新设置");
     }
 

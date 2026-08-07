@@ -10,6 +10,7 @@ import com.google.gson.Gson;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public final class AdEventReporter {
     private final FlowApiClient apiClient;
@@ -25,6 +26,62 @@ public final class AdEventReporter {
         this.apiClient = apiClient;
         this.config = config;
         this.appContext = context.getApplicationContext();
+    }
+
+    public void dailyMetrics(String requestId, DailyStatsStore.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        DeviceInfo deviceInfo = DeviceInfo.collect(appContext);
+        String message = buildDailyMetricsMessage(snapshot);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put(
+                "request_id",
+                metricRequestId(requestId, snapshot.day)
+        );
+        body.put("event_type", "SDK_DAILY_METRIC");
+        body.put("uuid", deviceInfo.androidId);
+        body.put("channel_id", config.getChannelId());
+        body.put("mac", deviceInfo.mac.isEmpty() ? "00:00:00:00:00:00" : deviceInfo.mac);
+        body.put("app_id", deviceInfo.packageName);
+        body.put("make", deviceInfo.make);
+        body.put("model", deviceInfo.model);
+        body.put("ad_version", deviceInfo.versionCode);
+        body.put("message", message);
+        if (!deviceInfo.localIp.isEmpty()) {
+            body.put("local_ip", deviceInfo.localIp);
+        }
+        SdkLog.i("Hq008FlowMetric", "metric report " + message);
+        apiClient.report(body);
+    }
+
+    private String buildDailyMetricsMessage(DailyStatsStore.Snapshot snapshot) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("day", snapshot.day);
+        message.put("timezone", snapshot.timezone);
+        message.put("screensaver_start_total", snapshot.screensaverStartTotal);
+        message.put("screensaver_stop_total", snapshot.screensaverStopTotal);
+        message.put("authorized_callback_total", snapshot.authorizedCallbackTotal);
+        message.put("current_final_status", snapshot.currentFinalStatus);
+        message.put("current_final_message", snapshot.currentFinalMessage);
+
+        java.util.List<Map<String, Object>> finalStatusTotals = new java.util.ArrayList<>();
+        for (DailyStatsStore.FinalStatusTotal item : snapshot.finalStatusTotals) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("status", item.status);
+            row.put("message", item.message);
+            row.put("total", item.total);
+            finalStatusTotals.add(row);
+        }
+        message.put("final_status_totals", finalStatusTotals);
+        return gson.toJson(message);
+    }
+
+    private String metricRequestId(String requestId, String day) {
+        if (requestId != null && !requestId.trim().isEmpty()) {
+            return "metric-" + requestId.trim();
+        }
+        return "metric-" + day + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     public void requested(String requestId, long createdAtMs) {

@@ -7,13 +7,11 @@ import org.junit.Test;
 public class Hq008FlowSdkPublicApiContractTest {
 
     @Test
-    public void flowSdkDoesNotExposeLegacySplitLifecycleEntryPoints() {
-        assertNoPublicMethodNamed("initialize");
-        assertNoPublicMethodNamed("start");
-        assertNoPublicMethodNamed("stop");
-        assertNoPublicMethodNamed("triggerNow");
-        assertNoPublicMethodNamed("attachAdHost");
-        assertNoPublicMethodNamed("detachAdHost");
+    public void flowSdkExposesSplitLifecycleEntryPoints() {
+        assertPublicMethodNamed("initialize");
+        assertPublicMethodNamed("start");
+        assertPublicMethodNamed("stop");
+        assertPublicMethodNamed("triggerNow");
     }
 
     @Test
@@ -26,11 +24,13 @@ public class Hq008FlowSdkPublicApiContractTest {
         }
     }
 
-    private void assertNoPublicMethodNamed(String name) {
+    private void assertPublicMethodNamed(String name) {
         for (java.lang.reflect.Method method : Hq008FlowSdk.class.getMethods()) {
             if (name.equals(method.getName())) {
-                fail("Hq008FlowSdk." + name + " must not remain in the public SDK surface");
+                return;
             }
         }
+        fail("Hq008FlowSdk." + name + " must remain in the public SDK surface");
     }
+
 }

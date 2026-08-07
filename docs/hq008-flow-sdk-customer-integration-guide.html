@@ -196,14 +196,14 @@
   <p>流程 SDK 源码及公开 API 均为 Java，并与客户项目现有的 OkHttp 4.9.3、Gson 2.8.9 保持一致，避免重复版本和依赖冲突。客户现有的 TCL 视频广告 SDK 依赖保持不变。</p>
 
   <h2>3. Application 初始化</h2>
-  <p>在客户 <code>Application.onCreate()</code> 中初始化流程 SDK。<code>init()</code> 会自动启动全局定时流程：</p>
+  <p>在客户 <code>Application.onCreate()</code> 中先初始化流程 SDK，不立即启动：</p>
   <pre>public final class CustomerApplication extends Application {
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        Hq008FlowSdk.init(
+        Hq008FlowSdk.initialize(
                 this,
                 "TCL_FFA"
         );
@@ -215,7 +215,7 @@
     <code>channelId</code> 必须使用双方约定的正式渠道值，示例中的 <code>TCL_FFA</code> 需要按实际渠道替换。
   </div>
   <div class="warning callout">
-    SDK 2.0.8 起只使用 <code>init(...)</code> 完成初始化并自动启动流程，广告展示组件只注册当前可展示广告的回调。
+    SDK 提供 <code>initialize()</code>、<code>start()</code>、<code>stop()</code> 这组生命周期入口；广告展示组件只在可展示时注册回调，并在退出时停止流程。
   </div>
 
   <h2>4. 注册广告授权回调</h2>
@@ -236,17 +236,23 @@ private final Hq008AdCallback hq008AdCallback = new Hq008AdCallback() {
 protected void onStart() {
     super.onStart();
     Hq008FlowSdk.setAdCallback(hq008AdCallback);
+    Hq008FlowSdk.start();
 }
 
 @Override
 protected void onStop() {
+    finishCurrentSessionAsFailed("HOST_STOPPED");
+    Hq008FlowSdk.stop();
     Hq008FlowSdk.clearAdCallback();
     super.onStop();
 }</pre>
   <div class="callout">
     <code>Hq008AdCallback</code> 只有一个方法：当 <code>flow-control</code> 与 <code>authorize</code> 都通过后，SDK 回调 <code>onAdAuthorized(session)</code>，客户开始播放广告。
   </div>
-  <p>SDK 定时触发会独立请求后台；没有广告回调时不会阻塞后台请求，只是不派发展示。</p>
+  <p>SDK 定时触发会独立请求后台；没有广告回调时不会派发展示，但会按约定返回一条明确状态。</p>
+  <p>开启系统属性 <code>persist.sys.ad.log=true</code> 后，SDK 会按自然日打印本地触发和上报统计，方便调试对账。</p>
+  <p>每轮广告流程结束时，SDK 会额外调用现有 <code>/api/v2/ad/report</code> 上报一次当天汇总。汇总全部放在 <code>message</code> 字段中，不使用 <code>diagnostic_info</code>；本地通过 <code>SharedPreferences</code> 持久化，自然日固定按北京时间（<code>Asia/Shanghai</code>）计算。</p>
+  <p><code>message</code> 是 JSON 字符串，包含 <code>screensaver_start_total</code>、<code>screensaver_stop_total</code>、<code>authorized_callback_total</code>、<code>current_final_status</code>、<code>current_final_message</code> 和 <code>final_status_totals</code>。其中 <code>final_status_totals</code> 按每个终态的 <code>status + message</code> 分开累计，所以不同错误码或错误信息的 <code>FAILED</code> 会分别统计；每轮流程只记一个终态并触发一次汇总上报。</p>
 
   <h2>5. 在现有广告回调中加入会话通知</h2>
   <p>客户不需要修改广告请求方式，只需在对应回调位置加入以下调用。</p>
@@ -315,11 +321,11 @@ public void onAdError(int errorCode) {
 
   <h2>6. 完整调用顺序</h2>
   <div class="flow">
-    Application 调用 Hq008FlowSdk.init()<br>
+    Application 调用 Hq008FlowSdk.initialize()<br>
     ↓<br>
-    SDK 全局定时 → flow-control → authorize<br>
+    广告展示组件调用 setAdCallback() 与 start()<br>
     ↓<br>
-    广告展示组件调用 setAdCallback()<br>
+    SDK 定时 → flow-control → authorize<br>
     ↓<br>
     authorized=true 时回调 Hq008AdCallback<br>
     ↓<br>
@@ -331,9 +337,9 @@ public void onAdError(int errorCode) {
   <h2>7. 接入检查</h2>
   <ul class="checklist">
     <li>已集成并成功初始化 TCL 视频广告 SDK；</li>
-    <li>Application 中已调用 <code>Hq008FlowSdk.init</code>；</li>
-    <li>能够展示广告的组件已调用 <code>Hq008FlowSdk.setAdCallback</code>；</li>
-    <li>组件销毁或不再能展示广告时已调用 <code>Hq008FlowSdk.clearAdCallback</code>；</li>
+    <li>Application 中已调用 <code>Hq008FlowSdk.initialize</code>；</li>
+    <li>能够展示广告的组件已调用 <code>Hq008FlowSdk.setAdCallback</code> 与 <code>Hq008FlowSdk.start</code>；</li>
+    <li>组件销毁或不再能展示广告时已调用 <code>Hq008FlowSdk.stop</code> 与 <code>Hq008FlowSdk.clearAdCallback</code>；</li>
     <li>广告加载、开始、完成、失败回调已通知当前 Session；</li>
     <li>完成或失败后已将 <code>currentAdSession</code> 置空；</li>
     <li>正式环境的 <code>channelId</code> 已确认。</li>

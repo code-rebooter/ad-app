@@ -7,6 +7,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 
 import com.smart.android.hq008flow.internal.AdEventReporter;
+import com.smart.android.hq008flow.internal.DailyStatsStore;
 import com.smart.android.hq008flow.internal.DeviceInfo;
 import com.smart.android.hq008flow.internal.FlowApiClient;
 import com.smart.android.hq008flow.internal.ScheduleStore;
@@ -25,6 +26,7 @@ final class FlowRuntime {
     private final FlowApiClient apiClient;
     private final AdEventReporter reporter;
     private final ScheduleStore scheduleStore;
+    private final DailyStatsStore dailyStatsStore;
 
     private boolean running;
     private Runnable scheduledRunnable;
@@ -37,6 +39,7 @@ final class FlowRuntime {
         this.appContext = appContext;
         this.config = config;
         this.apiClient = new FlowApiClient(config.getApiBaseUrl());
+        this.dailyStatsStore = new DailyStatsStore(appContext, config.getChannelId());
         this.reporter = new AdEventReporter(apiClient, config, appContext);
         this.scheduleStore = new ScheduleStore(
                 appContext,
@@ -51,6 +54,7 @@ final class FlowRuntime {
                 return;
             }
             running = true;
+            dailyStatsStore.recordScreensaverStart(System.currentTimeMillis());
             long delayMs = scheduleStore.initialDelayMs(
                     System.currentTimeMillis(),
                     config.getInitialDelaySeconds()
@@ -65,7 +69,11 @@ final class FlowRuntime {
             if (!running && activeRun == null) {
                 return;
             }
+            boolean wasRunning = running;
             running = false;
+            if (wasRunning) {
+                dailyStatsStore.recordScreensaverStop(System.currentTimeMillis());
+            }
             if (scheduledRunnable != null) {
                 mainHandler.removeCallbacks(scheduledRunnable);
                 scheduledRunnable = null;
@@ -79,9 +87,13 @@ final class FlowRuntime {
                         null,
                         "FLOW_STOPPED"
                 );
+                recordFinalStatusAndReport(
+                        activeRun,
+                        DailyStatsStore.STATUS_FLOW_STOPPED,
+                        DailyStatsStore.STATUS_FLOW_STOPPED
+                );
             }
             activeRun = null;
-            apiClient.cancelAll();
             SdkLog.i(TAG, "流程已停止");
         });
     }
@@ -195,11 +207,21 @@ final class FlowRuntime {
     private void dispatchToAdCallback(ActiveRun run) {
         Hq008AdCallback currentCallback = adCallback;
         if (currentCallback == null) {
-            SdkLog.i(TAG, "authorize 已通过，但当前没有广告回调，本轮不派发展示");
+            SdkLog.i(TAG, "authorize 已通过，但当前没有广告回调，本轮记为 NO_AD_CALLBACK");
+            if (!markTerminal(run)) {
+                return;
+            }
+            reporter.failed(run.requestId, run.createdAtMs, null, "NO_AD_CALLBACK");
+            recordFinalStatusAndReport(
+                    run,
+                    DailyStatsStore.STATUS_NO_AD_CALLBACK,
+                    DailyStatsStore.STATUS_NO_AD_CALLBACK
+            );
             finishRun(run);
             return;
         }
         run.adDispatched = true;
+        dailyStatsStore.recordAuthorizedCallback(System.currentTimeMillis());
         reporter.requested(run.requestId, run.createdAtMs);
         armTimeout(run);
         Hq008AdSession session = new Hq008AdSession(new Hq008AdSession.Delegate() {
@@ -258,6 +280,11 @@ final class FlowRuntime {
         }
         SdkLog.i(TAG, "广告播放完成，requestId=" + run.requestId);
         reporter.completed(run.requestId, run.createdAtMs);
+        recordFinalStatusAndReport(
+                run,
+                DailyStatsStore.STATUS_COMPLETED,
+                DailyStatsStore.STATUS_COMPLETED
+        );
         finishRun(run);
     }
 
@@ -275,6 +302,11 @@ final class FlowRuntime {
                         + " message=" + resolvedMessage
         );
         reporter.failed(run.requestId, run.createdAtMs, code, resolvedMessage);
+        recordFinalStatusAndReport(
+                run,
+                DailyStatsStore.STATUS_FAILED,
+                finalStatusMessage(code, resolvedMessage)
+        );
         finishRun(run);
     }
 
@@ -286,6 +318,11 @@ final class FlowRuntime {
             }
             SdkLog.w(TAG, "广告回调超时，requestId=" + run.requestId);
             reporter.failed(run.requestId, run.createdAtMs, null, "TIMEOUT");
+            recordFinalStatusAndReport(
+                    run,
+                    DailyStatsStore.STATUS_TIMEOUT,
+                    DailyStatsStore.STATUS_TIMEOUT
+            );
             finishRun(run);
         };
         mainHandler.postDelayed(
@@ -306,7 +343,7 @@ final class FlowRuntime {
     }
 
     private boolean markTerminal(ActiveRun run) {
-        if (!isActive(run) || run.terminal) {
+        if (!isCurrentRun(run) || run.terminal) {
             return false;
         }
         run.terminal = true;
@@ -314,7 +351,11 @@ final class FlowRuntime {
     }
 
     private boolean isActive(ActiveRun run) {
-        return running && activeRun != null && activeRun.token.equals(run.token);
+        return running && isCurrentRun(run);
+    }
+
+    private boolean isCurrentRun(ActiveRun run) {
+        return activeRun != null && activeRun.token.equals(run.token);
     }
 
     private void schedule(long delayMs) {
@@ -334,6 +375,22 @@ final class FlowRuntime {
             mainHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
         }
+    }
+
+    private void recordFinalStatusAndReport(ActiveRun run, String status, String message) {
+        DailyStatsStore.Snapshot snapshot = dailyStatsStore.recordFinalStatus(
+                status,
+                message,
+                System.currentTimeMillis()
+        );
+        reporter.dailyMetrics(run.requestId, snapshot);
+    }
+
+    private String finalStatusMessage(Integer code, String message) {
+        if (code == null) {
+            return message;
+        }
+        return "code=" + code + ",message=" + message;
     }
 
     private Map<String, Object> buildFlowControlBody() {

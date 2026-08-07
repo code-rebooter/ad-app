@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
-def hq008FlowSdkVersionCode = 8
-def hq008FlowSdkVersionName = '2.0.8'
+def hq008FlowSdkVersionCode = 12
+def hq008FlowSdkVersionName = '2.1.2'
 def hq008FlowSdkBuildTime = new java.text.SimpleDateFormat('yyyyMMdd_HHmm').format(new Date())
 
 version = hq008FlowSdkVersionName

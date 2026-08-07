@@ -17,9 +17,8 @@ public final class Hq008FlowSdk {
 
     /** Recommended entry when advanced configuration is required. */
     public static void init(Context context, Hq008FlowConfig config) {
-        FlowRuntime next = createRuntime(context, config);
-        replaceRuntime(next);
-        next.start();
+        initialize(context, config);
+        start();
     }
 
     /** Convenience entry for integrations that register a process-wide callback. */
@@ -29,12 +28,39 @@ public final class Hq008FlowSdk {
 
     /** Convenience entry for integrations that register a process-wide callback. */
     public static void init(Context context, Hq008FlowConfig config, Hq008AdCallback callback) {
-        FlowRuntime next = createRuntime(context, config);
-        replaceRuntime(next);
+        initialize(context, config);
         if (callback != null) {
-            next.setAdCallback(callback);
+            setAdCallback(callback);
         }
-        next.start();
+        start();
+    }
+
+    /** Initialize the runtime without starting the schedule. */
+    public static void initialize(Context context, String channelId) {
+        initialize(context, new Hq008FlowConfig(channelId));
+    }
+
+    /** Initialize the runtime without starting the schedule. */
+    public static void initialize(Context context, Hq008FlowConfig config) {
+        replaceRuntime(createRuntime(context, config));
+    }
+
+    /** Start the schedule after initialize() or init(...). */
+    public static void start() {
+        requireRuntime().start();
+    }
+
+    /** Stop the schedule and close the active ad attempt if one was dispatched. */
+    public static void stop() {
+        FlowRuntime current = runtime;
+        if (current != null) {
+            current.stop();
+        }
+    }
+
+    /** Trigger the next flow cycle immediately. */
+    public static void triggerNow() {
+        requireRuntime().triggerNow();
     }
 
     /** Register the current ad display callback from any component that can show an ad. */
@@ -57,7 +83,7 @@ public final class Hq008FlowSdk {
         FlowRuntime current = runtime;
         if (current == null) {
             throw new IllegalStateException(
-                    "Hq008FlowSdk.init(context, channelId) must be called first"
+                    "Hq008FlowSdk.initialize(context, channelId) or init(context, channelId) must be called first"
             );
         }
         return current;

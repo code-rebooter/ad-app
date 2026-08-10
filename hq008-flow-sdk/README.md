@@ -6,7 +6,7 @@
 
 ```gradle
 dependencies {
-    implementation files('libs/hq008-flow-sdk-v2.1.2-20260806_1731-release.aar')
+    implementation files('libs/hq008-flow-sdk-v2.1.3-20260808_1503-release.aar')
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
     implementation 'com.google.code.gson:gson:2.8.9'
 }

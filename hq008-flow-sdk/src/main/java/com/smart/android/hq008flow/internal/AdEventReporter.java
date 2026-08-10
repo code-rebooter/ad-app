@@ -10,7 +10,6 @@ import com.google.gson.Gson;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public final class AdEventReporter {
     private final FlowApiClient apiClient;
@@ -35,10 +34,7 @@ public final class AdEventReporter {
         DeviceInfo deviceInfo = DeviceInfo.collect(appContext);
         String message = buildDailyMetricsMessage(snapshot);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put(
-                "request_id",
-                metricRequestId(requestId, snapshot.day)
-        );
+        body.put("request_id", requestId);
         body.put("event_type", "SDK_DAILY_METRIC");
         body.put("uuid", deviceInfo.androidId);
         body.put("channel_id", config.getChannelId());
@@ -75,13 +71,6 @@ public final class AdEventReporter {
         }
         message.put("final_status_totals", finalStatusTotals);
         return gson.toJson(message);
-    }
-
-    private String metricRequestId(String requestId, String day) {
-        if (requestId != null && !requestId.trim().isEmpty()) {
-            return "metric-" + requestId.trim();
-        }
-        return "metric-" + day + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     public void requested(String requestId, long createdAtMs) {

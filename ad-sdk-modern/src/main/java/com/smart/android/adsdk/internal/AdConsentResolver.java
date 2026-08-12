@@ -57,12 +57,6 @@ final class AdConsentResolver implements ConsentResolver {
         AtomicBoolean completed = new AtomicBoolean(false);
         AtomicReference<Cancellable> activeNetworkCall = new AtomicReference<>();
 
-        if (SystemUidStorageCompat.isSystemUid()) {
-            Log.w(TAG, "System uid detected, skip UMP consent flow for customer compatibility validation");
-            callback.onAllowed();
-            return () -> {};
-        }
-
         NetworkCallTracker networkCallTracker = call -> {
             if (cancelled.get()) {
                 call.cancel();

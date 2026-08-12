@@ -58,8 +58,10 @@ echo "Building release artifacts for $group_id:$version"
 ./gradlew \
   :ad-sdk:assembleRelease \
   :ad-sdk-modern:assembleRelease \
+  :ad-sdk-gam-vast:assembleRelease \
   :ad-sdk:publishReleasePublicationToMavenLocal \
   :ad-sdk-modern:publishReleasePublicationToMavenLocal \
+  :ad-sdk-gam-vast:publishReleasePublicationToMavenLocal \
   -PPUBLISH_GROUP_ID="$group_id" \
   -PPUBLISH_VERSION="$version" \
   --console=plain
@@ -81,5 +83,6 @@ echo
 echo "Release dependencies:"
 echo "  implementation '${group_id}:ad-sdk:${version}'"
 echo "  implementation '${group_id}:ad-sdk-modern:${version}'"
+echo "  implementation '${group_id}:ad-sdk-gam-vast:${version}'"
 echo
 echo "JitPack log saved to: $log_file"

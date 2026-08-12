@@ -2,4 +2,4 @@ jdk:
   - openjdk17
 
 install:
-  - ./gradlew :ad-sdk:publishReleasePublicationToMavenLocal :ad-sdk-modern:publishReleasePublicationToMavenLocal --console=plain --no-daemon
+  - ./gradlew :ad-sdk:publishReleasePublicationToMavenLocal :ad-sdk-modern:publishReleasePublicationToMavenLocal :ad-sdk-gam-vast:publishReleasePublicationToMavenLocal --console=plain --no-daemon

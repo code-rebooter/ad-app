@@ -5,7 +5,7 @@ request, parser, tracker, and Media3 player path. It does not depend on Google
 IMA, UMP, WebView, or Google Mobile Services.
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-gam-vast:v1.0.3'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-gam-vast:v1.0.4'
 ```
 
 Configure the existing channel metadata:

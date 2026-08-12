@@ -1,0 +1,48 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.smart.android.adsdk.gamvast.demo'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.smart.android.adsdk.gamvast.demo'
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+        manifestPlaceholders += [
+            adAppId    : 'ca-app-pub-3199037222330432~4539227372',
+            adChannelId: 'AD_TV_HGS001'
+        ]
+    }
+
+    signingConfigs {
+        h713 {
+            storeFile rootProject.file('app/h713.jks')
+            storePassword '123456'
+            keyAlias 'h713'
+            keyPassword '123456'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.h713
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.h713
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation project(':ad-sdk-gam-vast')
+}

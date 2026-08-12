@@ -31,5 +31,7 @@ rootProject.name = "AD_APP"
 include ':app'
 include ':ad-sdk'
 include ':ad-sdk-modern'
+include ':ad-sdk-gam-vast'
+include ':ad-sdk-gam-vast-demo'
 include ':hq008-flow-sdk'
 include ':hq008-flow-demo'

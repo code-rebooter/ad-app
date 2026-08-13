@@ -33,10 +33,14 @@ android {
 dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:2.3.0')
     implementation 'androidx.media3:media3-exoplayer:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer-smoothstreaming:1.10.1'
     implementation 'androidx.media3:media3-ui:1.10.1'
 
     implementation 'com.squareup.okhttp3:okhttp:5.4.0'
     implementation 'com.google.code.gson:gson:2.14.0'
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'net.sf.kxml:kxml2:2.3.0'
 }

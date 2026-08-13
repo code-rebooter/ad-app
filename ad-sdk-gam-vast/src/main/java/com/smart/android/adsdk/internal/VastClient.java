@@ -49,12 +49,14 @@ final class VastClient {
                 return;
             }
             if (depth > MAX_WRAPPER_DEPTH) {
-                callback.onError(new VastLoadException("VAST wrapper depth exceeded " + MAX_WRAPPER_DEPTH));
+                callback.onError(inherited.toError(new VastLoadException(
+                    "VAST wrapper depth exceeded " + MAX_WRAPPER_DEPTH
+                )));
                 return;
             }
             HttpUrl httpUrl = HttpUrl.parse(url);
             if (httpUrl == null) {
-                callback.onError(new VastLoadException("Invalid VAST URL: " + url));
+                callback.onError(inherited.toError(new VastLoadException("Invalid VAST URL: " + url)));
                 return;
             }
             OkHttpClient requestClient = okHttpClient.newBuilder()
@@ -67,7 +69,10 @@ final class VastClient {
                 @Override
                 public void onFailure(Call call, IOException error) {
                     if (!cancelled) {
-                        callback.onError(new VastLoadException("VAST request failed", error));
+                        callback.onError(inherited.toError(new VastLoadException(
+                            "VAST request failed",
+                            error
+                        )));
                     }
                 }
 
@@ -78,14 +83,16 @@ final class VastClient {
                             return;
                         }
                         if (!closeableResponse.isSuccessful()) {
-                            callback.onError(new VastLoadException(
+                            callback.onError(inherited.toError(new VastLoadException(
                                 "VAST HTTP status " + closeableResponse.code()
-                            ));
+                            )));
                             return;
                         }
                         ResponseBody body = closeableResponse.body();
                         if (body == null) {
-                            callback.onError(new VastLoadException("VAST response body was empty"));
+                            callback.onError(inherited.toError(new VastLoadException(
+                                "VAST response body was empty"
+                            )));
                             return;
                         }
                         VastParsedResponse parsed = parser.parse(body.string());
@@ -95,7 +102,9 @@ final class VastClient {
                             TrackingBundle merged = inherited.merge(parsed);
                             String nextUrl = resolveNextUrl(httpUrl, parsed.getWrapperUrl());
                             if (nextUrl == null) {
-                                callback.onError(new VastLoadException("VAST wrapper URL was invalid"));
+                                callback.onError(merged.toError(new VastLoadException(
+                                    "VAST wrapper URL was invalid"
+                                )));
                             } else {
                                 load(nextUrl, depth + 1, merged);
                             }
@@ -104,9 +113,10 @@ final class VastClient {
                         }
                     } catch (IOException | VastLoadException error) {
                         if (!cancelled) {
-                            callback.onError(error instanceof VastLoadException
+                            VastLoadException vastError = error instanceof VastLoadException
                                 ? (VastLoadException) error
-                                : new VastLoadException("Unable to read VAST response", error));
+                                : new VastLoadException("Unable to read VAST response", error);
+                            callback.onError(inherited.toError(vastError));
                         }
                     }
                 }
@@ -130,20 +140,32 @@ final class VastClient {
 
     static final class TrackingBundle {
         private final List<String> impressions = new ArrayList<>();
+        private final List<String> creativeView = new ArrayList<>();
         private final List<String> start = new ArrayList<>();
         private final List<String> firstQuartile = new ArrayList<>();
         private final List<String> midpoint = new ArrayList<>();
         private final List<String> thirdQuartile = new ArrayList<>();
         private final List<String> complete = new ArrayList<>();
+        private final List<String> mute = new ArrayList<>();
+        private final List<String> unmute = new ArrayList<>();
+        private final List<String> pause = new ArrayList<>();
+        private final List<String> resume = new ArrayList<>();
+        private final List<VastProgressTracker> progress = new ArrayList<>();
         private final List<String> errors = new ArrayList<>();
 
         TrackingBundle merge(VastParsedResponse response) {
             addAll(impressions, response.getImpressions());
+            addAll(creativeView, response.getCreativeViewTrackers());
             addAll(start, response.getStartTrackers());
             addAll(firstQuartile, response.getFirstQuartileTrackers());
             addAll(midpoint, response.getMidpointTrackers());
             addAll(thirdQuartile, response.getThirdQuartileTrackers());
             addAll(complete, response.getCompleteTrackers());
+            addAll(mute, response.getMuteTrackers());
+            addAll(unmute, response.getUnmuteTrackers());
+            addAll(pause, response.getPauseTrackers());
+            addAll(resume, response.getResumeTrackers());
+            addAll(progress, response.getProgressTrackers());
             addAll(errors, response.getErrorTrackers());
             return this;
         }
@@ -151,24 +173,41 @@ final class VastClient {
         VastAd toAd(VastAd ad) {
             return new VastAd(
                 ad.getMediaUrl(),
+                ad.getMediaType(),
+                ad.getMediaFiles(),
                 mergeList(impressions, ad.getImpressions()),
+                mergeList(creativeView, ad.getCreativeViewTrackers()),
                 mergeList(start, ad.getStartTrackers()),
                 mergeList(firstQuartile, ad.getFirstQuartileTrackers()),
                 mergeList(midpoint, ad.getMidpointTrackers()),
                 mergeList(thirdQuartile, ad.getThirdQuartileTrackers()),
                 mergeList(complete, ad.getCompleteTrackers()),
+                mergeList(mute, ad.getMuteTrackers()),
+                mergeList(unmute, ad.getUnmuteTrackers()),
+                mergeList(pause, ad.getPauseTrackers()),
+                mergeList(resume, ad.getResumeTrackers()),
+                mergeList(progress, ad.getProgressTrackers()),
                 mergeList(errors, ad.getErrorTrackers())
             );
         }
 
-        private static void addAll(List<String> target, List<String> values) {
+        VastLoadException toError(VastLoadException error) {
+            return new VastLoadException(
+                error.getMessage(),
+                error.getCause(),
+                error.getVastErrorCode(),
+                mergeList(errors, error.getErrorTrackers())
+            );
+        }
+
+        private static <T> void addAll(List<T> target, List<T> values) {
             if (values != null) {
                 target.addAll(values);
             }
         }
 
-        private static List<String> mergeList(List<String> first, List<String> second) {
-            List<String> merged = new ArrayList<>(first);
+        private static <T> List<T> mergeList(List<T> first, List<T> second) {
+            List<T> merged = new ArrayList<>(first);
             addAll(merged, second);
             return merged;
         }

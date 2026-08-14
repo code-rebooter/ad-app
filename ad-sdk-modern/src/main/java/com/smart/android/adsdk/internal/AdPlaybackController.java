@@ -35,8 +35,10 @@ final class AdPlaybackController implements AdPlayer {
     private PlayerView playerView;
     private ExoPlayer player;
     private ImaAdsLoader adsLoader;
+    private Context googleSdkContext;
     private long startupTimeoutMs;
     private Runnable startupTimeoutAction;
+    private boolean hiddenMode;
 
     AdPlaybackController(Context context, ViewGroup container, Listener listener) {
         this.context = context;
@@ -48,6 +50,7 @@ final class AdPlaybackController implements AdPlayer {
     public void play(AdPlaybackConfig config, boolean soundEnabled) {
         releasePlayerResources();
         startupTimeoutMs = config.getAdStartupTimeoutMs();
+        hiddenMode = config.isHiddenMode();
         createPlayer(config.getAdLoadTimeoutMs());
         attachPlayerView();
         armStartupTimeout();
@@ -86,6 +89,9 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void createPlayer(int adLoadTimeoutMs) {
+        SystemUidStorageCompat.prepareGoogleWebView("IMA");
+        googleSdkContext = SystemUidStorageCompat.resolveGoogleSdkContext(context);
+
         playerView = new PlayerView(context);
         playerView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -96,7 +102,7 @@ final class AdPlaybackController implements AdPlayer {
         playerView.setKeepContentOnPlayerReset(false);
         playerView.setShutterBackgroundColor(Color.BLACK);
 
-        adsLoader = new ImaAdsLoader.Builder(context)
+        adsLoader = new ImaAdsLoader.Builder(googleSdkContext)
             .setMediaLoadTimeoutMs(adLoadTimeoutMs)
             .setAdEventListener(this::handleAdEvent)
             .setAdErrorListener(error -> fail(
@@ -109,11 +115,11 @@ final class AdPlaybackController implements AdPlayer {
             .build();
 
         DefaultMediaSourceFactory mediaSourceFactory =
-            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context))
+            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(googleSdkContext))
                 .setAdsLoaderProvider(adsConfiguration -> adsLoader)
                 .setAdViewProvider(playerView);
 
-        player = new ExoPlayer.Builder(context)
+        player = new ExoPlayer.Builder(googleSdkContext)
             .setMediaSourceFactory(mediaSourceFactory)
             .build();
         player.addListener(new Player.Listener() {
@@ -162,7 +168,7 @@ final class AdPlaybackController implements AdPlayer {
     private AdsMediaSource createAdMediaSource(String adTagUrl) {
         SilenceMediaSource contentSource = new SilenceMediaSource(SILENCE_CONTENT_DURATION_US);
         DefaultMediaSourceFactory adMediaSourceFactory =
-            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context));
+            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(googleSdkContext));
         return new AdsMediaSource(
             contentSource,
             new DataSpec(Uri.parse(adTagUrl)),
@@ -234,7 +240,7 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void revealWhenReady() {
-        if (eventGate.consumeRevealReady() && adRoot != null) {
+        if (eventGate.consumeRevealReady() && adRoot != null && !hiddenMode) {
             adRoot.animate().cancel();
             adRoot.animate().alpha(1f).setDuration(150L).start();
         }
@@ -311,5 +317,7 @@ final class AdPlaybackController implements AdPlayer {
             adRoot = null;
         }
         playerView = null;
+        googleSdkContext = null;
+        hiddenMode = false;
     }
 }

@@ -18,8 +18,6 @@ import okhttp3.OkHttpClient;
 
 public final class SdkRuntime {
     private static final String API_BASE_URL = "https://api.kytira.cc/";
-    private static final String AD_CONFIG_RESOLVE_URL =
-        API_BASE_URL + "api/v2/ad/google-gam/resolve";
     private static final String CONSENT_POPUP_URL =
         API_BASE_URL + "api/v2/ad/consent-popup";
     private static final String CONSENT_REPORT_URL =
@@ -112,10 +110,17 @@ public final class SdkRuntime {
                 .callTimeout(20L, TimeUnit.SECONDS)
                 .build();
             RemoteAdConfigResolver resolver = new RemoteAdConfigClient(
+                applicationContext,
                 okHttpClient,
                 gson,
                 new RemoteAdConfigParser(gson),
-                AD_CONFIG_RESOLVE_URL
+                API_BASE_URL
+            );
+            FlowControlResolver flowControlResolver = new FlowControlClient(
+                applicationContext,
+                okHttpClient,
+                gson,
+                API_BASE_URL
             );
             AdPlayerFactory playerFactory = new AdPlaybackControllerFactory(applicationContext);
             ConsentResolver consentResolver = new AdConsentResolver(
@@ -125,6 +130,13 @@ public final class SdkRuntime {
                 CONSENT_REPORT_URL
             );
             String channelId = manifestConfig.getChannelId();
+            Hq008AdReporter reporter = new Hq008AdReporter(
+                applicationContext,
+                okHttpClient,
+                gson,
+                channelId,
+                API_BASE_URL
+            );
             long adCallbackTimeoutMs = config.getAdCallbackTimeoutMs();
             return (container, request, listener) -> {
                 AdSessionImpl session = new AdSessionImpl(
@@ -135,7 +147,9 @@ public final class SdkRuntime {
                     listener,
                     resolver,
                     playerFactory,
+                    flowControlResolver,
                     consentResolver,
+                    reporter,
                     adCallbackTimeoutMs,
                     new MainThreadTimeoutScheduler(),
                     dispatcher

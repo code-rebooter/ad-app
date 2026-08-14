@@ -13,6 +13,8 @@ import okhttp3.Request;
 final class VastTracker {
     private final OkHttpClient okHttpClient;
     private String mediaType;
+    private long adPlayheadMs;
+    private String reason;
 
     VastTracker(OkHttpClient okHttpClient) {
         this.okHttpClient = okHttpClient;
@@ -22,12 +24,22 @@ final class VastTracker {
         this.mediaType = mediaType;
     }
 
+    void setAdPlayheadMs(long adPlayheadMs) {
+        this.adPlayheadMs = Math.max(0L, adPlayheadMs);
+    }
+
     void fire(List<String> urls) {
         fire(urls, 900);
     }
 
     void fireError(List<String> urls, int errorCode) {
         fire(urls, errorCode);
+    }
+
+    void fireVerificationNotExecuted(List<String> urls, String reason) {
+        this.reason = reason;
+        fire(urls, 900);
+        this.reason = null;
     }
 
     private void fire(List<String> urls, int errorCode) {
@@ -66,7 +78,7 @@ final class VastTracker {
         );
         String timestamp = isoTimestamp();
         String mediaTypeValue = safeMediaType();
-        return url
+        String resolved = url
             .replace("[CACHEBUSTING]", cacheBuster)
             .replace("[CACHEBUSTER]", cacheBuster)
             .replace("%5BCACHEBUSTING%5D", cacheBuster)
@@ -77,7 +89,14 @@ final class VastTracker {
             .replace("[ERRORCODE]", String.valueOf(errorCode))
             .replace("%5BERRORCODE%5D", String.valueOf(errorCode))
             .replace("[AD_MT]", encodeMacroValue(mediaTypeValue))
-            .replace("%5BAD_MT%5D", encodeMacroValue(mediaTypeValue));
+            .replace("%5BAD_MT%5D", encodeMacroValue(mediaTypeValue))
+            .replace("[ADPLAYHEAD]", formatPlayhead(adPlayheadMs))
+            .replace("%5BADPLAYHEAD%5D", formatPlayhead(adPlayheadMs))
+            .replace("[CONTENTPLAYHEAD]", formatPlayhead(adPlayheadMs))
+            .replace("%5BCONTENTPLAYHEAD%5D", formatPlayhead(adPlayheadMs))
+            .replace("[REASON]", encodeMacroValue(safeReason()))
+            .replace("%5BREASON%5D", encodeMacroValue(safeReason()));
+        return replaceUnknownMacros(resolved);
     }
 
     private String isoTimestamp() {
@@ -93,6 +112,24 @@ final class VastTracker {
         return mediaType == null || mediaType.trim().isEmpty()
             ? ""
             : mediaType.trim();
+    }
+
+    private String safeReason() {
+        return reason == null ? "" : reason.trim();
+    }
+
+    private String formatPlayhead(long positionMs) {
+        long safePositionMs = Math.max(0L, positionMs);
+        long hours = safePositionMs / 3_600_000L;
+        long minutes = (safePositionMs % 3_600_000L) / 60_000L;
+        long seconds = (safePositionMs % 60_000L) / 1_000L;
+        long millis = safePositionMs % 1_000L;
+        return String.format(Locale.US, "%02d:%02d:%02d.%03d", hours, minutes, seconds, millis);
+    }
+
+    private String replaceUnknownMacros(String url) {
+        return url.replaceAll("\\[[A-Za-z0-9_]+\\]", "-1")
+            .replaceAll("(?i)%5B[A-Za-z0-9_]+%5D", "-1");
     }
 
     private String encodeMacroValue(String value) {

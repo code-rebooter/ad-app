@@ -42,6 +42,55 @@ public class RemoteAdConfigParserTest {
     }
 
     @Test
+    public void fillsBlankGamCorrelatorBeforePlayback() throws Exception {
+        RemoteAdConfigResult result = parser.parse(
+            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
+                + "?iu=/21775744923/external/single_preroll_skippable"
+                + "&output=vast&correlator=\"}"
+        );
+
+        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
+        assertTrue(result.hasAd());
+        assertEquals("pubads.g.doubleclick.net", url.host());
+        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+    }
+
+    @Test
+    public void addsMissingGamCorrelatorBeforePlayback() throws Exception {
+        RemoteAdConfigResult result = parser.parse(
+            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
+                + "?iu=/21775744923/external/single_preroll_skippable"
+                + "&output=vast\"}"
+        );
+
+        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
+        assertTrue(result.hasAd());
+        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+    }
+
+    @Test
+    public void replacesGamCorrelatorMacroBeforePlayback() throws Exception {
+        RemoteAdConfigResult result = parser.parse(
+            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
+                + "?iu=/21775744923/external/single_preroll_skippable"
+                + "&output=vast&correlator=[correlator]\"}"
+        );
+
+        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
+        assertTrue(result.hasAd());
+        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+    }
+
+    @Test
+    public void keepsNonGamUrlUnchangedWhenFillingCorrelator() throws Exception {
+        RemoteAdConfigResult result = parser.parse(
+            "{\"ad_tag_url\":\"https://example.test/vast?correlator=\"}"
+        );
+
+        assertEquals("https://example.test/vast?correlator=", result.getConfig().getAdTagUrl());
+    }
+
+    @Test
     public void parsesDirectPlaybackConfigWithDefaults() throws Exception {
         RemoteAdConfigResult result = parser.parse(
             "{\"ad_tag_url\":\"https://example.test/vast\"}"

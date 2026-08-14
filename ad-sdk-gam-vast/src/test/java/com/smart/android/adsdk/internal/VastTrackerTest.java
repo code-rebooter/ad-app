@@ -72,6 +72,44 @@ public class VastTrackerTest {
     }
 
     @Test
+    public void expandsReasonAdPlayheadAndUnknownMacrosForTrackingCompatibility() throws Exception {
+        RecordingInterceptor interceptor = new RecordingInterceptor(1);
+        VastTracker tracker = new VastTracker(new OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .build());
+        tracker.setAdPlayheadMs(65_432L);
+
+        tracker.fireVerificationNotExecuted(Collections.singletonList(
+            "https://track.test/verification?reason=[REASON]&playhead=[ADPLAYHEAD]"
+                + "&encoded=%5BCONTENTPLAYHEAD%5D&unknown=[UNSUPPORTED_MACRO]"
+        ), "omid_missing");
+
+        assertTrue(interceptor.await());
+        okhttp3.HttpUrl url = interceptor.urls.get(0);
+        assertEquals("omid_missing", url.queryParameter("reason"));
+        assertEquals("00:01:05.432", url.queryParameter("playhead"));
+        assertEquals("00:01:05.432", url.queryParameter("encoded"));
+        assertEquals("-1", url.queryParameter("unknown"));
+    }
+
+    @Test
+    public void expandsLowercaseUnknownMacrosUsedByGoogleUrls() throws Exception {
+        RecordingInterceptor interceptor = new RecordingInterceptor(1);
+        VastTracker tracker = new VastTracker(new OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .build());
+
+        tracker.fire(Collections.singletonList(
+            "https://track.test/google?plain=[gw_fbsaeid]&encoded=%5Bgw_fbsaeid%5D"
+        ));
+
+        assertTrue(interceptor.await());
+        okhttp3.HttpUrl url = interceptor.urls.get(0);
+        assertEquals("-1", url.queryParameter("plain"));
+        assertEquals("-1", url.queryParameter("encoded"));
+    }
+
+    @Test
     public void ignoresNullTrackingLists() {
         VastTracker tracker = new VastTracker(new OkHttpClient());
 

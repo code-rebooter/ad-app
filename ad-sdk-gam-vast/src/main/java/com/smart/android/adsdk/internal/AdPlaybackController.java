@@ -1,10 +1,16 @@
 package com.smart.android.adsdk.internal;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -37,6 +43,7 @@ final class AdPlaybackController implements AdPlayer {
     private ExoPlayer player;
     private VastClient vastClient;
     private VastTracker tracker;
+    private VastAdBreak vastAdBreak;
     private VastAd vastAd;
     private Cancellable vastCall;
     private long startupTimeoutMs;
@@ -44,10 +51,16 @@ final class AdPlaybackController implements AdPlayer {
     private Runnable progressAction;
     private final Set<VastProgressTracker> reportedProgressTrackers = new HashSet<>();
     private final Set<Integer> failedMediaIndexes = new HashSet<>();
+    private Button skipButton;
     private boolean firstQuartileReported;
     private boolean midpointReported;
     private boolean thirdQuartileReported;
     private boolean completeReported;
+    private boolean currentAdStartedReported;
+    private boolean currentAdLoadedReported;
+    private boolean breakStartReported;
+    private boolean breakEndReported;
+    private boolean skipButtonShown;
     private boolean soundEnabled;
     private boolean paused;
     private boolean fallbackInProgress;
@@ -81,8 +94,8 @@ final class AdPlaybackController implements AdPlayer {
             config.getAdLoadTimeoutMs(),
             new VastClient.Callback() {
                 @Override
-                public void onLoaded(VastAd ad) {
-                    mainHandler.post(() -> handleVastLoaded(ad));
+                public void onLoaded(VastAdBreak adBreak) {
+                    mainHandler.post(() -> handleVastLoaded(adBreak));
                 }
 
                 @Override
@@ -160,6 +173,7 @@ final class AdPlaybackController implements AdPlayer {
         playerView.setUseController(false);
         playerView.setKeepContentOnPlayerReset(false);
         playerView.setShutterBackgroundColor(Color.BLACK);
+        playerView.setOnClickListener(view -> handleAdClick());
 
         DefaultMediaSourceFactory mediaSourceFactory =
             new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context));
@@ -172,13 +186,17 @@ final class AdPlaybackController implements AdPlayer {
                 if (eventGate.isTerminal()) {
                     return;
                 }
+                if (playbackState == Player.STATE_READY) {
+                    reportLoadedForCurrentAd();
+                    return;
+                }
                 if (playbackState == Player.STATE_ENDED) {
                     if (fallbackInProgress) {
                         return;
                     }
-                    if (eventGate.hasStarted()) {
+                    if (currentAdStartedReported) {
                         reportComplete();
-                        complete();
+                        playNextAdOrComplete();
                     } else {
                         handleMediaFailure(
                             405,
@@ -191,13 +209,7 @@ final class AdPlaybackController implements AdPlayer {
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
-                if (isPlaying && eventGate.markStarted()) {
-                    reportStart();
-                    clearStartupTimeout();
-                    listener.onStarted();
-                    revealWhenReady();
-                    startProgressPolling();
-                }
+                maybeReportCurrentAdStarted(isPlaying);
             }
 
             @Override
@@ -218,19 +230,40 @@ final class AdPlaybackController implements AdPlayer {
         playerView.setPlayer(player);
     }
 
-    private void handleVastLoaded(VastAd ad) {
+    private void maybeReportCurrentAdStarted(boolean isPlaying) {
+        if (!isPlaying || currentAdStartedReported) {
+            return;
+        }
+        currentAdStartedReported = true;
+        reportStart();
+        clearStartupTimeout();
+        if (eventGate.markStarted()) {
+            listener.onStarted();
+        }
+        revealWhenReady();
+        startProgressPolling();
+    }
+
+    private void handleVastLoaded(VastAdBreak adBreak) {
         if (eventGate.isTerminal() || player == null) {
             return;
         }
-        if (ad == null || ad.getMediaUrl() == null || ad.getMediaUrl().isEmpty()) {
+        if (adBreak == null || adBreak.getAds().isEmpty()) {
             fail(AdErrorCode.AD_LOAD_ERROR, "VAST did not provide a media URL", null);
             return;
         }
-        vastAd = ad;
+        vastAdBreak = adBreak;
+        vastAd = adBreak.firstAd();
+        if (vastAd == null || vastAd.getMediaUrl() == null || vastAd.getMediaUrl().isEmpty()) {
+            fail(AdErrorCode.AD_LOAD_ERROR, "VAST did not provide a media URL", null);
+            return;
+        }
+        reportBreakStart();
         notifyLoaded();
-        extendStartupTimeout();
+        armStartupTimeout();
         failedMediaIndexes.clear();
         mediaIndex = -1;
+        resetCurrentAdProgressState();
         prepareNextMediaFile(403, null);
     }
 
@@ -272,6 +305,7 @@ final class AdPlaybackController implements AdPlayer {
                 player.setMediaItem(mediaItemBuilder.build());
                 player.setPlayWhenReady(true);
                 player.prepare();
+                maybeReportCurrentAdStarted(player.isPlaying());
                 fallbackInProgress = false;
                 return;
             } catch (RuntimeException error) {
@@ -323,8 +357,43 @@ final class AdPlaybackController implements AdPlayer {
         tracker.fire(vastAd.getImpressions());
         tracker.fire(vastAd.getCreativeViewTrackers());
         tracker.fire(vastAd.getStartTrackers());
+        tracker.fire(vastAd.getViewUndeterminedTrackers());
+        tracker.fireVerificationNotExecuted(
+            vastAd.getVerificationNotExecutedTrackers(),
+            "verification_not_supported"
+        );
+        if (vastAd.hasUnexecutedInteractiveCreativeFile()) {
+            tracker.fireError(vastAd.getErrorTrackers(), 409);
+        }
         if (!soundEnabled) {
             tracker.fire(vastAd.getMuteTrackers());
+        }
+    }
+
+    private void reportBreakStart() {
+        if (!breakStartReported && tracker != null && vastAdBreak != null) {
+            breakStartReported = true;
+            tracker.fire(vastAdBreak.getBreakStartTrackers());
+        }
+    }
+
+    private void reportBreakEnd() {
+        if (!breakEndReported && tracker != null && vastAdBreak != null) {
+            breakEndReported = true;
+            tracker.fire(vastAdBreak.getBreakEndTrackers());
+        }
+    }
+
+    private void reportBreakError(int errorCode) {
+        if (tracker != null && vastAdBreak != null) {
+            tracker.fireError(vastAdBreak.getBreakErrorTrackers(), errorCode);
+        }
+    }
+
+    private void reportLoadedForCurrentAd() {
+        if (!currentAdLoadedReported && tracker != null && vastAd != null) {
+            currentAdLoadedReported = true;
+            tracker.fire(vastAd.getLoadedTrackers());
         }
     }
 
@@ -354,6 +423,8 @@ final class AdPlaybackController implements AdPlayer {
         if (positionMs < 0L) {
             return;
         }
+        tracker.setAdPlayheadMs(positionMs);
+        revealSkipButtonIfNeeded(durationMs, positionMs);
         reportOffsetProgressTrackers(durationMs, positionMs);
         if (durationMs > 0L) {
             float progress = Math.min(1f, positionMs / (float) durationMs);
@@ -392,6 +463,111 @@ final class AdPlaybackController implements AdPlayer {
         stopProgressPolling();
     }
 
+    private void playNextAdOrComplete() {
+        VastAd nextAd = nextAd();
+        if (nextAd == null) {
+            complete();
+            return;
+        }
+        vastAd = nextAd;
+        resetCurrentAdProgressState();
+        failedMediaIndexes.clear();
+        mediaIndex = -1;
+        armStartupTimeout();
+        prepareNextMediaFile(403, null);
+    }
+
+    private VastAd nextAd() {
+        if (vastAdBreak == null || vastAd == null) {
+            return null;
+        }
+        List<VastAd> ads = vastAdBreak.getAds();
+        int currentIndex = ads.indexOf(vastAd);
+        int nextIndex = currentIndex + 1;
+        return currentIndex >= 0 && nextIndex < ads.size() ? ads.get(nextIndex) : null;
+    }
+
+    private void revealSkipButtonIfNeeded(long durationMs, long positionMs) {
+        if (skipButtonShown || vastAd == null) {
+            return;
+        }
+        if (vastAd.getSkipOffsetMs() >= 0L && positionMs >= vastAd.getSkipOffsetMs()) {
+            showSkipButton();
+            return;
+        }
+        if (durationMs > 0L
+            && vastAd.getSkipOffsetPercent() >= 0f
+            && positionMs / (float) durationMs >= vastAd.getSkipOffsetPercent()) {
+            showSkipButton();
+        }
+    }
+
+    private void showSkipButton() {
+        if (skipButtonShown) {
+            return;
+        }
+        skipButtonShown = true;
+        ensureSkipButton();
+        skipButton.setVisibility(View.VISIBLE);
+    }
+
+    private void ensureSkipButton() {
+        if (skipButton != null || adRoot == null) {
+            return;
+        }
+        skipButton = new Button(context);
+        skipButton.setText("Skip");
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP | Gravity.END
+        );
+        int marginPx = dp(16);
+        params.setMargins(marginPx, marginPx, marginPx, marginPx);
+        skipButton.setLayoutParams(params);
+        skipButton.setVisibility(View.GONE);
+        skipButton.setOnClickListener(view -> skipAd());
+        adRoot.addView(skipButton);
+    }
+
+    private void skipAd() {
+        if (eventGate.markTerminal()) {
+            if (tracker != null && vastAd != null) {
+                if (player != null) {
+                    tracker.setAdPlayheadMs(player.getCurrentPosition());
+                }
+                tracker.fire(vastAd.getSkipTrackers());
+            }
+            reportBreakEnd();
+            fallbackInProgress = false;
+            clearStartupTimeout();
+            stopProgressPolling();
+            listener.onSkipped("USER_SKIPPED");
+        }
+    }
+
+    private void handleAdClick() {
+        if (eventGate.isTerminal() || tracker == null || vastAd == null) {
+            return;
+        }
+        if (player != null) {
+            tracker.setAdPlayheadMs(player.getCurrentPosition());
+        }
+        tracker.fire(vastAd.getClickTrackingUrls());
+        if (!TextUtils.isEmpty(vastAd.getClickThroughUrl())) {
+            openClickThrough(vastAd.getClickThroughUrl());
+        }
+    }
+
+    private void openClickThrough(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     private void notifyLoaded() {
         if (eventGate.markLoaded()) {
             listener.onLoaded();
@@ -407,6 +583,7 @@ final class AdPlaybackController implements AdPlayer {
 
     private void complete() {
         if (eventGate.markTerminal()) {
+            reportBreakEnd();
             fallbackInProgress = false;
             clearStartupTimeout();
             listener.onCompleted();
@@ -415,6 +592,7 @@ final class AdPlaybackController implements AdPlayer {
 
     private void fail(AdErrorCode code, String message, Throwable cause) {
         if (eventGate.markTerminal()) {
+            reportBreakError(code == AdErrorCode.TIMEOUT ? 402 : 900);
             fallbackInProgress = false;
             clearStartupTimeout();
             listener.onError(new AdError(code, AdErrorStage.PLAYER, message, cause));
@@ -438,7 +616,7 @@ final class AdPlaybackController implements AdPlayer {
 
     private void extendStartupTimeout() {
         clearStartupTimeout();
-        if (!eventGate.hasStarted()) {
+        if (!currentAdStartedReported) {
             armStartupTimeout();
         }
     }
@@ -478,8 +656,10 @@ final class AdPlaybackController implements AdPlayer {
             adRoot.removeAllViews();
             adRoot = null;
         }
+        skipButton = null;
         playerView = null;
         vastClient = null;
+        vastAdBreak = null;
         tracker = null;
         vastAd = null;
         reportedProgressTrackers.clear();
@@ -488,9 +668,32 @@ final class AdPlaybackController implements AdPlayer {
         midpointReported = false;
         thirdQuartileReported = false;
         completeReported = false;
+        currentAdStartedReported = false;
+        currentAdLoadedReported = false;
+        breakStartReported = false;
+        breakEndReported = false;
+        skipButtonShown = false;
         soundEnabled = false;
         paused = false;
         fallbackInProgress = false;
         mediaIndex = -1;
+    }
+
+    private int dp(int value) {
+        return Math.round(value * context.getResources().getDisplayMetrics().density);
+    }
+
+    private void resetCurrentAdProgressState() {
+        reportedProgressTrackers.clear();
+        firstQuartileReported = false;
+        midpointReported = false;
+        thirdQuartileReported = false;
+        completeReported = false;
+        currentAdStartedReported = false;
+        currentAdLoadedReported = false;
+        skipButtonShown = false;
+        if (skipButton != null) {
+            skipButton.setVisibility(View.GONE);
+        }
     }
 }

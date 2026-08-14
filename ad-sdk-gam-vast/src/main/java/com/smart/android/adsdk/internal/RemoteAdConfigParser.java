@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import okhttp3.HttpUrl;
 
 final class RemoteAdConfigParser {
     static final int DEFAULT_AD_LOAD_TIMEOUT_MS = 20_000;
@@ -33,7 +34,7 @@ final class RemoteAdConfigParser {
                 return RemoteAdConfigResult.skipped("CONFIG_DISABLED");
             }
 
-            String adTagUrl = readString(data, "ad_tag_url").trim();
+            String adTagUrl = normalizeAdTagUrl(readString(data, "ad_tag_url").trim());
             if (adTagUrl.isEmpty()) {
                 return RemoteAdConfigResult.skipped("NO_AD_TAG");
             }
@@ -82,6 +83,37 @@ final class RemoteAdConfigParser {
             return "";
         }
         return element.getAsString();
+    }
+
+    private String normalizeAdTagUrl(String adTagUrl) {
+        HttpUrl url = HttpUrl.parse(adTagUrl);
+        if (url == null || !isGamAdTagUrl(url)) {
+            return adTagUrl;
+        }
+        String correlator = url.queryParameter("correlator");
+        if (correlator != null && !correlator.trim().isEmpty() && !isMacroValue(correlator)) {
+            return adTagUrl;
+        }
+        HttpUrl.Builder builder = url.newBuilder();
+        builder.removeAllQueryParameters("correlator");
+        builder.addQueryParameter(
+            "correlator",
+            String.valueOf(System.currentTimeMillis()) + Math.abs(System.nanoTime())
+        );
+        return builder.build().toString();
+    }
+
+    private boolean isGamAdTagUrl(HttpUrl url) {
+        return "pubads.g.doubleclick.net".equalsIgnoreCase(url.host())
+            && "/gampad/ads".equals(url.encodedPath());
+    }
+
+    private boolean isMacroValue(String value) {
+        String trimmed = value.trim();
+        return trimmed.startsWith("[")
+            || trimmed.startsWith("%%")
+            || trimmed.contains("CACHEBUST")
+            || trimmed.contains("CORRELATOR");
     }
 
     private int readPositiveInt(JsonObject object, String fieldName, int defaultValue) {

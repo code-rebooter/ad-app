@@ -27,7 +27,7 @@ import java.util.Locale;
 
 public final class GamVastDemoActivity extends Activity {
     private static final String TAG = "GamVastDemo";
-    private static final long REQUEST_INTERVAL_MS = 45_000L;
+    private static final long REQUEST_INTERVAL_MS = 60_000L;
     private static final int MAX_LOG_LINES = 160;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());

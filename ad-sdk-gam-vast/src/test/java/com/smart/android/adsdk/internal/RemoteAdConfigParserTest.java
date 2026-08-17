@@ -102,13 +102,23 @@ public class RemoteAdConfigParserTest {
     }
 
     @Test
-    public void disabledConfigProducesSkipResult() throws Exception {
+    public void disabledFlagWithoutAdTagProducesNoAdTagSkipResult() throws Exception {
         RemoteAdConfigResult result = parser.parse(
             "{\"code\":100000,\"data\":{\"enabled\":false}}"
         );
 
         assertFalse(result.hasAd());
-        assertEquals("CONFIG_DISABLED", result.getSkipReason());
+        assertEquals("NO_AD_TAG", result.getSkipReason());
+    }
+
+    @Test
+    public void disabledFlagDoesNotBlockReturnedAdTag() throws Exception {
+        RemoteAdConfigResult result = parser.parse(
+            "{\"code\":100000,\"data\":{\"enabled\":false,\"ad_tag_url\":\"https://example.test/vast\"}}"
+        );
+
+        assertTrue(result.hasAd());
+        assertEquals("https://example.test/vast", result.getConfig().getAdTagUrl());
     }
 
     @Test

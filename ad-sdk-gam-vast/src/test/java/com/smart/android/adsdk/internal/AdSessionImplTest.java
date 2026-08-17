@@ -117,39 +117,6 @@ public class AdSessionImplTest {
     }
 
     @Test
-    public void consentResolverBlocksBeforeConfigResolve() {
-        fixture.consentResolver = (context, channelId, callback) -> {
-            callback.onBlocked("CONSENT_REQUIRED");
-            return () -> {};
-        };
-        AdSessionImpl session = fixture.createSession();
-
-        session.start();
-
-        assertEquals(Arrays.asList("finished:SKIPPED:CONSENT_REQUIRED"), fixture.events);
-        assertEquals(0, fixture.resolver.resolveCalls);
-    }
-
-    @Test
-    public void consentResolverErrorFinishesBeforeConfigResolve() {
-        fixture.consentResolver = (context, channelId, callback) -> {
-            callback.onError(new AdError(
-                AdErrorCode.INTERNAL_ERROR,
-                AdErrorStage.INTERNAL,
-                "consent failed",
-                null
-            ));
-            return () -> {};
-        };
-        AdSessionImpl session = fixture.createSession();
-
-        session.start();
-
-        assertEquals(Arrays.asList("finished:ERROR:INTERNAL_ERROR"), fixture.events);
-        assertEquals(0, fixture.resolver.resolveCalls);
-    }
-
-    @Test
     public void totalCallbackTimeoutFinishesSessionAndCancelsConfigRequest() {
         AdSessionImpl session = fixture.createSession();
 
@@ -160,16 +127,31 @@ public class AdSessionImplTest {
         assertEquals(Arrays.asList("finished:ERROR:TIMEOUT"), fixture.events);
     }
 
+    @Test
+    public void authorizeSoundModeOverridesRequestSoundSetting() {
+        AdSessionImpl session = fixture.createSession();
+
+        session.start();
+        fixture.resolver.succeed(new AdPlaybackConfig(
+            "https://example.test/vast",
+            20_000,
+            35_000L,
+            "request-123",
+            false,
+            false,
+            60L
+        ));
+
+        assertFalse(fixture.player.soundEnabled);
+    }
+
     private static final class Fixture {
         private final FakeResolver resolver = new FakeResolver();
         private final FakePlayer player = new FakePlayer();
         private final FakeTimeoutScheduler timeoutScheduler = new FakeTimeoutScheduler();
+        private final Hq008AdReporter reporter = new Hq008AdReporter();
+        private final Clock clock = () -> 1_000L;
         private final List<String> events = new ArrayList<>();
-        private ConsentResolver consentResolver =
-            (context, channelId, callback) -> {
-                callback.onAllowed();
-                return () -> {};
-            };
 
         private AdSessionImpl createSession() {
             AdListener listener = new AdListener() {
@@ -206,10 +188,11 @@ public class AdSessionImplTest {
                 listener,
                 resolver,
                 playerFactory,
-                consentResolver,
+                reporter,
                 180_000L,
                 timeoutScheduler,
-                Runnable::run
+                Runnable::run,
+                clock
             );
         }
 

@@ -19,6 +19,13 @@ final class RemoteAdConfigParser {
     }
 
     RemoteAdConfigResult parse(String responseBody) throws RemoteAdConfigParseException {
+        return parse(responseBody, null);
+    }
+
+    RemoteAdConfigResult parse(
+        String responseBody,
+        FlowAuthorizedConfig flowConfig
+    ) throws RemoteAdConfigParseException {
         try {
             JsonElement rootElement = JsonParser.parseString(responseBody);
             if (!rootElement.isJsonObject()) {
@@ -29,9 +36,6 @@ final class RemoteAdConfigParser {
             JsonObject data = resolveDataObject(root);
             if (data == null) {
                 return RemoteAdConfigResult.skipped("NO_CONFIG_DATA");
-            }
-            if (data.has("enabled") && !data.get("enabled").getAsBoolean()) {
-                return RemoteAdConfigResult.skipped("CONFIG_DISABLED");
             }
 
             String adTagUrl = normalizeAdTagUrl(readString(data, "ad_tag_url").trim());
@@ -50,7 +54,15 @@ final class RemoteAdConfigParser {
                 DEFAULT_AD_STARTUP_TIMEOUT_MS
             );
             return RemoteAdConfigResult.withAd(
-                new AdPlaybackConfig(adTagUrl, adLoadTimeoutMs, adStartupTimeoutMs)
+                new AdPlaybackConfig(
+                    adTagUrl,
+                    adLoadTimeoutMs,
+                    adStartupTimeoutMs,
+                    flowConfig == null ? null : flowConfig.getRequestId(),
+                    flowConfig != null && flowConfig.isHiddenMode(),
+                    flowConfig == null ? null : flowConfig.isSoundEnabled(),
+                    flowConfig == null ? 0L : flowConfig.getNextRequestSeconds()
+                )
             );
         } catch (RemoteAdConfigParseException error) {
             throw error;

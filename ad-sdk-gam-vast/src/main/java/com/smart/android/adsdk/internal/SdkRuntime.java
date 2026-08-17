@@ -18,12 +18,6 @@ import okhttp3.OkHttpClient;
 
 public final class SdkRuntime {
     private static final String API_BASE_URL = "https://api.kytira.cc/";
-    private static final String AD_CONFIG_RESOLVE_URL =
-        API_BASE_URL + "api/v2/ad/google-gam/resolve";
-    private static final String CONSENT_POPUP_URL =
-        API_BASE_URL + "api/v2/ad/consent-popup";
-    private static final String CONSENT_REPORT_URL =
-        API_BASE_URL + "api/v2/ad/consent-report";
 
     private final CallbackDispatcher dispatcher;
     private final ComponentsFactory componentsFactory;
@@ -112,20 +106,23 @@ public final class SdkRuntime {
                 .callTimeout(20L, TimeUnit.SECONDS)
                 .build();
             RemoteAdConfigResolver resolver = new RemoteAdConfigClient(
+                applicationContext,
                 okHttpClient,
                 gson,
                 new RemoteAdConfigParser(gson),
-                AD_CONFIG_RESOLVE_URL
+                API_BASE_URL
             );
             AdPlayerFactory playerFactory = new AdPlaybackControllerFactory(applicationContext, okHttpClient);
-            ConsentResolver consentResolver = new AdConsentResolver(
+            String channelId = manifestConfig.getChannelId();
+            Hq008AdReporter reporter = new Hq008AdReporter(
+                applicationContext,
                 okHttpClient,
                 gson,
-                CONSENT_POPUP_URL,
-                CONSENT_REPORT_URL
+                channelId,
+                API_BASE_URL
             );
-            String channelId = manifestConfig.getChannelId();
             long adCallbackTimeoutMs = config.getAdCallbackTimeoutMs();
+            Clock clock = new SystemClockClock();
             return (container, request, listener) -> {
                 AdSessionImpl session = new AdSessionImpl(
                     channelId,
@@ -135,10 +132,11 @@ public final class SdkRuntime {
                     listener,
                     resolver,
                     playerFactory,
-                    consentResolver,
+                    reporter,
                     adCallbackTimeoutMs,
                     new MainThreadTimeoutScheduler(),
-                    dispatcher
+                    dispatcher,
+                    clock
                 );
                 session.start();
                 return session;

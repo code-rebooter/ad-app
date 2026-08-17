@@ -64,6 +64,7 @@ final class AdPlaybackController implements AdPlayer {
     private boolean soundEnabled;
     private boolean paused;
     private boolean fallbackInProgress;
+    private boolean hiddenMode;
     private int mediaIndex = -1;
 
     AdPlaybackController(
@@ -82,6 +83,7 @@ final class AdPlaybackController implements AdPlayer {
     public void play(AdPlaybackConfig config, boolean soundEnabled) {
         releasePlayerResources();
         startupTimeoutMs = config.getAdStartupTimeoutMs();
+        hiddenMode = config.isHiddenMode();
         tracker = new VastTracker(okHttpClient);
         vastClient = new VastClient(okHttpClient);
         createPlayer();
@@ -575,7 +577,7 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void revealWhenReady() {
-        if (eventGate.consumeRevealReady() && adRoot != null) {
+        if (eventGate.consumeRevealReady() && adRoot != null && !hiddenMode) {
             adRoot.animate().cancel();
             adRoot.animate().alpha(1f).setDuration(150L).start();
         }
@@ -676,6 +678,7 @@ final class AdPlaybackController implements AdPlayer {
         soundEnabled = false;
         paused = false;
         fallbackInProgress = false;
+        hiddenMode = false;
         mediaIndex = -1;
     }
 

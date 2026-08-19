@@ -53,6 +53,20 @@ public class RemoteAdConfigParserTest {
     }
 
     @Test
+    public void preservesBackendAdTagUrlExactlyWhenCorrelatorIsEmpty() throws Exception {
+        String adTagUrl =
+            "https://pubads.g.doubleclick.net/gampad/ads?iu=%2F21775744923%2Ftest"
+                + "&output=vast&env=vp&impl=s&correlator=";
+
+        RemoteAdConfigResult result = parser.parse(
+            "{\"code\":100000,\"data\":{\"ad_tag_url\":\"" + adTagUrl + "\"}}"
+        );
+
+        assertTrue(result.hasAd());
+        assertEquals(adTagUrl, result.getConfig().getAdTagUrl());
+    }
+
+    @Test
     public void disabledConfigProducesSkipResult() throws Exception {
         RemoteAdConfigResult result = parser.parse(
             "{\"code\":100000,\"data\":{\"enabled\":false}}"

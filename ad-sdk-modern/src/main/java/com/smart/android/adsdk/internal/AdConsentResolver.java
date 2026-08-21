@@ -1,8 +1,6 @@
 package com.smart.android.adsdk.internal;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 import com.google.gson.Gson;
@@ -13,11 +11,9 @@ import com.smart.android.adsdk.AdError;
 import com.smart.android.adsdk.AdErrorCode;
 import com.smart.android.adsdk.AdErrorStage;
 import java.io.IOException;
-import java.net.NetworkInterface;
-import java.util.Enumeration;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.Call;
@@ -274,35 +270,6 @@ final class AdConsentResolver implements ConsentResolver {
         return appContext == null ? context : appContext;
     }
 
-    private static String resolveMacAddress() {
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces != null && interfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = interfaces.nextElement();
-                if (networkInterface.isLoopback()) {
-                    continue;
-                }
-                byte[] address = networkInterface.getHardwareAddress();
-                if (address == null || address.length == 0) {
-                    continue;
-                }
-                StringBuilder builder = new StringBuilder();
-                for (int index = 0; index < address.length; index += 1) {
-                    if (index > 0) {
-                        builder.append(':');
-                    }
-                    builder.append(String.format(Locale.US, "%02X", address[index] & 0xFF));
-                }
-                String value = builder.toString();
-                if (!value.isBlank()) {
-                    return value;
-                }
-            }
-        } catch (RuntimeException | IOException ignored) {
-        }
-        return "00:00:00:00:00:00";
-    }
-
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
@@ -351,10 +318,11 @@ final class AdConsentResolver implements ConsentResolver {
             boolean consentExpired,
             DecisionCallback onResult
         ) {
+            DeviceInfo deviceInfo = DeviceInfo.collect(context);
             Map<String, Object> requestBody = new LinkedHashMap<>();
             requestBody.put("channel_id", channelId);
-            requestBody.put("mac", resolveMacAddress());
-            requestBody.put("ad_version", resolveHostVersionCode(context));
+            requestBody.put("mac", safeMac(deviceInfo));
+            requestBody.put("ad_version", deviceInfo.versionCode);
             requestBody.put("consent_expired", consentExpired);
             Request request = new Request.Builder()
                 .url(consentPopupUrl)
@@ -395,10 +363,11 @@ final class AdConsentResolver implements ConsentResolver {
             String consentAction,
             ReportCallback onResult
         ) {
+            DeviceInfo deviceInfo = DeviceInfo.collect(context);
             Map<String, Object> requestBody = new LinkedHashMap<>();
             requestBody.put("channel_id", channelId);
-            requestBody.put("mac", resolveMacAddress());
-            requestBody.put("ad_version", resolveHostVersionCode(context));
+            requestBody.put("mac", safeMac(deviceInfo));
+            requestBody.put("ad_version", deviceInfo.versionCode);
             requestBody.put("android_sdk_version", Build.VERSION.SDK_INT);
             requestBody.put("consent_action", consentAction);
             Request request = new Request.Builder()
@@ -461,25 +430,11 @@ final class AdConsentResolver implements ConsentResolver {
             return dataElement.getAsJsonObject();
         }
 
-        private long resolveHostVersionCode(Context context) {
-            try {
-                PackageInfo packageInfo = getPackageInfoCompat(context.getPackageManager(), context.getPackageName());
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    return packageInfo.getLongVersionCode();
-                }
-                return packageInfo.versionCode;
-            } catch (PackageManager.NameNotFoundException | RuntimeException error) {
-                return 0L;
+        private String safeMac(DeviceInfo deviceInfo) {
+            if (deviceInfo == null || deviceInfo.mac == null || deviceInfo.mac.isBlank()) {
+                return "00:00:00:00:00:00";
             }
-        }
-
-        @SuppressWarnings("deprecation")
-        private PackageInfo getPackageInfoCompat(PackageManager packageManager, String packageName)
-            throws PackageManager.NameNotFoundException {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                return packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0));
-            }
-            return packageManager.getPackageInfo(packageName, 0);
+            return deviceInfo.mac;
         }
     }
 }

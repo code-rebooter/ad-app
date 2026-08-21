@@ -43,6 +43,7 @@ public final class SdkRuntime {
         InitializationListener listener
     ) {
         try {
+            SystemUidStorageCompat.prepareSdkEntry(context, "initialize");
             sessionCreator = componentsFactory.create(context, config, dispatcher);
             dispatcher.dispatch(listener::onInitialized);
         } catch (RuntimeException error) {

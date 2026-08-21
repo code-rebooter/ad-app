@@ -89,7 +89,7 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void createPlayer(int adLoadTimeoutMs) {
-        SystemUidStorageCompat.prepareGoogleWebView("IMA");
+        SystemUidStorageCompat.prepareGoogleWebView(context, "IMA");
         googleSdkContext = SystemUidStorageCompat.resolveGoogleSdkContext(context);
 
         playerView = new PlayerView(context);

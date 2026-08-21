@@ -305,6 +305,9 @@ final class AdConsentManager {
     }
 
     static String getConsentString(Context context) {
+        if (SystemUidStorageCompat.isSystemUid()) {
+            return null;
+        }
         Context appContext = applicationContext(context);
         SharedPreferences prefs = appContext.getSharedPreferences(
             appContext.getPackageName() + "_preferences",
@@ -322,6 +325,9 @@ final class AdConsentManager {
     }
 
     static StoredConsentSnapshot buildStoredConsentSnapshotData(Context context) {
+        if (SystemUidStorageCompat.isSystemUid()) {
+            return new StoredConsentSnapshot();
+        }
         SharedPreferences prefs = context.getSharedPreferences(
             context.getPackageName() + "_preferences",
             Context.MODE_PRIVATE

@@ -1,0 +1,15 @@
+package com.smart.android.adsdk;
+
+public enum AdErrorCode {
+    INIT_NOT_CALLED,
+    INVALID_CHANNEL_ID,
+    INVALID_ARGUMENT,
+    CONFIG_NETWORK_ERROR,
+    CONFIG_HTTP_ERROR,
+    CONFIG_PARSE_ERROR,
+    AD_LOAD_ERROR,
+    AD_PLAYBACK_ERROR,
+    PLAYER_ERROR,
+    TIMEOUT,
+    INTERNAL_ERROR
+}

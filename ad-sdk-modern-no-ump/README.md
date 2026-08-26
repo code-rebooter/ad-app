@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.10'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.11'
 ```
 
 ## 1. 仓库
@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.10'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.11'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```

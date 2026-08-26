@@ -67,13 +67,15 @@ public class RemoteAdConfigParserTest {
     }
 
     @Test
-    public void disabledConfigProducesSkipResult() throws Exception {
+    public void legacyEnabledFlagDoesNotDisableConfig() throws Exception {
+        String adTagUrl = "https://pubads.g.doubleclick.net/test";
         RemoteAdConfigResult result = parser.parse(
-            "{\"code\":100000,\"data\":{\"enabled\":false}}"
+            "{\"code\":100000,\"data\":{\"enabled\":false,"
+                + "\"ad_tag_url\":\"" + adTagUrl + "\"}}"
         );
 
-        assertFalse(result.hasAd());
-        assertEquals("CONFIG_DISABLED", result.getSkipReason());
+        assertTrue(result.hasAd());
+        assertEquals(adTagUrl, result.getConfig().getAdTagUrl());
     }
 
     @Test

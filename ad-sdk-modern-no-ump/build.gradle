@@ -34,7 +34,9 @@ dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:2.3.0')
     implementation 'androidx.media3:media3-exoplayer:1.10.1'
     implementation 'androidx.media3:media3-ui:1.10.1'
-    implementation 'androidx.media3:media3-exoplayer-ima:1.10.1'
+    implementation('androidx.media3:media3-exoplayer-ima:1.10.1') {
+        exclude group: 'androidx.preference', module: 'preference'
+    }
 
     implementation 'com.squareup.okhttp3:okhttp:5.4.0'
     implementation 'com.google.code.gson:gson:2.14.0'

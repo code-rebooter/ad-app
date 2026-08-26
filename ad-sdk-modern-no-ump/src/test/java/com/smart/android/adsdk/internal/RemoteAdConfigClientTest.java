@@ -1,6 +1,7 @@
 package com.smart.android.adsdk.internal;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -44,7 +45,7 @@ public class RemoteAdConfigClientTest {
     }
 
     @Test
-    public void postsOptionalRequestIdWhenProvided() throws Exception {
+    public void omitsRequestIdFromGamResolveBody() throws Exception {
         RecordingInterceptor interceptor = RecordingInterceptor.respond(
             200,
             "{\"code\":100000,\"data\":{\"ad_tag_url\":\"https://example.test/vast\"}}"
@@ -55,7 +56,9 @@ public class RemoteAdConfigClientTest {
         client.resolve("CHANNEL_A", "request-123", callback);
 
         callback.awaitResult();
-        assertTrue(readRequestBody(interceptor.getRecordedRequest()).contains("\"request_id\":\"request-123\""));
+        String requestBody = readRequestBody(interceptor.getRecordedRequest());
+        assertTrue(requestBody.contains("\"channel_id\":\"CHANNEL_A\""));
+        assertFalse(requestBody.contains("\"request_id\""));
     }
 
     @Test

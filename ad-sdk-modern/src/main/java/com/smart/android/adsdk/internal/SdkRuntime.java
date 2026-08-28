@@ -17,11 +17,9 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 
 public final class SdkRuntime {
-    private static final String API_BASE_URL = "https://api.kytira.cc/";
-    private static final String CONSENT_POPUP_URL =
-        API_BASE_URL + "api/v2/ad/consent-popup";
-    private static final String CONSENT_REPORT_URL =
-        API_BASE_URL + "api/v2/ad/consent-report";
+    private static final String DEFAULT_API_BASE_URL = "https://api.kytira.cc/";
+    private static final String CVTE_CHANNEL_ID = "GOOGLE_AD_TV_CVTE";
+    private static final String CVTE_API_BASE_URL = "https://api.xartek.cc/";
 
     private final CallbackDispatcher dispatcher;
     private final ComponentsFactory componentsFactory;
@@ -43,7 +41,6 @@ public final class SdkRuntime {
         InitializationListener listener
     ) {
         try {
-            SystemUidStorageCompat.prepareSdkEntry(context, "initialize");
             sessionCreator = componentsFactory.create(context, config, dispatcher);
             dispatcher.dispatch(listener::onInitialized);
         } catch (RuntimeException error) {
@@ -106,6 +103,8 @@ public final class SdkRuntime {
             }
             final Context applicationContext = resolvedContext;
             ManifestAdConfig manifestConfig = ManifestAdConfig.read(applicationContext);
+            String channelId = manifestConfig.getChannelId();
+            String apiBaseUrl = resolveApiBaseUrl(channelId);
             Gson gson = new Gson();
             OkHttpClient okHttpClient = new OkHttpClient.Builder()
                 .callTimeout(20L, TimeUnit.SECONDS)
@@ -115,28 +114,27 @@ public final class SdkRuntime {
                 okHttpClient,
                 gson,
                 new RemoteAdConfigParser(gson),
-                API_BASE_URL
+                apiBaseUrl
             );
             FlowControlResolver flowControlResolver = new FlowControlClient(
                 applicationContext,
                 okHttpClient,
                 gson,
-                API_BASE_URL
+                apiBaseUrl
             );
             AdPlayerFactory playerFactory = new AdPlaybackControllerFactory(applicationContext);
             ConsentResolver consentResolver = new AdConsentResolver(
                 okHttpClient,
                 gson,
-                CONSENT_POPUP_URL,
-                CONSENT_REPORT_URL
+                apiBaseUrl + "api/v2/ad/consent-popup",
+                apiBaseUrl + "api/v2/ad/consent-report"
             );
-            String channelId = manifestConfig.getChannelId();
             Hq008AdReporter reporter = new Hq008AdReporter(
                 applicationContext,
                 okHttpClient,
                 gson,
                 channelId,
-                API_BASE_URL
+                apiBaseUrl
             );
             long adCallbackTimeoutMs = config.getAdCallbackTimeoutMs();
             return (container, request, listener) -> {
@@ -158,6 +156,12 @@ public final class SdkRuntime {
                 session.start();
                 return session;
             };
+        }
+
+        private String resolveApiBaseUrl(String channelId) {
+            return CVTE_CHANNEL_ID.equalsIgnoreCase(channelId == null ? "" : channelId.trim())
+                ? CVTE_API_BASE_URL
+                : DEFAULT_API_BASE_URL;
         }
     }
 

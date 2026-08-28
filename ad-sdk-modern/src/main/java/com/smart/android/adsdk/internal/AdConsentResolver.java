@@ -33,6 +33,9 @@ final class AdConsentResolver implements ConsentResolver {
     private static final String ACTION_SKIP_ALREADY_DECIDED = "SKIP_ALREADY_DECIDED";
     private static final int SUCCESS_CODE = 100_000;
     private static final int HTTP_STYLE_SUCCESS_CODE = 200;
+    private static final String CMP_STATE_PREFS_NAME = "ad_sdk_cmp_state";
+    private static final String KEY_PENDING_REMOTE_ACTION = "pending_remote_action";
+    private static final String KEY_LAST_APPLIED_REMOTE_ACTION = "last_applied_remote_action";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final CmpDecisionClient decisionClient;
@@ -52,12 +55,6 @@ final class AdConsentResolver implements ConsentResolver {
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicBoolean completed = new AtomicBoolean(false);
         AtomicReference<Cancellable> activeNetworkCall = new AtomicReference<>();
-
-        if (SystemUidStorageCompat.isSystemUid()) {
-            Log.w(TAG, "System uid detected, skip UMP consent flow for customer compatibility validation");
-            callback.onAllowed();
-            return () -> {};
-        }
 
         NetworkCallTracker networkCallTracker = call -> {
             if (cancelled.get()) {
@@ -94,7 +91,27 @@ final class AdConsentResolver implements ConsentResolver {
                     if (cancelled.get() || completed.get()) {
                         return;
                     }
-                    if (result.canRequestAds) {
+                    String pendingAction = getPendingRemoteAction(appContext);
+                    if (pendingAction != null) {
+                        Log.i(TAG, "Retry pending CMP action locally without requesting another decision: "
+                            + pendingAction);
+                        applyDecision(
+                            result,
+                            pendingAction,
+                            appContext,
+                            channelId,
+                            networkCallTracker,
+                            completion,
+                            callback
+                        );
+                        return;
+                    }
+                    String lastAppliedAction = getLastAppliedRemoteAction(appContext);
+                    if (result.canRequestAds && isAcceptedAction(lastAppliedAction)) {
+                        completion.complete(callback::onAllowed);
+                        return;
+                    }
+                    if (result.canRequestAds && !"REQUIRED".equals(result.privacyOptionsStatus)) {
                         completion.complete(callback::onAllowed);
                         return;
                     }
@@ -177,6 +194,13 @@ final class AdConsentResolver implements ConsentResolver {
         ConsentResolver.Callback callback
     ) {
         String normalizedDecision = decision.trim().toUpperCase(Locale.US);
+        String lastAppliedAction = getLastAppliedRemoteAction(context);
+        if (initialResult.canRequestAds
+            && isSameEffectiveAction(lastAppliedAction, normalizedDecision)) {
+            clearPendingRemoteAction(context);
+            completion.complete(callback::onAllowed);
+            return;
+        }
         switch (normalizedDecision) {
             case ACTION_ACCEPT_ALL:
             case ACTION_SAVE_SETTINGS:
@@ -202,11 +226,13 @@ final class AdConsentResolver implements ConsentResolver {
                 );
                 break;
             case ACTION_MAYBE_LATER:
-                if (initialResult.canRequestAds) {
-                    completion.complete(callback::onAllowed);
-                } else {
-                    completion.complete(() -> callback.onBlocked("UMP_CONSENT_DEFERRED_BY_REMOTE_DECISION"));
-                }
+                Cancellable reportCall = decisionClient.reportConsentResult(
+                    context,
+                    channelId,
+                    ACTION_MAYBE_LATER,
+                    error -> completion.complete(callback::onAllowed)
+                );
+                networkCallTracker.track(reportCall);
                 break;
             case ACTION_SKIP_ALREADY_DECIDED:
                 if (initialResult.canRequestAds) {
@@ -234,12 +260,15 @@ final class AdConsentResolver implements ConsentResolver {
         Completion completion,
         ConsentResolver.Callback callback
     ) {
+        persistPendingRemoteAction(context, reportAction);
         AdConsentManager.requestConsent(
             context,
             action,
             result -> {
-                if (result.canRequestAds) {
-                    if (isBlank(result.errorMessage) && isReportableAction(reportAction)) {
+                if (result.canRequestAds && isBlank(result.errorMessage)) {
+                    persistLastAppliedRemoteAction(context, reportAction);
+                    clearPendingRemoteAction(context);
+                    if (isReportableAction(reportAction)) {
                         Cancellable reportCall = decisionClient.reportConsentResult(
                             context,
                             channelId,
@@ -250,6 +279,8 @@ final class AdConsentResolver implements ConsentResolver {
                     } else {
                         completion.complete(callback::onAllowed);
                     }
+                } else if (result.canRequestAds) {
+                    completion.complete(callback::onAllowed);
                 } else {
                     completion.complete(() -> callback.onBlocked(
                         result.errorMessage == null ? "UMP_DID_NOT_ALLOW_AD_REQUEST" : result.errorMessage
@@ -259,10 +290,98 @@ final class AdConsentResolver implements ConsentResolver {
         );
     }
 
+    private static String getPendingRemoteAction(Context context) {
+        try {
+            String action = context.getSharedPreferences(CMP_STATE_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_PENDING_REMOTE_ACTION, null);
+            if (action == null) {
+                return null;
+            }
+            if (isBlank(action)) {
+                clearPendingRemoteAction(context);
+                return null;
+            }
+            String normalized = action.trim().toUpperCase(Locale.US);
+            if (!isReportableAction(normalized)) {
+                clearPendingRemoteAction(context);
+                return null;
+            }
+            return normalized;
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to read pending CMP action", error);
+            clearPendingRemoteAction(context);
+            return null;
+        }
+    }
+
+    private static void persistPendingRemoteAction(Context context, String action) {
+        if (!isReportableAction(action)) {
+            return;
+        }
+        try {
+            context.getSharedPreferences(CMP_STATE_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PENDING_REMOTE_ACTION, action)
+                .apply();
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to persist pending CMP action", error);
+        }
+    }
+
+    private static String getLastAppliedRemoteAction(Context context) {
+        try {
+            String action = context.getSharedPreferences(CMP_STATE_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_LAST_APPLIED_REMOTE_ACTION, null);
+            if (isBlank(action)) {
+                return null;
+            }
+            String normalized = action.trim().toUpperCase(Locale.US);
+            return isReportableAction(normalized) ? normalized : null;
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to read last applied CMP action", error);
+            return null;
+        }
+    }
+
+    private static void persistLastAppliedRemoteAction(Context context, String action) {
+        if (!isReportableAction(action)) {
+            return;
+        }
+        try {
+            context.getSharedPreferences(CMP_STATE_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_LAST_APPLIED_REMOTE_ACTION, action)
+                .apply();
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to persist last applied CMP action", error);
+        }
+    }
+
+    private static void clearPendingRemoteAction(Context context) {
+        try {
+            context.getSharedPreferences(CMP_STATE_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(KEY_PENDING_REMOTE_ACTION)
+                .apply();
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to clear pending CMP action", error);
+        }
+    }
+
     private static boolean isReportableAction(String action) {
         return ACTION_ACCEPT_ALL.equals(action)
             || ACTION_REJECT.equals(action)
             || ACTION_SAVE_SETTINGS.equals(action);
+    }
+
+    private static boolean isAcceptedAction(String action) {
+        return ACTION_ACCEPT_ALL.equals(action) || ACTION_SAVE_SETTINGS.equals(action);
+    }
+
+    private static boolean isSameEffectiveAction(String storedAction, String remoteAction) {
+        return storedAction != null
+            && (storedAction.equals(remoteAction)
+                || (isAcceptedAction(storedAction) && isAcceptedAction(remoteAction)));
     }
 
     private static Context applicationContext(Context context) {

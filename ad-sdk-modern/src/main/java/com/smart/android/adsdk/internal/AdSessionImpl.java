@@ -24,7 +24,7 @@ final class AdSessionImpl implements AdSession {
     private final FlowControlResolver flowControlResolver;
     private final ConsentResolver consentResolver;
     private final Hq008AdReporter reporter;
-    private final long adCallbackTimeoutMs;
+    private long adCallbackTimeoutMs;
     private final TimeoutScheduler timeoutScheduler;
     private final CallbackDispatcher dispatcher;
 
@@ -42,6 +42,7 @@ final class AdSessionImpl implements AdSession {
     private Cancellable configCall;
     private Cancellable timeoutCall;
     private AdPlayer player;
+    private long callbackTimeoutStartedAtMs;
 
     /**
      * Kept for existing internal tests and package-local callers.
@@ -117,6 +118,7 @@ final class AdSessionImpl implements AdSession {
                 return;
             }
             startRequested = true;
+            callbackTimeoutStartedAtMs = timeoutScheduler.nowMs();
         }
 
         armCallbackTimeout();
@@ -268,6 +270,7 @@ final class AdSessionImpl implements AdSession {
     }
 
     private void handleAuthorized(FlowAuthorizedConfig config) {
+        Long callbackTimeoutOverrideMs;
         synchronized (lock) {
             if (terminal || requestedReported) {
                 return;
@@ -276,7 +279,11 @@ final class AdSessionImpl implements AdSession {
             if (resolvedRequestId != null && !resolvedRequestId.trim().isEmpty()) {
                 requestId = resolvedRequestId.trim();
             }
+            callbackTimeoutOverrideMs = config == null ? null : config.getAdCallbackTimeoutMs();
             requestedReported = true;
+        }
+        if (callbackTimeoutOverrideMs != null) {
+            replaceCallbackTimeout(callbackTimeoutOverrideMs);
         }
         reporter.requested(
             requestId,
@@ -486,6 +493,8 @@ final class AdSessionImpl implements AdSession {
             if (terminal || timeoutCall != null) {
                 return;
             }
+            long elapsedMs = Math.max(0L, timeoutScheduler.nowMs() - callbackTimeoutStartedAtMs);
+            long remainingMs = Math.max(0L, adCallbackTimeoutMs - elapsedMs);
             timeoutCall = timeoutScheduler.schedule(
                 () -> dispatcher.dispatch(() -> finish(AdResult.error(new AdError(
                     AdErrorCode.TIMEOUT,
@@ -493,9 +502,23 @@ final class AdSessionImpl implements AdSession {
                     "Ad session did not finish within " + adCallbackTimeoutMs + " ms",
                     null
                 )))),
-                adCallbackTimeoutMs
+                remainingMs
             );
         }
+    }
+
+    private void replaceCallbackTimeout(long timeoutMs) {
+        synchronized (lock) {
+            if (terminal) {
+                return;
+            }
+            adCallbackTimeoutMs = timeoutMs;
+            if (timeoutCall != null) {
+                timeoutCall.cancel();
+                timeoutCall = null;
+            }
+        }
+        armCallbackTimeout();
     }
 
     private String resolveRequestId(String value) {

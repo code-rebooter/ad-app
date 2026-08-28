@@ -19,7 +19,6 @@ import java.util.Locale;
 
 final class DeviceInfo {
     private static final DeviceInfoCache CACHE = new DeviceInfoCache();
-
     final String packageName;
     final String versionName;
     final long versionCode;
@@ -118,17 +117,14 @@ final class DeviceInfo {
         int resourceWidth = appContext.getResources().getDisplayMetrics().widthPixels;
         int resourceHeight = appContext.getResources().getDisplayMetrics().heightPixels;
         int[] realScreenSize = resolveRealScreenSize(appContext);
-        boolean collectNetworkIdentity = shouldCollectNetworkIdentity(
-            SystemUidStorageCompat.isSystemUid()
-        );
         return new DeviceInfo(
             appContext.getPackageName(),
             versionName,
             hostVersionCode,
             rawAndroidId.isEmpty() ? "unknown_device" : rawAndroidId,
             androidIdToUuid(rawAndroidId),
-            collectNetworkIdentity ? resolveMacAddress() : "",
-            collectNetworkIdentity ? resolveLocalIp() : "",
+            resolveMacAddress(),
+            resolveLocalIp(),
             valueOrEmpty(System.getProperty("http.agent")),
             valueOrEmpty(Build.MANUFACTURER),
             valueOrEmpty(Build.MODEL),
@@ -139,10 +135,6 @@ final class DeviceInfo {
             realScreenSize[0],
             realScreenSize[1]
         );
-    }
-
-    static boolean shouldCollectNetworkIdentity(boolean systemUid) {
-        return !systemUid;
     }
 
     private static PackageInfo readPackageInfo(Context context) {

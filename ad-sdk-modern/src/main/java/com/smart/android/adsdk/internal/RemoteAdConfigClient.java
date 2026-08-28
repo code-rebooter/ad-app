@@ -9,6 +9,7 @@ import com.smart.android.adsdk.AdError;
 import com.smart.android.adsdk.AdErrorCode;
 import com.smart.android.adsdk.AdErrorStage;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -155,11 +156,22 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
                         callback.onResolved(RemoteAdConfigResult.skipped("AUTHORIZE_DENIED"));
                         return;
                     }
+                    Long callbackTimeoutSeconds = readNullableLong(
+                        data,
+                        "ad_callback_timeout_seconds"
+                    );
+                    if (callbackTimeoutSeconds == null) {
+                        callbackTimeoutSeconds = readNullableLong(
+                            data,
+                            "callback_timeout_seconds"
+                        );
+                    }
                     FlowAuthorizedConfig flowConfig = new FlowAuthorizedConfig(
                         resolvedRequestId,
                         readBoolean(data, "hidden_mode", true),
                         readNullableBoolean(data, "sound_mode"),
-                        readLong(data, "next_request_seconds", 0L)
+                        readLong(data, "next_request_seconds", 0L),
+                        AdCallbackTimeoutPolicy.resolveOverrideMs(callbackTimeoutSeconds)
                     );
                     callback.onAuthorized(flowConfig);
                     requestGamConfig(channelId, flowConfig, resolvedRequestId, callback, sequence);
@@ -317,6 +329,22 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
             return element == null || element.isJsonNull() ? fallback : element.getAsLong();
         } catch (RuntimeException ignored) {
             return fallback;
+        }
+    }
+
+    private Long readNullableLong(JsonObject object, String fieldName) {
+        try {
+            JsonElement element = object.get(fieldName);
+            if (element == null || element.isJsonNull() || !element.isJsonPrimitive()) {
+                return null;
+            }
+            if (!element.getAsJsonPrimitive().isNumber()) {
+                return null;
+            }
+            BigDecimal value = element.getAsBigDecimal();
+            return value.longValueExact();
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

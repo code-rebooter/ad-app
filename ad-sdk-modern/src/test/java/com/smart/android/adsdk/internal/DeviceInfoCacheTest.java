@@ -44,10 +44,4 @@ public class DeviceInfoCacheTest {
         assertSame(expected, second);
         assertEquals(1, calls.get());
     }
-
-    @Test
-    public void skipsNetworkIdentityCollectionForSystemUid() {
-        assertEquals(false, DeviceInfo.shouldCollectNetworkIdentity(true));
-        assertEquals(true, DeviceInfo.shouldCollectNetworkIdentity(false));
-    }
 }

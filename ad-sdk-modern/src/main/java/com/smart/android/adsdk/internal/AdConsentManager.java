@@ -126,8 +126,11 @@ final class AdConsentManager {
             }
 
             if (state == State.COMPLETE && information.canRequestAds()) {
-                callback.onResult(buildResult(appContext, action, null, false));
-                return;
+                if (!shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
+                    callback.onResult(buildResult(appContext, action, null, false));
+                    return;
+                }
+                state = State.IDLE;
             }
 
             PENDING_CALLBACKS.add(callback);
@@ -184,7 +187,11 @@ final class AdConsentManager {
                             + "，privacyOptions=" + finalInformation.getPrivacyOptionsRequirementStatus()
                     );
                     if (finalInformation.canRequestAds()) {
-                        finishFlow(action, null, false, false);
+                        if (shouldApplyStoredConsentViaPrivacyOptions(action, finalInformation)) {
+                            showSilentPrivacyOptionsForm(activity, action);
+                        } else {
+                            finishFlow(action, null, false, false);
+                        }
                     } else {
                         switch (action) {
                             case CHECK_ONLY:
@@ -258,10 +265,39 @@ final class AdConsentManager {
         );
     }
 
+    private static void showSilentPrivacyOptionsForm(Activity activity, ConsentAction action) {
+        Log.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=" + action);
+        SilentConsentFormRunner.showPrivacyOptionsAndApplyDecisionSilently(
+            activity,
+            decisionModeFor(action),
+            result -> MAIN_HANDLER.post(() -> completeAfterConsentForm(
+                action,
+                result.formError,
+                result.localErrorMessage
+            ))
+        );
+    }
+
     private static SilentConsentFormRunner.DecisionMode decisionModeFor(ConsentAction action) {
         return action == ConsentAction.REJECT
             ? SilentConsentFormRunner.DecisionMode.REJECT
             : SilentConsentFormRunner.DecisionMode.ACCEPT_ALL;
+    }
+
+    private static boolean shouldApplyStoredConsentViaPrivacyOptions(
+        ConsentAction action,
+        ConsentInformation information
+    ) {
+        switch (action) {
+            case ACCEPT_ALL:
+            case REJECT:
+                return information.getPrivacyOptionsRequirementStatus()
+                    == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
+            case CHECK_ONLY:
+            case DEFER_WHEN_REQUIRED:
+            default:
+                return false;
+        }
     }
 
     static void onHostActivityDestroyed(Activity activity) {
@@ -305,9 +341,6 @@ final class AdConsentManager {
     }
 
     static String getConsentString(Context context) {
-        if (SystemUidStorageCompat.isSystemUid()) {
-            return null;
-        }
         Context appContext = applicationContext(context);
         SharedPreferences prefs = appContext.getSharedPreferences(
             appContext.getPackageName() + "_preferences",
@@ -325,9 +358,6 @@ final class AdConsentManager {
     }
 
     static StoredConsentSnapshot buildStoredConsentSnapshotData(Context context) {
-        if (SystemUidStorageCompat.isSystemUid()) {
-            return new StoredConsentSnapshot();
-        }
         SharedPreferences prefs = context.getSharedPreferences(
             context.getPackageName() + "_preferences",
             Context.MODE_PRIVATE

@@ -51,8 +51,9 @@ public final class GamVastDemoActivity extends Activity {
         buildUi();
         log("onCreate");
         updateStatus("INITIALIZING");
-        log("config: uid=android.uid.system, adAppId=ca-app-pub-3199037222330432~4539227372"
-            + ", channel=AD_TV_HGS001, interval=" + (REQUEST_INTERVAL_MS / 1000L) + "s");
+        log("config: uid=" + android.os.Process.myUid()
+            + ", adAppId=ca-app-pub-3199037222330432~1558586642"
+            + ", channel=GOOGLE_AD_TV_CVTE, interval=" + (REQUEST_INTERVAL_MS / 1000L) + "s");
         AdSdk.initialize(getApplicationContext(), new InitializationListener() {
             @Override
             public void onInitialized() {

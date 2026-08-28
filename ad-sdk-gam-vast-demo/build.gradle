@@ -13,8 +13,8 @@ android {
         versionCode 1
         versionName '1.0'
         manifestPlaceholders += [
-            adAppId    : 'ca-app-pub-3199037222330432~4539227372',
-            adChannelId: 'AD_TV_HGS001'
+            adAppId    : 'ca-app-pub-3199037222330432~1558586642',
+            adChannelId: 'GOOGLE_AD_TV_CVTE'
         ]
     }
 
@@ -38,11 +38,13 @@ android {
     }
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
-    implementation project(':ad-sdk-gam-vast')
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }

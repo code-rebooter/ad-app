@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.1'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
 ```
 
 ## 1. 仓库
@@ -36,14 +36,15 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.1'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```
 
 - `adAppId`：客户自己的广告平台 App ID。
 - `adChannelId`：后台分配的渠道 ID。
-- 不要和 `ad-sdk` 同时接入。
+- 这个版本包含 Google UMP/CMP 流程。
+- 不要和 `ad-sdk`、`ad-sdk-modern-no-ump`、`ad-sdk-gam-vast` 同时接入。
 
 ## 3. 初始化
 

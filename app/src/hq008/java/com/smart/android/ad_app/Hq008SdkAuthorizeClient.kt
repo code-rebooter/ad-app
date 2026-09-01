@@ -65,11 +65,11 @@ internal object Hq008SdkAuthorizeClient {
 
             Log.i(
                 TAG,
-                "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} sound_mode=${resolvedResponse.sound_mode} next_request_seconds=${resolvedResponse.next_request_seconds} client_ip=${resolvedResponse.client_ip}"
+                "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} sound_mode=${resolvedResponse.sound_mode} next_request_seconds=${resolvedResponse.next_request_seconds} ad_callback_timeout_seconds=${resolvedResponse.ad_callback_timeout_seconds} client_ip=${resolvedResponse.client_ip}"
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AUTHORIZE_RESULT",
-                eventMessage = "requestId=${resolvedResponse.request_id},authorized=${resolvedResponse.authorized},hidden=${resolvedResponse.hidden_mode}"
+                eventMessage = "requestId=${resolvedResponse.request_id},authorized=${resolvedResponse.authorized},hidden=${resolvedResponse.hidden_mode},configuredCallbackTimeoutSeconds=${resolvedResponse.ad_callback_timeout_seconds},effectiveCallbackTimeoutMs=${AdPlaybackPolicy.resolveCallbackTimeoutMs(resolvedResponse.ad_callback_timeout_seconds)}"
             )
             onResult(resolvedResponse, null)
         }
@@ -191,6 +191,8 @@ internal data class Hq008AuthorizeResponseData(
     val hidden_mode: Boolean = true,
     @field:SerializedName("next_request_seconds")
     val next_request_seconds: Long = 0L,
+    @field:SerializedName(value = "ad_callback_timeout_seconds", alternate = ["callback_timeout_seconds"])
+    val ad_callback_timeout_seconds: Long? = null,
     @field:SerializedName("position")
     val position: Int? = null,
     @field:SerializedName("sound_mode")

@@ -19,6 +19,7 @@ class Hq008AuthorizeSerializationContractTest {
         assertTrue(source.contains("@field:SerializedName(value = \"floating_y\", alternate = [\"floatingY\"])"))
         assertTrue(source.contains("@field:SerializedName(\"hidden_mode\")"))
         assertTrue(source.contains("@field:SerializedName(\"next_request_seconds\")"))
+        assertTrue(source.contains("@field:SerializedName(value = \"ad_callback_timeout_seconds\", alternate = [\"callback_timeout_seconds\"])"))
         assertTrue(source.contains("@field:SerializedName(\"request_id\")"))
     }
 

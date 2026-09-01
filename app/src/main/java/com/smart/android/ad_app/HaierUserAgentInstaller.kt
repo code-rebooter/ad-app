@@ -8,6 +8,14 @@ internal object HaierUserAgentInstaller {
     private const val TAG = "HaierUaNormalizer"
     private const val HTTP_AGENT_PROPERTY = "http.agent"
     private val supportedFlavors = setOf(
+        "hq008",
+        "hq008XHSX",
+        "tcl_aishang",
+        "ad_ytx01",
+        "ad_album_101_001",
+        "hq008Noneu",
+        "hq008Noneuc2",
+        "tcl_poly",
         "haier_lsap",
         "addy_hq1002",
         "addy_jams"

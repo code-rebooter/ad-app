@@ -25,7 +25,8 @@ object AdRenderer {
         val window = TvAdFloatingWindow(
             context = appContext,
             adId = dto.adId,
-            soundEnabled = dto.soundEnabled
+            soundEnabled = dto.soundEnabled,
+            callbackTimeoutMs = dto.callbackTimeoutMs
         )
         val renderConfig = resolveRenderConfig(
             defaultWidth = MATCH_PARENT,
@@ -61,6 +62,7 @@ object AdRenderer {
             context = appContext,
             adId = dto.adId,
             soundEnabled = dto.soundEnabled,
+            callbackTimeoutMs = dto.callbackTimeoutMs,
             onFloatingFlowFinished = onFloatingFlowFinished
         )
         val renderConfig = resolveRenderConfig(

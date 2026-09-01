@@ -22,6 +22,7 @@ object HaierLsapAdManager : IAdManager {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -30,6 +31,7 @@ object HaierLsapAdManager : IAdManager {
             flRoot = flRoot,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = callbackTimeoutMs,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -43,7 +45,6 @@ object HaierLsapAdManager : IAdManager {
 
 private object HaierLsapFormalAd {
     private const val TAG = "HaierLsapFormalAd"
-    private const val REQUEST_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
     private val appKey: String
         get() = BuildConfig.UNIFIED_AD_APP_KEY
     private val tagId: String
@@ -65,15 +66,18 @@ private object HaierLsapFormalAd {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
         val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+        val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = effectiveCallbackTimeoutMs,
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -85,7 +89,7 @@ private object HaierLsapFormalAd {
 
         Log.i(
             TAG,
-            "正式链路：开始请求海尔 LSAP 广告，requestId=$requestId，adId=$adId，tagId=$tagId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
+            "正式链路：开始请求海尔 LSAP 广告，requestId=$requestId，adId=$adId，tagId=$tagId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
         )
         Hq008AdReporter.reportRequested(
             requestId = requestId,
@@ -97,12 +101,13 @@ private object HaierLsapFormalAd {
                 "sdk" to sdkName,
                 "sdkEntry" to "unified",
                 "tagId" to tagId,
-                "requestCreatedAtMs" to request.requestCreatedAtMs
+                "requestCreatedAtMs" to request.requestCreatedAtMs,
+                "callbackTimeoutMs" to request.callbackTimeoutMs
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_REQUESTED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=$requestId,adId=${adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
+            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=$requestId,adId=${adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=${request.callbackTimeoutMs},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
         )
 
         if (!ensureInitialized()) {
@@ -383,7 +388,7 @@ private object HaierLsapFormalAd {
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,error=$errorText"
+            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,callbackTimeoutMs=${request.callbackTimeoutMs},error=$errorText"
         )
         if (releaseSession) {
             releaseCurrentSession()
@@ -403,7 +408,7 @@ private object HaierLsapFormalAd {
                 reason = "request_timeout"
             )
         }
-        mainHandler.postDelayed(timeoutRunnable!!, REQUEST_TIMEOUT_MS)
+        mainHandler.postDelayed(timeoutRunnable!!, request.callbackTimeoutMs)
     }
 
     private fun releaseCurrentSession() {
@@ -431,6 +436,7 @@ private object HaierLsapFormalAd {
         val requestId: String,
         val adId: String?,
         val soundEnabled: Boolean,
+        val callbackTimeoutMs: Long,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,
@@ -480,6 +486,7 @@ private object HaierLsapFormalAd {
         fun buildProgressDiagnostics(): Map<String, Any?> {
             return mapOf(
                 "requestCreatedAtMs" to requestCreatedAtMs,
+                "callbackTimeoutMs" to callbackTimeoutMs,
                 "loadedAtMs" to loadedAtMs,
                 "startedAtMs" to startedAtMs,
                 "requestToLoadDurationMs" to requestToLoadDurationMs(),

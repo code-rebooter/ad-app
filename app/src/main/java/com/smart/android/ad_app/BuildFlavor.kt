@@ -2,7 +2,11 @@ package com.smart.android.ad_app
 
 internal object BuildFlavor {
     fun isHq008(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008" || flavor == "hq008XHSX" || flavor == "tcl_aishang" || flavor == "ad_ytx01"
+        return flavor == "hq008" ||
+                flavor == "hq008XHSX" ||
+                flavor == "tcl_aishang" ||
+                flavor == "ad_ytx01" ||
+                flavor == "ad_album_101_001"
     }
 
     fun isHq008Noneu(flavor: String = BuildConfig.FLAVOR): Boolean {
@@ -34,7 +38,9 @@ internal object BuildFlavor {
 
     fun isGoogleAdTvDesktop(flavor: String = BuildConfig.FLAVOR): Boolean {
         return flavor == "google_ad_tv_desktop" ||
-                flavor == "google_ad_tv_desktop_jm"
+                flavor == "google_ad_tv_desktop_jm" ||
+                flavor == "google_ad_tv_desktop_ytx" ||
+                flavor == "google_ad_tv_desktop_007"
     }
 
     fun isGoogleAdTvLockscreen(flavor: String = BuildConfig.FLAVOR): Boolean {

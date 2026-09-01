@@ -11,9 +11,7 @@ object Hq008CmpManager {
     private const val ACTION_SAVE_SETTINGS = "SAVE_SETTINGS"
     private const val ACTION_MAYBE_LATER = "MAYBE_LATER"
     private const val ACTION_SKIP_ALREADY_DECIDED = "SKIP_ALREADY_DECIDED"
-    private const val MAYBE_LATER_COOLDOWN_MS = 0L
     private const val PREFS_NAME = "google_ump_cmp_gate"
-    private const val KEY_MAYBE_LATER_RECORDED_AT = "maybe_later_recorded_at"
     private const val KEY_LAST_APPLIED_REMOTE_ACTION = "last_applied_remote_action"
     private const val KEY_PENDING_REMOTE_ACTION = "pending_remote_action"
 
@@ -58,17 +56,6 @@ object Hq008CmpManager {
             eventMessage = "source=google_ump,consentLength=${getConsentString()?.length ?: 0}"
         )
 
-        if (isMaybeLaterCoolingDown(appContext)) {
-            Log.i(TAG, "UMP 门禁：MAYBE_LATER 冷却中，本轮不触发 UMP 表单")
-            continueAfterRemoteDecision = false
-            Hq008ConsentLogReporter.report(
-                eventType = "UMP_GATE_STOP",
-                eventMessage = "reason=maybe_later_cooldown"
-            )
-            onComplete()
-            return
-        }
-
         GoogleUmpConsentManager.requestConsent(
             context = appContext,
             action = GoogleUmpConsentManager.ConsentAction.CHECK_ONLY
@@ -77,18 +64,47 @@ object Hq008CmpManager {
                 eventType = "UMP_GATE_STATUS",
                 eventMessage = result.toGateEventMessage()
             )
-            if (result.canRequestAds) {
-                Log.i(TAG, "UMP 门禁：当前已允许请求广告，本轮跳过远端 consent-popup 决策")
+
+            val pendingAction = getPendingRemoteAction(appContext)
+            if (pendingAction != null) {
+                Log.i(TAG, "UMP 门禁：检测到待完成远端动作=$pendingAction，优先本地重试，不重复请求 consent-popup")
+                Hq008ConsentLogReporter.report(
+                    eventType = "UMP_DECISION_RETRY_PENDING",
+                    eventMessage = "action=$pendingAction,canRequestAds=${result.canRequestAds}"
+                )
+                applyRemoteCmpDecisionIfNeeded(
+                    context = appContext,
+                    decision = RemoteCmpDecision(consentAction = pendingAction),
+                    canContinueWithoutDecision = result.canRequestAds,
+                    onCompleted = onComplete
+                )
+                return@requestConsent
+            }
+
+            val lastAppliedAction = getLastAppliedAction(appContext)
+            if (result.canRequestAds && isAcceptedAction(lastAppliedAction)) {
+                Log.i(TAG, "UMP 门禁：本地已成功执行同意动作=$lastAppliedAction，本轮跳过远端 consent-popup 决策")
                 continueAfterRemoteDecision = true
                 Hq008ConsentLogReporter.report(
                     eventType = "UMP_GATE_SKIP_REMOTE",
-                    eventMessage = "reason=already_can_request_ads,${result.toGateEventMessage()}"
+                    eventMessage = "reason=accepted_action_applied,lastAppliedAction=$lastAppliedAction,${result.toGateEventMessage()}"
                 )
                 onComplete()
                 return@requestConsent
             }
 
-            if (!result.formAvailable) {
+            if (result.canRequestAds && result.privacyOptionsStatus != "REQUIRED") {
+                Log.i(TAG, "UMP 门禁：当前允许请求广告且无需 privacy options，本轮跳过远端 consent-popup 决策")
+                continueAfterRemoteDecision = true
+                Hq008ConsentLogReporter.report(
+                    eventType = "UMP_GATE_SKIP_REMOTE",
+                    eventMessage = "reason=privacy_options_not_required,${result.toGateEventMessage()}"
+                )
+                onComplete()
+                return@requestConsent
+            }
+
+            if (!result.canRequestAds && !result.formAvailable) {
                 Log.w(TAG, "UMP 门禁：当前不可请求广告且表单不可用，本轮阻断广告，${result.toGateEventMessage()}")
                 continueAfterRemoteDecision = false
                 Hq008ConsentLogReporter.report(
@@ -99,26 +115,10 @@ object Hq008CmpManager {
                 return@requestConsent
             }
 
-            val pendingAction = getPendingRemoteAction(appContext)
-            if (pendingAction != null) {
-                Log.i(TAG, "UMP 门禁：检测到待完成远端动作=$pendingAction，优先本地重试，不重复请求 consent-popup")
-                Hq008ConsentLogReporter.report(
-                    eventType = "UMP_DECISION_RETRY_PENDING",
-                    eventMessage = "action=$pendingAction,reason=consent_required"
-                )
-                applyRemoteCmpDecisionIfNeeded(
-                    context = appContext,
-                    decision = RemoteCmpDecision(consentAction = pendingAction),
-                    canContinueWithoutDecision = false,
-                    onCompleted = onComplete
-                )
-                return@requestConsent
-            }
-
             requestRemoteDecision(
                 appContext = appContext,
-                reason = "consent_required",
-                canContinueWithoutDecision = false,
+                reason = if (result.canRequestAds) "privacy_options_required" else "consent_required",
+                canContinueWithoutDecision = result.canRequestAds,
                 onComplete = onComplete
             )
         }
@@ -175,7 +175,34 @@ object Hq008CmpManager {
     ) {
         val appContext = context.applicationContext
         val reportAction = normalizeAction(decision.consentAction)
-        val umpAction = resolveUmpAction(reportAction)
+
+        if (!forceApply && canContinueWithoutDecision &&
+            isSameEffectiveAction(getLastAppliedAction(appContext), reportAction)
+        ) {
+            clearPendingRemoteAction(appContext)
+            continueAfterRemoteDecision = true
+            Log.i(TAG, "UMP 门禁：远端动作=$reportAction 已在本地执行过，本轮跳过重复 privacy options 操作")
+            Hq008ConsentLogReporter.report(
+                eventType = "UMP_DECISION_ALREADY_APPLIED",
+                eventMessage = "action=$reportAction"
+            )
+            onCompleted?.invoke()
+            return
+        }
+
+        if (reportAction == ACTION_MAYBE_LATER) {
+            continueAfterRemoteDecision = true
+            Log.i(TAG, "UMP 门禁：远端返回 MAYBE_LATER，本轮跳过 UMP 并上报后继续广告流程")
+            Hq008ConsentLogReporter.report(
+                eventType = "UMP_DECISION_SKIPPED",
+                eventMessage = "action=$reportAction,reason=maybe_later"
+            )
+            Hq008CmpDecisionClient.reportConsentResult(reportAction) {
+                onCompleted?.invoke()
+            }
+            return
+        }
+
         if (reportAction == ACTION_SKIP_ALREADY_DECIDED) {
             Log.i(TAG, "UMP 门禁：远端返回 SKIP_ALREADY_DECIDED，canContinueWithoutDecision=$canContinueWithoutDecision")
             continueAfterRemoteDecision = canContinueWithoutDecision
@@ -186,28 +213,14 @@ object Hq008CmpManager {
             onCompleted?.invoke()
             return
         }
+
+        val umpAction = resolveUmpAction(reportAction)
         if (umpAction == null) {
             Log.w(TAG, "UMP 门禁：未知远端动作=${decision.consentAction}，canContinueWithoutDecision=$canContinueWithoutDecision")
             continueAfterRemoteDecision = canContinueWithoutDecision
             Hq008ConsentLogReporter.report(
                 eventType = "UMP_DECISION_UNKNOWN",
                 eventMessage = "action=${decision.consentAction},canContinueWithoutDecision=$canContinueWithoutDecision"
-            )
-            onCompleted?.invoke()
-            return
-        }
-
-        if (!forceApply &&
-            canContinueWithoutDecision &&
-            isTerminalAction(reportAction) &&
-            hasStoredConsent(appContext) &&
-            getLastAppliedAction(appContext) == reportAction
-        ) {
-            Log.i(TAG, "UMP 门禁：远端动作=$reportAction 已在本地执行过，本轮跳过重复 privacy options 操作")
-            continueAfterRemoteDecision = true
-            Hq008ConsentLogReporter.report(
-                eventType = "UMP_DECISION_ALREADY_APPLIED",
-                eventMessage = "action=$reportAction"
             )
             onCompleted?.invoke()
             return
@@ -221,10 +234,6 @@ object Hq008CmpManager {
             )
         }
 
-        if (umpAction == GoogleUmpConsentManager.ConsentAction.DEFER_WHEN_REQUIRED) {
-            persistMaybeLaterCooldown(appContext)
-        }
-
         Hq008ConsentLogReporter.report(
             eventType = "UMP_DECISION_START",
             eventMessage = "remoteAction=$reportAction,umpAction=$umpAction"
@@ -236,9 +245,8 @@ object Hq008CmpManager {
             context = appContext,
             action = umpAction
         ) { result ->
-            val actionSucceeded = result.errorMessage.isNullOrBlank() &&
-                (result.canRequestAds || result.deferred)
-            continueAfterRemoteDecision = result.canRequestAds || result.deferred
+            val actionSucceeded = result.canRequestAds && result.errorMessage.isNullOrBlank()
+            continueAfterRemoteDecision = result.canRequestAds
             Hq008ConsentLogReporter.report(
                 eventType = "UMP_DECISION_RESULT",
                 eventMessage = "remoteAction=$reportAction,umpAction=$umpAction,actionSucceeded=$actionSucceeded,${result.toGateEventMessage()}"
@@ -305,7 +313,6 @@ object Hq008CmpManager {
             ACTION_ACCEPT_ALL,
             ACTION_SAVE_SETTINGS -> GoogleUmpConsentManager.ConsentAction.ACCEPT_ALL
             ACTION_REJECT -> GoogleUmpConsentManager.ConsentAction.REJECT
-            ACTION_MAYBE_LATER -> GoogleUmpConsentManager.ConsentAction.DEFER_WHEN_REQUIRED
             else -> null
         }
     }
@@ -316,25 +323,47 @@ object Hq008CmpManager {
             action == ACTION_SAVE_SETTINGS
     }
 
-    private fun hasStoredConsent(context: Context): Boolean {
-        return !GoogleUmpConsentManager.getConsentString(context.applicationContext).isNullOrBlank()
+    private fun isAcceptedAction(action: String?): Boolean {
+        return action == ACTION_ACCEPT_ALL || action == ACTION_SAVE_SETTINGS
+    }
+
+    private fun isSameEffectiveAction(storedAction: String?, remoteAction: String): Boolean {
+        return storedAction != null &&
+            (storedAction == remoteAction ||
+                (isAcceptedAction(storedAction) && isAcceptedAction(remoteAction)))
     }
 
     private fun getLastAppliedAction(context: Context): String? {
-        return prefs(context).getString(KEY_LAST_APPLIED_REMOTE_ACTION, null)
+        return runCatching {
+            prefs(context).getString(KEY_LAST_APPLIED_REMOTE_ACTION, null)
+                ?.let(::normalizeAction)
+                ?.takeIf(::isTerminalAction)
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：读取 last applied action 失败，error=${error.message}")
+        }.getOrNull()
     }
 
     private fun persistLastAppliedAction(context: Context, action: String) {
-        prefs(context)
-            .edit()
-            .putString(KEY_LAST_APPLIED_REMOTE_ACTION, action)
-            .apply()
+        if (!isTerminalAction(action)) {
+            return
+        }
+        runCatching {
+            prefs(context)
+                .edit()
+                .putString(KEY_LAST_APPLIED_REMOTE_ACTION, action)
+                .apply()
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：保存 last applied action 失败，error=${error.message}")
+        }
     }
 
     private fun getPendingRemoteAction(context: Context): String? {
-        val action = prefs(context).getString(KEY_PENDING_REMOTE_ACTION, null)
-            ?.let(::normalizeAction)
-            ?: return null
+        val action = runCatching {
+            prefs(context).getString(KEY_PENDING_REMOTE_ACTION, null)
+                ?.let(::normalizeAction)
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：读取 pending action 失败，error=${error.message}")
+        }.getOrNull() ?: return null
         if (!isTerminalAction(action)) {
             clearPendingRemoteAction(context)
             return null
@@ -343,36 +372,28 @@ object Hq008CmpManager {
     }
 
     private fun persistPendingRemoteAction(context: Context, action: String) {
-        prefs(context)
-            .edit()
-            .putString(KEY_PENDING_REMOTE_ACTION, action)
-            .apply()
+        if (!isTerminalAction(action)) {
+            return
+        }
+        runCatching {
+            prefs(context)
+                .edit()
+                .putString(KEY_PENDING_REMOTE_ACTION, action)
+                .apply()
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：保存 pending action 失败，error=${error.message}")
+        }
     }
 
     private fun clearPendingRemoteAction(context: Context) {
-        prefs(context)
-            .edit()
-            .remove(KEY_PENDING_REMOTE_ACTION)
-            .apply()
-    }
-
-    private fun isMaybeLaterCoolingDown(context: Context): Boolean {
-        if (MAYBE_LATER_COOLDOWN_MS <= 0L) {
-            return false
+        runCatching {
+            prefs(context)
+                .edit()
+                .remove(KEY_PENDING_REMOTE_ACTION)
+                .apply()
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：清除 pending action 失败，error=${error.message}")
         }
-        val recordedAtMs = prefs(context).getLong(KEY_MAYBE_LATER_RECORDED_AT, 0L)
-        return recordedAtMs > 0L &&
-            System.currentTimeMillis() - recordedAtMs < MAYBE_LATER_COOLDOWN_MS
-    }
-
-    private fun persistMaybeLaterCooldown(context: Context) {
-        if (MAYBE_LATER_COOLDOWN_MS <= 0L) {
-            return
-        }
-        prefs(context)
-            .edit()
-            .putLong(KEY_MAYBE_LATER_RECORDED_AT, System.currentTimeMillis())
-            .apply()
     }
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(

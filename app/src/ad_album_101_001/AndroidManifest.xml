@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:remove="android:sharedUserId">
+
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application>
+        <meta-data
+            android:name="tcl_app_key"
+            android:value="${tcl_app_key}" />
+        <meta-data
+            android:name="partner_name"
+            android:value="${partner_name}" />
+        <meta-data
+            android:name="project_id"
+            android:value="${project_id}" />
+    </application>
+</manifest>

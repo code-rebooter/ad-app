@@ -13,27 +13,27 @@ android {
         versionCode 1
         versionName '1.0'
         manifestPlaceholders += [
-            adAppId    : 'ca-app-pub-3199037222330432~1558586642',
-            adChannelId: 'GOOGLE_AD_TV_CVTE'
+            adAppId    : 'ca-app-pub-3199037222330432~4539227372',
+            adChannelId: 'AD_TV_HGS001'
         ]
     }
 
     signingConfigs {
-        h713 {
-            storeFile rootProject.file('app/h713.jks')
-            storePassword '123456'
-            keyAlias 'h713'
-            keyPassword '123456'
+        x88 {
+            storeFile rootProject.file('app/platform_x88.keystore')
+            storePassword 'platform'
+            keyAlias 'platform'
+            keyPassword 'platform'
         }
     }
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.h713
+            signingConfig signingConfigs.x88
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.h713
+            signingConfig signingConfigs.x88
         }
     }
 
@@ -45,6 +45,6 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
+    implementation project(':ad-sdk-modern-no-ump')
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }

@@ -10,6 +10,7 @@ interface IAdManager {
         flRoot: ViewGroup,
         adId: String? = null,
         soundEnabled: Boolean = false,
+        callbackTimeoutMs: Long? = null,
         adStart: (() -> Unit)? = null,
         adError: (() -> Unit)? = null,
         adComplete: () -> Unit

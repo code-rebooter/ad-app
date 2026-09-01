@@ -337,7 +337,8 @@ object AdConfigManager {
                 // AD_FLOW hq008 authorize callback
                 "广告链路：收到授权接口回调，request_id=${dto.request_id}，" +
                     "authorized=${dto.authorized}，hidden_mode=${dto.hidden_mode}，sound_mode=${dto.sound_mode}，" +
-                    "next_request_seconds=${dto.next_request_seconds}"
+                    "next_request_seconds=${dto.next_request_seconds}，" +
+                    "ad_callback_timeout_seconds=${dto.ad_callback_timeout_seconds}"
             )
             AdDisplayConfig.setRemoteHiddenMode(effectiveHiddenMode)
             val nextPollingSeconds = Hq008LocalSchedulePolicy.normalizeServerPollingSeconds(dto.next_request_seconds)
@@ -368,7 +369,8 @@ object AdConfigManager {
                     "server_authorized=${dto.authorized}，server_hidden_mode=${dto.hidden_mode}，" +
                     "effective_authorized=$effectiveAuthorized，effective_hidden_mode=$effectiveHiddenMode，" +
                     "effective_sound_mode=$effectiveSoundEnabled，" +
-                    "next_request_seconds=${dto.next_request_seconds}"
+                    "next_request_seconds=${dto.next_request_seconds}，" +
+                    "callback_timeout_ms=${AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)}"
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AUTHORIZE_ALLOWED",
@@ -416,7 +418,8 @@ object AdConfigManager {
             isCountdownVisible = false,
             position = dto.position ?: HQ008_DEFAULT_FLOATING_POSITION,
             videoUrl = null,
-            soundEnabled = dto.sound_mode == true
+            soundEnabled = dto.sound_mode == true,
+            callbackTimeoutMs = AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)
         )
     }
 

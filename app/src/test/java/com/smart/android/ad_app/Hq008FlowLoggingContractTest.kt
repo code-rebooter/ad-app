@@ -38,6 +38,7 @@ class Hq008FlowLoggingContractTest {
 
         assertTrue(timeoutPolicySource.contains("object AdPlaybackPolicy"))
         assertTrue(timeoutPolicySource.contains("const val CALLBACK_TIMEOUT_MS = 180_000L"))
+        assertTrue(timeoutPolicySource.contains("fun resolveCallbackTimeoutMs(serverSeconds: Long?)"))
 
         assertTrue(adManagerSource.contains("PLAY_FLOW showAd entry"))
         assertTrue(adManagerSource.contains("PLAY_FLOW startAd begin"))
@@ -48,9 +49,9 @@ class Hq008FlowLoggingContractTest {
         assertTrue(adManagerSource.contains("eventType = \"AD_STARTED\""))
         assertTrue(adManagerSource.contains("eventType = \"AD_PHASE_ERROR\""))
         assertTrue(adManagerSource.contains("eventType = \"AD_PHASE_TIMEOUT\""))
-        assertTrue(adManagerSource.contains("AD_CALLBACK_TIMEOUT_MS"))
+        assertTrue(adManagerSource.contains("request.callbackTimeoutMs"))
         assertTrue(adManagerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
-        assertTrue(!adManagerSource.contains("AD_CALLBACK_TIMEOUT_MS = 180_000L"))
+        assertTrue(adManagerSource.contains("mainHandler.postDelayed(currentTimeoutRunnable!!, request.callbackTimeoutMs)"))
         assertTrue(adManagerSource.contains(".setGdprConsent(consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsent\", consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsentLength\", consent.length)"))

@@ -24,7 +24,7 @@ public class SystemUidStorageCompatTest {
     @Test
     public void playbackPreparesWebViewWithHostContextBeforeImaConstruction() {
         String source = readProjectFile(
-            "ad-sdk-modern-no-ump/src/main/java/com/smart/android/adsdk/internal/AdPlaybackController.java"
+            "ad-sdk-modern-no-ump/src/main/java/com/smart/android/adsdk/internal/ImaAdPlaybackEngine.java"
         );
         int prepareIndex = source.indexOf("SystemUidStorageCompat.prepareGoogleWebView(\"IMA\")");
         int builderIndex = source.indexOf("new ImaAdsLoader.Builder(googleSdkContext)");

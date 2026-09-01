@@ -14,7 +14,8 @@ data class AdConfigDto(
     val isCountdownVisible: Boolean?,
     val position: Int?,
     val videoUrl: String?,
-    val soundEnabled: Boolean = false
+    val soundEnabled: Boolean = false,
+    val callbackTimeoutMs: Long? = null
 ){
     val positionEnum: Position get() = Position.fromInt(position?:0)
 }

@@ -11,10 +11,11 @@ class Hq008AdSdkDependencyIsolationTest {
     fun `hq008 ad sdk and poly origin deps should stay flavor scoped`() {
         val buildGradle = readProjectFile("app/build.gradle")
 
-        assertTrue(buildGradle.contains("hq008Implementation fileTree(dir: tclDemoLibsDir"))
-        assertTrue(buildGradle.contains("hq008NoneuImplementation fileTree(dir: tclDemoLibsDir"))
-        assertTrue(buildGradle.contains("hq008Noneuc2Implementation fileTree(dir: tclDemoLibsDir"))
-        assertTrue(buildGradle.contains("tcl_polyImplementation fileTree(dir: tclDemoLibsDir"))
+        assertTrue(buildGradle.contains("hq008TclSharedPatchedAars.each { patchedAar ->"))
+        assertTrue(buildGradle.contains("hq008Implementation patchedAar"))
+        assertTrue(buildGradle.contains("hq008NoneuImplementation patchedAar"))
+        assertTrue(buildGradle.contains("hq008Noneuc2Implementation patchedAar"))
+        assertTrue(buildGradle.contains("tcl_polyImplementation patchedAar"))
         assertTrue(buildGradle.contains("tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'"))
 
         assertNoPublicDependency(buildGradle, "implementation\\s+fileTree\\(dir: tclDemoLibsDir")

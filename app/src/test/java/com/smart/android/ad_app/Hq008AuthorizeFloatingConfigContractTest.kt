@@ -22,6 +22,7 @@ class Hq008AuthorizeFloatingConfigContractTest {
         assertTrue(source.contains("floatingX = dto.floating_x ?: HQ008_DEFAULT_FLOATING_X"))
         assertTrue(source.contains("floatingY = dto.floating_y ?: HQ008_DEFAULT_FLOATING_Y"))
         assertTrue(source.contains("position = dto.position ?: HQ008_DEFAULT_FLOATING_POSITION"))
+        assertTrue(source.contains("callbackTimeoutMs = AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)"))
     }
 
     private fun readProjectFile(relativePath: String): String {

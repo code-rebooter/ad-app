@@ -29,7 +29,7 @@ class TclAishangFlavorContractTest {
         assertTrue(flavorBlock.contains("tcl_app_key : \"DeB07Nx4JEnYX/0t4Dn4o4+Ecwg3JX5EWmSKpnM980Rn13sY2Vs2lgrh7IMWn9E/ZwjmKylW/ecd4j+ig1h1bA==\""))
         assertTrue(flavorBlock.contains("project_id  : \"212\""))
         assertTrue(buildGradle.contains("onVariants(selector().withBuildType(\"debug\").withFlavor(\"ad\", \"tcl_aishang\"))"))
-        assertTrue(buildGradle.contains("tcl_aishangImplementation fileTree(dir: tclDemoLibsDir"))
+        assertTrue(buildGradle.contains("tcl_aishangImplementation patchedAar"))
         assertTrue(buildGradle.contains("tcl_aishangImplementation 'com.google.guava:guava:31.1-android'"))
         assertTrue(buildGradle.contains("tcl_aishangImplementation 'androidx.appcompat:appcompat:1.7.1'"))
         assertTrue(buildGradle.contains("tcl_aishangImplementation 'androidx.leanback:leanback:1.0.0'"))

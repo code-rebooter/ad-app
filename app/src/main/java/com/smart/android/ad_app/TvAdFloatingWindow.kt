@@ -3,6 +3,10 @@ package com.smart.android.ad_app
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.CountDownTimer
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.FrameLayout
 import androidx.core.view.isVisible
 import com.smart.android.ad_app.databinding.FloatAdBinding
 
@@ -10,20 +14,27 @@ class TvAdFloatingWindow(
     context: Context,
     private val adId: String? = null,
     private val soundEnabled: Boolean = false,
+    private val callbackTimeoutMs: Long? = null,
     private val onFloatingFlowFinished: (() -> Unit)? = null
 ) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
     private var isCountdownFinished = false // 倒计时是否完成
     private lateinit var countdownTimer: CountDownTimer // 倒计时器
     private var hasDispatchedFlowFinished = false
+    private var canHandleTouchClick = false
+    private var hasHandledTouchClick = false
+    private var touchClickOverlay: View? = null
 
     override fun onViewCreated() {
+        installTouchClickOverlayIfNeeded()
         AdManagerImpl.showAd(
             binding.flAdcontainer,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = callbackTimeoutMs,
             adStart = {
                 "广告开始播放".adDebugPrintLog()
+                enableTouchClickIfNeeded()
                 if (canSetFocusable()) {
                     setFocusable(true)
                     startCountdown()
@@ -31,11 +42,13 @@ class TvAdFloatingWindow(
             },
             adError = {
                 "广告播放错误".adDebugPrintLog()
+                disableTouchClick()
                 hide()
                 dispatchFlowFinishedOnce()
             }
         ) {
             "广告播放完成".adDebugPrintLog()
+            disableTouchClick()
             hide()
             dispatchFlowFinishedOnce()
         }
@@ -53,12 +66,14 @@ class TvAdFloatingWindow(
     }
 
     override fun onWindowHidden() {
+        disableTouchClick()
         cancelCountdown()
         AdManagerImpl.destroyAd()
         dispatchFlowFinishedOnce()
     }
 
     override fun onWindowDestroyed() {
+        disableTouchClick()
         cancelCountdown()
         dispatchFlowFinishedOnce()
     }
@@ -87,6 +102,58 @@ class TvAdFloatingWindow(
                 binding.tvTip.text = appContext.getString(R.string.app_Return)
             }
         }.start()
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun installTouchClickOverlayIfNeeded() {
+        if (!BuildFlavor.isHq008Family()) {
+            return
+        }
+        val overlay = View(context).apply {
+            isClickable = true
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            isVisible = false
+            setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    handleTouchClick()
+                }
+                true
+            }
+        }
+        binding.root.addView(
+            overlay,
+            FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        )
+        touchClickOverlay = overlay
+    }
+
+    private fun enableTouchClickIfNeeded() {
+        if (!BuildFlavor.isHq008Family()) {
+            return
+        }
+        canHandleTouchClick = true
+        touchClickOverlay?.isVisible = true
+    }
+
+    private fun disableTouchClick() {
+        canHandleTouchClick = false
+        touchClickOverlay?.isVisible = false
+    }
+
+    private fun handleTouchClick() {
+        if (!canHandleTouchClick || hasHandledTouchClick) {
+            return
+        }
+        hasHandledTouchClick = true
+        disableTouchClick()
+        "广告区域收到触摸点击，立即停止广告".adDebugPrintLog()
+        AdTouchClickReporter.reportHq008TouchClick(adId)
+        cancelCountdown()
+        AdManagerImpl.destroyAd()
+        binding.root.isVisible = false
+        hide()
+        dispatchFlowFinishedOnce()
     }
 
     private fun cancelCountdown() {

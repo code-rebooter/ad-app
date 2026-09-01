@@ -69,11 +69,14 @@ object GoogleUmpConsentManager {
             val information = consentInformation
                 ?: UserMessagingPlatform.getConsentInformation(appContext).also {
                     consentInformation = it
-                }
+            }
 
             if (state == State.COMPLETE && information.canRequestAds()) {
-                callback(buildResult(appContext, action = action, errorMessage = null))
-                return@post
+                if (!shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
+                    callback(buildResult(appContext, action = action, errorMessage = null))
+                    return@post
+                }
+                state = State.IDLE
             }
 
             pendingCallbacks += callback
@@ -134,7 +137,11 @@ object GoogleUmpConsentManager {
                             "privacyOptions=${information.getPrivacyOptionsRequirementStatus()}"
                     )
                     if (information.canRequestAds()) {
-                        finishFlow(action = action, errorMessage = null, allowRetry = false)
+                        if (shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
+                            showSilentPrivacyOptionsForm(activity, action)
+                        } else {
+                            finishFlow(action = action, errorMessage = null, allowRetry = false)
+                        }
                     } else {
                         when (action) {
                             ConsentAction.CHECK_ONLY -> {
@@ -250,6 +257,45 @@ object GoogleUmpConsentManager {
                 }
             }
         )
+    }
+
+    private fun showSilentPrivacyOptionsForm(
+        activity: Activity,
+        action: ConsentAction
+    ) {
+        Log.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=$action")
+        GoogleUmpSilentConsentFormRunner.showPrivacyOptionsAndApplyDecisionSilently(
+            activity = activity,
+            decisionMode = decisionModeFor(action)
+        ) { result ->
+            mainHandler.post {
+                completeAfterConsentForm(
+                    action = action,
+                    formError = result.formError,
+                    localErrorMessage = result.localErrorMessage
+                )
+            }
+        }
+    }
+
+    private fun decisionModeFor(action: ConsentAction): GoogleUmpSilentConsentFormRunner.DecisionMode {
+        return when (action) {
+            ConsentAction.REJECT -> GoogleUmpSilentConsentFormRunner.DecisionMode.REJECT
+            else -> GoogleUmpSilentConsentFormRunner.DecisionMode.ACCEPT_ALL
+        }
+    }
+
+    private fun shouldApplyStoredConsentViaPrivacyOptions(
+        action: ConsentAction,
+        information: ConsentInformation
+    ): Boolean {
+        return when (action) {
+            ConsentAction.ACCEPT_ALL,
+            ConsentAction.REJECT -> information.getPrivacyOptionsRequirementStatus() ==
+                ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
+            ConsentAction.CHECK_ONLY,
+            ConsentAction.DEFER_WHEN_REQUIRED -> false
+        }
     }
 
     internal fun onHostActivityDestroyed(activity: Activity) {

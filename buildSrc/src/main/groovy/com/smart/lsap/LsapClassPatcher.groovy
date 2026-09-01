@@ -688,6 +688,343 @@ final class LsapClassPatcher implements Opcodes {
         return writer.toByteArray()
     }
 
+    static byte[] patchHq008Parameters(String entryName, byte[] bytes) {
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(bytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = false
+        String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+
+        node.methods.each { MethodNode method ->
+            if (patchHq008VastViewSizeChecker(entryName, method)) {
+                changed = true
+            }
+            if (patchHq008VastLifecycleGate(entryName, method)) {
+                changed = true
+            }
+            for (AbstractInsnNode instruction = method.instructions.first;
+                 instruction != null;) {
+                AbstractInsnNode nextInstruction = instruction.next
+                if (instruction instanceof FieldInsnNode) {
+                    FieldInsnNode field = (FieldInsnNode) instruction
+                    if (field.opcode == GETSTATIC &&
+                        field.owner == 'android/os/Build$VERSION' &&
+                        field.name == 'RELEASE' &&
+                        field.desc == 'Ljava/lang/String;') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(INVOKESTATIC, bridge, 'getAndroidVersionRelease',
+                                '()Ljava/lang/String;', false)
+                        )
+                        changed = true
+                    } else if (field.opcode == GETSTATIC &&
+                        field.owner == 'android/os/Build$VERSION' &&
+                        field.name == 'SDK_INT' &&
+                        field.desc == 'I') {
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(INVOKESTATIC, bridge, 'getAndroidSdkInt',
+                                '()I', false)
+                        )
+                        changed = true
+                    } else if (field.opcode == GETSTATIC &&
+                        field.owner == 'android/os/Build' &&
+                        ['MODEL', 'ID', 'BRAND', 'DEVICE', 'MANUFACTURER', 'PRODUCT'].contains(field.name) &&
+                        field.desc == 'Ljava/lang/String;') {
+                        String bridgeMethod = [
+                            MODEL        : 'getAndroidDeviceModel',
+                            ID           : 'getAndroidBuildId',
+                            BRAND        : 'getAndroidBrand',
+                            DEVICE       : 'getAndroidDevice',
+                            MANUFACTURER : 'getAndroidManufacturer',
+                            PRODUCT      : 'getAndroidProduct'
+                        ][field.name]
+                        method.instructions.set(
+                            field,
+                            new MethodInsnNode(INVOKESTATIC, bridge, bridgeMethod,
+                                '()Ljava/lang/String;', false)
+                        )
+                        changed = true
+                    }
+                }
+
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction
+                    if (call.opcode == INVOKESTATIC &&
+                        call.owner == 'java/lang/System' &&
+                        call.name == 'getProperty' &&
+                        call.desc == '(Ljava/lang/String;)Ljava/lang/String;') {
+                        call.owner = bridge
+                        call.name = 'getSystemProperty'
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebSettings' &&
+                        call.name == 'setUserAgentString' &&
+                        call.desc == '(Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'setWebViewUserAgent',
+                            '(Landroid/webkit/WebSettings;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKESTATIC &&
+                        call.owner == 'android/webkit/WebSettings' &&
+                        call.name == 'getDefaultUserAgent' &&
+                        call.desc == '(Landroid/content/Context;)Ljava/lang/String;') {
+                        call.owner = bridge
+                        call.name = 'getDefaultWebViewUserAgent'
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebSettings' &&
+                        call.name == 'getUserAgentString' &&
+                        call.desc == '()Ljava/lang/String;') {
+                        replaceWithStatic(call, 'getWebViewUserAgent',
+                            '(Landroid/webkit/WebSettings;)Ljava/lang/String;', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebView' &&
+                        call.name == 'setWebViewClient' &&
+                        call.desc == '(Landroid/webkit/WebViewClient;)V') {
+                        replaceWithStatic(call, 'setAuditedWebViewClient',
+                            '(Landroid/webkit/WebView;Landroid/webkit/WebViewClient;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebView' &&
+                        call.name == 'loadUrl' &&
+                        call.desc == '(Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'loadWebViewUrl',
+                            '(Landroid/webkit/WebView;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebView' &&
+                        call.name == 'loadUrl' &&
+                        call.desc == '(Ljava/lang/String;Ljava/util/Map;)V') {
+                        replaceWithStatic(call, 'loadWebViewUrlWithHeaders',
+                            '(Landroid/webkit/WebView;Ljava/lang/String;Ljava/util/Map;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'android/webkit/WebView' &&
+                        call.name == 'postUrl' &&
+                        call.desc == '(Ljava/lang/String;[B)V') {
+                        replaceWithStatic(call, 'postWebViewUrl',
+                            '(Landroid/webkit/WebView;Ljava/lang/String;[B)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'java/net/URL' &&
+                        call.name == 'openConnection' &&
+                        call.desc == '()Ljava/net/URLConnection;') {
+                        replaceWithStatic(call, 'openUrlConnection',
+                            '(Ljava/net/URL;)Ljava/net/URLConnection;', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'java/net/URL' &&
+                        call.name == 'openConnection' &&
+                        call.desc == '(Ljava/net/Proxy;)Ljava/net/URLConnection;') {
+                        replaceWithStatic(call, 'openUrlConnectionWithProxy',
+                            '(Ljava/net/URL;Ljava/net/Proxy;)Ljava/net/URLConnection;', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        ['java/net/URLConnection', 'java/net/HttpURLConnection',
+                         'javax/net/ssl/HttpsURLConnection'].contains(call.owner) &&
+                        call.name == 'setRequestProperty' &&
+                        call.desc == '(Ljava/lang/String;Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'setUrlConnectionRequestProperty',
+                            '(Ljava/net/URLConnection;Ljava/lang/String;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        ['java/net/URLConnection', 'java/net/HttpURLConnection',
+                         'javax/net/ssl/HttpsURLConnection'].contains(call.owner) &&
+                        call.name == 'addRequestProperty' &&
+                        call.desc == '(Ljava/lang/String;Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'addUrlConnectionRequestProperty',
+                            '(Ljava/net/URLConnection;Ljava/lang/String;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        ['java/net/HttpURLConnection', 'javax/net/ssl/HttpsURLConnection'].contains(call.owner) &&
+                        call.name == 'setRequestMethod' &&
+                        call.desc == '(Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'setUrlConnectionRequestMethod',
+                            '(Ljava/net/HttpURLConnection;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'okhttp3/OkHttpClient' &&
+                        call.name == 'newCall' &&
+                        call.desc == '(Lokhttp3/Request;)Lokhttp3/Call;') {
+                        replaceWithStatic(call, 'newOkHttpCall',
+                            '(Lokhttp3/OkHttpClient;Lokhttp3/Request;)Lokhttp3/Call;', bridge)
+                        changed = true
+                    }
+                }
+                instruction = nextInstruction
+            }
+        }
+
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    private static boolean patchHq008VastViewSizeChecker(String entryName, MethodNode method) {
+        if (entryName != 'com/tcl/ff/component/vastad/core/f/c.class') return false
+        if (method.name == 'a' && method.desc == '(II)Z') {
+            replaceMethodBodyWithConstantBoolean(method, true)
+            return true
+        }
+        if (method.name == 'b' && method.desc == '(Landroid/view/View;)Z') {
+            replaceMethodBodyWithConstantBoolean(method, true)
+            return true
+        }
+        if (method.name == 'a' && method.desc == '(Landroid/view/View;)V') {
+            method.instructions.clear()
+            method.tryCatchBlocks?.clear()
+            method.localVariables?.clear()
+
+            LabelNode viewPresentForWidth = new LabelNode()
+            LabelNode widthReady = new LabelNode()
+            LabelNode viewPresentForHeight = new LabelNode()
+            LabelNode heightReady = new LabelNode()
+            InsnList replacement = new InsnList()
+            replacement.add(new VarInsnNode(ALOAD, 0))
+            replacement.add(new InsnNode(ICONST_1))
+            replacement.add(new VarInsnNode(ALOAD, 1))
+            replacement.add(new JumpInsnNode(IFNONNULL, viewPresentForWidth))
+            replacement.add(new InsnNode(ICONST_0))
+            replacement.add(new JumpInsnNode(GOTO, widthReady))
+            replacement.add(viewPresentForWidth)
+            replacement.add(new VarInsnNode(ALOAD, 1))
+            replacement.add(new MethodInsnNode(INVOKEVIRTUAL, 'android/view/View', 'getWidth', '()I', false))
+            replacement.add(widthReady)
+            replacement.add(new VarInsnNode(ALOAD, 1))
+            replacement.add(new JumpInsnNode(IFNONNULL, viewPresentForHeight))
+            replacement.add(new InsnNode(ICONST_0))
+            replacement.add(new JumpInsnNode(GOTO, heightReady))
+            replacement.add(viewPresentForHeight)
+            replacement.add(new VarInsnNode(ALOAD, 1))
+            replacement.add(new MethodInsnNode(INVOKEVIRTUAL, 'android/view/View', 'getHeight', '()I', false))
+            replacement.add(heightReady)
+            replacement.add(new MethodInsnNode(
+                INVOKEVIRTUAL,
+                'com/tcl/ff/component/vastad/core/f/c',
+                'a',
+                '(ZII)V',
+                false
+            ))
+            replacement.add(new InsnNode(RETURN))
+            method.instructions.add(replacement)
+            return true
+        }
+        return false
+    }
+
+    private static void replaceMethodBodyWithConstantBoolean(MethodNode method, boolean value) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        InsnList replacement = new InsnList()
+        replacement.add(new InsnNode(value ? ICONST_1 : ICONST_0))
+        replacement.add(new InsnNode(IRETURN))
+        method.instructions.add(replacement)
+    }
+
+    private static boolean patchHq008VastLifecycleGate(String entryName, MethodNode method) {
+        if (entryName == 'com/tcl/ff/component/vastad/lifecycle/LifecycleOwnerAgent.class') {
+            if (method.name == 'b' && method.desc == '(Ljava/lang/Object;)V') {
+                replaceVoidMethodBody(method)
+                return true
+            }
+            if (method.name == 'a' &&
+                (method.desc == '()Lcom/tcl/ff/component/vastad/lifecycle/a;' ||
+                 method.desc == '(Landroid/view/View;)Lcom/tcl/ff/component/vastad/lifecycle/a;' ||
+                 method.desc == '(Landroidx/lifecycle/Lifecycle;)Lcom/tcl/ff/component/vastad/lifecycle/a;')) {
+                replaceMethodBodyWithEnumConstant(
+                    method,
+                    'com/tcl/ff/component/vastad/lifecycle/a',
+                    'RESUMED',
+                    'Lcom/tcl/ff/component/vastad/lifecycle/a;'
+                )
+                return true
+            }
+        }
+        if ((entryName == 'com/tcl/ff/component/vastad/core/d/e.class' ||
+             entryName == 'com/tcl/ff/component/vastad/core/d/c.class') &&
+            method.name == 'onViewDetachedFromWindow' &&
+            method.desc == '(Landroid/view/View;)V') {
+            replaceVoidMethodBody(method)
+            return true
+        }
+        if (entryName == 'com/tcl/ff/component/vastad/core/d/a.class' &&
+            method.name == 'onSessionInActive' &&
+            method.desc == '()V') {
+            replaceBooleanGateWithTrue(method, 'android/view/ViewGroup', 'isAttachedToWindow', '()Z')
+            return true
+        }
+        if (entryName == 'com/tcl/ff/component/vastad/core/d/c.class' &&
+            method.name == 'o' &&
+            method.desc == '()V') {
+            replaceBooleanGateWithTrue(method, 'android/view/ViewGroup', 'isAttachedToWindow', '()Z')
+            return true
+        }
+        return false
+    }
+
+    private static void replaceVoidMethodBody(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+        method.instructions.add(new InsnNode(RETURN))
+    }
+
+    private static void replaceMethodBodyWithEnumConstant(
+        MethodNode method,
+        String owner,
+        String fieldName,
+        String fieldDesc
+    ) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        InsnList replacement = new InsnList()
+        replacement.add(new FieldInsnNode(GETSTATIC, owner, fieldName, fieldDesc))
+        replacement.add(new InsnNode(ARETURN))
+        method.instructions.add(replacement)
+    }
+
+    private static void replaceBooleanGateWithTrue(
+        MethodNode method,
+        String owner,
+        String name,
+        String desc
+    ) {
+        method.instructions?.toArray()?.findAll {
+            it instanceof MethodInsnNode &&
+            ((MethodInsnNode) it).owner == owner &&
+            ((MethodInsnNode) it).name == name &&
+            ((MethodInsnNode) it).desc == desc
+        }?.each { MethodInsnNode call ->
+            InsnList replacement = new InsnList()
+            replacement.add(new InsnNode(POP))
+            replacement.add(new InsnNode(ICONST_1))
+            method.instructions.insert(call, replacement)
+            method.instructions.remove(call)
+        }
+    }
+
     static Map<String, Integer> scanPatchableNetworkCalls(String entryName, byte[] bytes) {
         Map<String, Integer> result = [:].withDefault { 0 }
         ClassNode node = new ClassNode()
@@ -797,9 +1134,14 @@ final class LsapClassPatcher implements Opcodes {
         return null
     }
 
-    private static void replaceWithStatic(MethodInsnNode call, String name, String desc) {
+    private static void replaceWithStatic(
+        MethodInsnNode call,
+        String name,
+        String desc,
+        String bridge = BRIDGE
+    ) {
         call.opcode = INVOKESTATIC
-        call.owner = BRIDGE
+        call.owner = bridge
         call.name = name
         call.desc = desc
         call.itf = false

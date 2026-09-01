@@ -12,13 +12,19 @@ import java.io.File
 class HaierUserAgentInstallerTest {
 
     @Test
-    fun `installer supports exactly the three lsap channels`() {
+    fun `installer supports lsap and tcl aar channels`() {
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008XHSX"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_aishang"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_album_101_001"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneu"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneuc2"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_poly"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("haier_lsap"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_hq1002"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_jams"))
 
-        assertFalse(HaierUserAgentInstaller.supportsFlavor("hq008"))
-        assertFalse(HaierUserAgentInstaller.supportsFlavor("tcl_poly"))
         assertFalse(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop"))
     }
 
@@ -72,7 +78,7 @@ class HaierUserAgentInstallerTest {
             System.setProperty("http.agent", original)
 
             val result = HaierUserAgentInstaller.installForProcess(
-                flavor = "hq008",
+                flavor = "google_ad_tv_desktop",
                 sdkInt = 30,
                 logger = {}
             )

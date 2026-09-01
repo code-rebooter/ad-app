@@ -31,6 +31,7 @@ object AdManagerImpl : IAdManager {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -40,6 +41,7 @@ object AdManagerImpl : IAdManager {
                 flRoot = flRoot,
                 adId = adId,
                 soundEnabled = soundEnabled,
+                callbackTimeoutMs = callbackTimeoutMs,
                 adStart = adStart,
                 adError = adError,
                 adComplete = adComplete
@@ -50,6 +52,7 @@ object AdManagerImpl : IAdManager {
             flRoot = flRoot,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = callbackTimeoutMs,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -82,6 +85,7 @@ private object HaierLsapAdManagerBridge : IAdManager {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -90,6 +94,7 @@ private object HaierLsapAdManagerBridge : IAdManager {
             flRoot = flRoot,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = callbackTimeoutMs,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -103,7 +108,6 @@ private object HaierLsapAdManagerBridge : IAdManager {
 
 private object Hq008TclVideoAd {
     private const val TAG = "Hq008TclVideoAd"
-    private const val AD_CALLBACK_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
     private const val SDK_APP_CATEGORY = "app"
     private const val SDK_CONTENT_TITLE = "App Content"
 
@@ -130,15 +134,17 @@ private object Hq008TclVideoAd {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
         val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+        val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
         // PLAY_FLOW showAd entry
         Log.i(
             TAG,
-            "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
+            "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
         )
         Log.i(TAG, "播放链路：已进入 showAd，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}，容器尺寸=${flRoot.width}x${flRoot.height}")
         Hq008AdReporter.reportRequested(
@@ -148,17 +154,19 @@ private object Hq008TclVideoAd {
             containerWidth = flRoot.width,
             containerHeight = flRoot.height,
             extra = mapOf(
-                "requestCreatedAtMs" to SystemClock.elapsedRealtime()
+                "requestCreatedAtMs" to SystemClock.elapsedRealtime(),
+                "callbackTimeoutMs" to effectiveCallbackTimeoutMs
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_REQUESTED",
-            eventMessage = "requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
+            eventMessage = "requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=$effectiveCallbackTimeoutMs,containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
         )
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = effectiveCallbackTimeoutMs,
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -565,6 +573,7 @@ private object Hq008TclVideoAd {
         val requestId: String,
         val adId: String?,
         val soundEnabled: Boolean,
+        val callbackTimeoutMs: Long,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,
@@ -646,7 +655,7 @@ private object Hq008TclVideoAd {
             }
             currentTimeoutRunnable = null
             currentRequest = null
-            Log.e(TAG, "播放链路：等待广告回调超时，requestId=${request.requestId}，adId=${request.adId}，timeoutMs=$AD_CALLBACK_TIMEOUT_MS")
+            Log.e(TAG, "播放链路：等待广告回调超时，requestId=${request.requestId}，adId=${request.adId}，timeoutMs=${request.callbackTimeoutMs}")
             Hq008AdReporter.reportError(
                 requestId = request.requestId,
                 adId = request.adId,
@@ -655,17 +664,17 @@ private object Hq008TclVideoAd {
                 errorMessage = Hq008AdReporter.Message.TIMEOUT,
                 extra = request.buildCompletionDiagnostics() + mapOf(
                     "stage" to "callback_timeout",
-                    "timeoutMs" to AD_CALLBACK_TIMEOUT_MS
+                    "timeoutMs" to request.callbackTimeoutMs
                 )
             )
             Hq008ConsentLogReporter.report(
                 eventType = "AD_PHASE_TIMEOUT",
-                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=callback_timeout,reason=callback_timeout,timeoutMs=$AD_CALLBACK_TIMEOUT_MS"
+                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=callback_timeout,reason=callback_timeout,timeoutMs=${request.callbackTimeoutMs}"
             )
             releaseCurrentController()
             request.adError?.invoke()
         }
-        mainHandler.postDelayed(currentTimeoutRunnable!!, AD_CALLBACK_TIMEOUT_MS)
+        mainHandler.postDelayed(currentTimeoutRunnable!!, request.callbackTimeoutMs)
     }
 
     private fun clearActiveRequestState(request: PendingShowRequest? = null) {

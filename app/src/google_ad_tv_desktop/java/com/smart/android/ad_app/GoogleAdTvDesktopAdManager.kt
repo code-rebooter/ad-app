@@ -6,7 +6,6 @@ import android.os.SystemClock
 import android.view.ViewGroup
 import androidx.annotation.Keep
 import androidx.annotation.OptIn
-import com.google.gson.Gson
 import androidx.media3.common.util.UnstableApi
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.google.GoogleGamAdConfigClient
@@ -25,6 +24,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
@@ -33,6 +33,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
             flRoot = flRoot,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = callbackTimeoutMs,
             adStart = adStart,
             adError = adError,
             adComplete = adComplete
@@ -48,9 +49,7 @@ private object GoogleAdTvDesktopFormalAd {
     private const val TAG = "GoogleAdTvDesktopAd"
     private const val SDK_NAME = "google_ad_tv_desktop"
     private const val SDK_ENTRY = "media3_ima_vast"
-    private const val REQUEST_TIMEOUT_MS = AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
 
-    private val gson = Gson()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var currentPlayer: GoogleAdVastPlayerView? = null
     private var currentContainerRef: WeakReference<ViewGroup>? = null
@@ -65,16 +64,19 @@ private object GoogleAdTvDesktopFormalAd {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
         val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+        val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
         flRoot.alpha = 0f
         val request = PendingShowRequest(
             requestId = requestId,
             adId = adId,
             soundEnabled = soundEnabled,
+            callbackTimeoutMs = effectiveCallbackTimeoutMs,
             requestCreatedAtMs = SystemClock.elapsedRealtime(),
             containerRef = WeakReference(flRoot),
             adStart = adStart,
@@ -84,7 +86,7 @@ private object GoogleAdTvDesktopFormalAd {
 
         Log.i(
             TAG,
-            "正式链路：开始请求 Google VAST 广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，container=${flRoot.width}x${flRoot.height}"
+            "正式链路：开始请求 Google VAST 广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
         )
         Hq008AdReporter.reportRequested(
             requestId = requestId,
@@ -95,12 +97,13 @@ private object GoogleAdTvDesktopFormalAd {
             extra = mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
-                "requestCreatedAtMs" to request.requestCreatedAtMs
+                "requestCreatedAtMs" to request.requestCreatedAtMs,
+                "callbackTimeoutMs" to request.callbackTimeoutMs
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_REQUESTED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=${request.callbackTimeoutMs},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
         )
 
         currentRequest
@@ -110,55 +113,7 @@ private object GoogleAdTvDesktopFormalAd {
         currentContainerRef = WeakReference(flRoot)
 
         flRoot.post {
-            requestConsentThenResolveAd(request)
-        }
-    }
-
-    private fun requestConsentThenResolveAd(request: PendingShowRequest) {
-        val container = request.containerRef.get()
-        if (container == null) {
-            failRequest(
-                request = request,
-                stage = "consent_container_prepare",
-                reporterMessage = Hq008AdReporter.Message.CONTAINER_RELEASED,
-                reason = "container_released"
-            )
-            return
-        }
-
-        Log.i(TAG, "正式链路：开始检查 UMP consent，requestId=${request.requestId}")
-        Hq008ConsentLogReporter.report(
-            eventType = "UMP_CONSENT_START",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()}"
-        )
-        GoogleUmpConsentManager.requestConsent(
-            context = container.context,
-            action = GoogleUmpConsentManager.ConsentAction.CHECK_ONLY
-        ) { result ->
-            container.post {
-                if (request.isTerminal() || currentRequest !== request) {
-                    return@post
-                }
-                Hq008ConsentLogReporter.report(
-                    eventType = "UMP_CONSENT_RESULT",
-                    eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},canRequestAds=${result.canRequestAds},error=${result.errorMessage.orEmpty()}"
-                )
-                reportAuthorizedUmpStatus(request, result)
-                if (result.canRequestAds) {
-                    Log.i(TAG, "正式链路：UMP 已允许请求广告，requestId=${request.requestId}")
-                    resolveAdConfig(request)
-                } else {
-                    failRequest(
-                        request = request,
-                        stage = "ump_consent",
-                        reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-                        reason = "ump_cannot_request_ads",
-                        error = IllegalStateException(
-                            result.errorMessage ?: "UMP did not allow ad requests"
-                        )
-                    )
-                }
-            }
+            resolveAdConfig(request)
         }
     }
 
@@ -539,7 +494,7 @@ private object GoogleAdTvDesktopFormalAd {
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,error=$errorText"
+            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,callbackTimeoutMs=${request.callbackTimeoutMs},error=$errorText"
         )
         if (releasePlayer) {
             releaseCurrentPlayer()
@@ -558,7 +513,7 @@ private object GoogleAdTvDesktopFormalAd {
                 reason = "request_timeout"
             )
         }
-        mainHandler.postDelayed(timeoutRunnable!!, REQUEST_TIMEOUT_MS)
+        mainHandler.postDelayed(timeoutRunnable!!, request.callbackTimeoutMs)
     }
 
     private fun releaseCurrentPlayer() {
@@ -582,52 +537,11 @@ private object GoogleAdTvDesktopFormalAd {
         timeoutRunnable = null
     }
 
-    private fun reportAuthorizedUmpStatus(
-        request: PendingShowRequest,
-        result: GoogleUmpConsentManager.Result
-    ) {
-        if (!Hq008ConsentLogReporter.hasActiveFlow()) {
-            return
-        }
-        val snapshot = result.storedConsentSnapshotData
-        val gdprApplies = snapshot.iabtcfGdprApplies.ifBlank { "unknown" }
-        val privacyOptions = result.privacyOptionsStatus.ifBlank { "UNKNOWN" }
-        val consentModeValues = snapshot.consentModeValues.ifBlank { "empty" }
-        Hq008ConsentLogReporter.report(
-            eventType = "UMP_STATUS_AFTER_AUTHORIZED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId}," +
-                "authorized=true,gdpr=$gdprApplies,status=${result.consentStatus}," +
-                "canRequestAds=${result.canRequestAds},formAvailable=${result.formAvailable}," +
-                "privacyOptions=$privacyOptions,tcLen=${snapshot.tcStringLength}," +
-                "purposeLen=${snapshot.purposeConsentsLength}," +
-                "vendorLen=${snapshot.vendorConsentsLength},consentMode=$consentModeValues",
-            adLog = gson.toJson(
-                linkedMapOf<String, Any?>(
-                    "requestId" to request.requestId,
-                    "authorized" to true,
-                    "sdk" to SDK_NAME,
-                    "sdkEntry" to SDK_ENTRY,
-                    "umpAction" to result.action.name,
-                    "umpConsentStatus" to result.consentStatus,
-                    "umpCanRequestAds" to result.canRequestAds,
-                    "umpFormAvailable" to result.formAvailable,
-                    "umpPrivacyOptions" to privacyOptions,
-                    "umpDeferred" to result.deferred,
-                    "iabtcfGdprApplies" to gdprApplies,
-                    "tcStringLength" to snapshot.tcStringLength,
-                    "purposeConsentsLength" to snapshot.purposeConsentsLength,
-                    "vendorConsentsLength" to snapshot.vendorConsentsLength,
-                    "consentModeValues" to consentModeValues,
-                    "error" to result.errorMessage.orEmpty()
-                )
-            )
-        )
-    }
-
     private data class PendingShowRequest(
         val requestId: String,
         val adId: String?,
         val soundEnabled: Boolean,
+        val callbackTimeoutMs: Long,
         val requestCreatedAtMs: Long,
         val containerRef: WeakReference<ViewGroup>,
         val adStart: (() -> Unit)?,
@@ -680,6 +594,7 @@ private object GoogleAdTvDesktopFormalAd {
         fun buildProgressDiagnostics(): Map<String, Any?> {
             return mapOf(
                 "requestCreatedAtMs" to requestCreatedAtMs,
+                "callbackTimeoutMs" to callbackTimeoutMs,
                 "loadedAtMs" to loadedAtMs,
                 "startedAtMs" to startedAtMs,
                 "requestToLoadDurationMs" to requestToLoadDurationMs(),

@@ -23,6 +23,7 @@ object AdManagerImpl : IAdManager {
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit

@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.14'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.15'
 ```
 
 ## 1. 仓库
@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.14'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.15'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```
@@ -48,7 +48,7 @@ dependencies {
 
 ### HQ002 锁屏渠道配置
 
-使用 `v1.0.14` 或以上版本，将上面 `adChannelId` 的值设为：
+使用 `v1.0.15` 或以上版本，将上面 `adChannelId` 的值设为：
 
 ```groovy
 adChannelId: "GOOGLE_AD_TV_LOCKSCREEN_HQ002"

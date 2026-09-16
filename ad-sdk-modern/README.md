@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.14'
 ```
 
 ## 1. 仓库
@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.13'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.14'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```
@@ -45,6 +45,16 @@ dependencies {
 - `adChannelId`：后台分配的渠道 ID。
 - 这个版本包含 Google UMP/CMP 流程。
 - 不要和 `ad-sdk`、`ad-sdk-modern-no-ump`、`ad-sdk-gam-vast` 同时接入。
+
+### HQ002 锁屏渠道配置
+
+使用 `v1.0.14` 或以上版本，将上面 `adChannelId` 的值设为：
+
+```groovy
+adChannelId: "GOOGLE_AD_TV_LOCKSCREEN_HQ002"
+```
+
+SDK 会自动使用 `https://api.kartna.cc/` 作为广告流程接口域名，覆盖流程控制、UMP/CMP 决策与结果上报、广告配置请求和广告事件上报，无需额外配置域名。广告素材地址仍由后台返回。
 
 ## 3. 初始化
 

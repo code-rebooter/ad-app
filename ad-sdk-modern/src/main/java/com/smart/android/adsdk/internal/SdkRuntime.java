@@ -20,6 +20,8 @@ public final class SdkRuntime {
     private static final String DEFAULT_API_BASE_URL = "https://api.kytira.cc/";
     private static final String CVTE_CHANNEL_ID = "GOOGLE_AD_TV_CVTE";
     private static final String CVTE_API_BASE_URL = "https://api.xartek.cc/";
+    private static final String LOCKSCREEN_HQ002_CHANNEL_ID = "GOOGLE_AD_TV_LOCKSCREEN_HQ002";
+    private static final String LOCKSCREEN_HQ002_API_BASE_URL = "https://api.kartna.cc/";
 
     private final CallbackDispatcher dispatcher;
     private final ComponentsFactory componentsFactory;
@@ -159,7 +161,11 @@ public final class SdkRuntime {
         }
 
         private String resolveApiBaseUrl(String channelId) {
-            return CVTE_CHANNEL_ID.equalsIgnoreCase(channelId == null ? "" : channelId.trim())
+            String normalizedChannelId = channelId == null ? "" : channelId.trim();
+            if (LOCKSCREEN_HQ002_CHANNEL_ID.equalsIgnoreCase(normalizedChannelId)) {
+                return LOCKSCREEN_HQ002_API_BASE_URL;
+            }
+            return CVTE_CHANNEL_ID.equalsIgnoreCase(normalizedChannelId)
                 ? CVTE_API_BASE_URL
                 : DEFAULT_API_BASE_URL;
         }

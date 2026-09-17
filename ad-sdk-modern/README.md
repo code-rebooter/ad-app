@@ -46,6 +46,8 @@ dependencies {
 - 这个版本包含 Google UMP/CMP 流程。
 - 不要和 `ad-sdk`、`ad-sdk-modern-no-ump`、`ad-sdk-gam-vast` 同时接入。
 
+本地待发布的显示修复使用 `TextureView`，并在 SDK 清单中声明默认开启硬件加速；上面的远程 `v1.0.16` 尚不包含这些改动。宿主没有显式关闭时通常无需额外设置。`FloatingAdService` 悬浮窗创建参数、Activity 配置与实际状态确认方式见 [显示修复与硬件加速说明](DISPLAY_FIX.md#硬件加速配置)。
+
 ### HQ002 锁屏渠道配置
 
 使用 `v1.0.15` 或以上版本，将上面 `adChannelId` 的值设为：

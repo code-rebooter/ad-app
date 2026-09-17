@@ -12,6 +12,32 @@
 
 `TextureView` 需要宿主窗口开启硬件加速。宿主容器自身的背景与其他子视图不在这次修改范围内；仍需在客户设备验证隐藏及首帧显示效果。
 
+## 硬件加速配置
+
+本地待发布版本已在 SDK 清单的 `<application>` 上声明 `android:hardwareAccelerated="true"`，通过清单合并提供应用级默认值。常规 Activity 以及通过应用上下文创建的悬浮窗可以继承此配置；它影响应用默认值，不只影响 SDK 广告子视图。`v1.0.16` 尚不包含这项声明。目标 API 14 及以上的应用，Android 本身通常也默认开启硬件加速。
+
+宿主没有显式关闭时，通常无需额外操作。若宿主 `<application>` 显式设置了 `false`，与 SDK 的 `true` 可能产生清单合并冲突，需要宿主统一配置；SDK 不通过 `tools:replace` 强制覆盖。某个 Activity 单独配置 `false` 时，也需要在该 Activity 开启硬件加速。
+
+普通 Activity 可以在宿主清单中设置：
+
+```xml
+<application android:hardwareAccelerated="true" ...>
+    <activity android:name=".AdHostActivity"
+        android:hardwareAccelerated="true" ... />
+</application>
+```
+
+对于 `FloatingAdService` 通过 `WindowManager` 创建的悬浮窗，可以在原有窗口参数上添加标志，保留其他 flags：
+
+```java
+params.flags |= WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
+windowManager.addView(rootView, params);
+```
+
+标志必须在 `addView()` 之前设置。Activity 也可在 `setContentView()` 之前调用 `getWindow().addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)`。SDK 收到已经挂载的 `ViewGroup` 后，不能通过 `setLayerType(View.LAYER_TYPE_HARDWARE, null)` 把软件渲染窗口切换为硬件加速；SDK 不会拆卸或重建宿主窗口。
+
+容器挂载后，用 `adContainer.isHardwareAccelerated()` 或本地修复新增的 `AD_DISPLAY_STATE` 日志确认实际状态。未挂载时返回 `false` 不能证明宿主关闭了硬件加速。当前没有客户窗口未开启硬件加速的实测证据，这项配置是 `TextureView` 的运行条件。
+
 ## 声音 API 的现状
 
 声音 API 保持 `v1.0.16` 的兼容行为：后台返回 `sound_mode` 时优先用于起播；字段缺失时用宿主的 `AdRequest` 设置。播放期间调用 `session.setSoundEnabled()` 可以调整音量，因此后台并未锁定之后的所有音量变更。

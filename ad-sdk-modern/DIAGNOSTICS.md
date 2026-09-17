@@ -1,6 +1,6 @@
 # SDK 诊断日志与原始错误
 
-本文适用于当前源码的待发布修改，远程 `v1.0.15` 尚不包含这些功能。
+本文适用于 `com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.16` 及以上版本。`v1.0.15` 不包含本次新增的诊断功能。
 
 ## 开启日志
 
@@ -71,6 +71,6 @@ public void onFinished(AdSession session, AdResult result) {
 
 ## 整轮流程与耗时
 
-当前源码也会在每轮广告结束时，按后台 `popup_log_enabled` 开关上传整轮流程。它与本地 `persist.sys.ad.log` 开关独立，具体字段和适用范围见 [通用 SDK 流程同步说明](FLOW_SYNC.md)。
+`v1.0.16` 也会在每轮广告结束时，按后台 `popup_log_enabled` 开关上传整轮流程。它与本地 `persist.sys.ad.log` 开关独立，具体字段和适用范围见 [通用 SDK 流程同步说明](FLOW_SYNC.md)。
 
 本地结束日志新增 `phase` 和单调时钟计算的 `elapsedMs`。即使没有进入广告播放，也能判断停在流控、CMP、授权还是广告配置阶段。

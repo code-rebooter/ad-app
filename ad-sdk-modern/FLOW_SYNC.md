@@ -1,10 +1,10 @@
-# 通用 SDK 流程同步说明（待发布）
+# 通用 SDK 流程同步说明（v1.0.16）
 
-本文对应当前源码，不包含在远程 `com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.15` 中。发布依赖坐标和版本未改动。
+适用依赖：`com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.16`。`v1.0.15` 不包含这些新增能力。
 
 ## 同步范围
 
-本次对照主工作区的最新广告流程（包括未提交修改）和 `hq008-flow-sdk`，按一次 `AdSdk.play()` 对应一轮广告的边界同步公共能力。
+本版本同步主项目的公共广告流程能力，以一次 `AdSdk.play()` 对应一轮广告为边界。
 
 | 能力 | 通用 SDK 的处理 |
 | --- | --- |

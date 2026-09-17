@@ -47,6 +47,8 @@ final class AdPlaybackController implements AdPlayer {
 
     @Override
     public void play(AdPlaybackConfig config, boolean soundEnabled) {
+        SdkLog.i("AdSdkPlayer", "play adTagUrl=" + config.getAdTagUrl()
+            + " hiddenMode=" + config.isHiddenMode() + " soundEnabled=" + soundEnabled);
         releasePlayerResources();
         startupTimeoutMs = config.getAdStartupTimeoutMs();
         hiddenMode = config.isHiddenMode();
@@ -101,13 +103,18 @@ final class AdPlaybackController implements AdPlayer {
         adsLoader = new ImaAdsLoader.Builder(context)
             .setMediaLoadTimeoutMs(adLoadTimeoutMs)
             .setAdEventListener(this::handleAdEvent)
-            .setAdErrorListener(error -> fail(
-                eventGateHasStarted()
-                    ? AdErrorCode.AD_PLAYBACK_ERROR
-                    : AdErrorCode.AD_LOAD_ERROR,
-                error == null ? "Unknown ad playback error" : error.toString(),
-                null
-            ))
+            .setAdErrorListener(event -> {
+                com.google.ads.interactivemedia.v3.api.AdError error = event == null ? null : event.getError();
+                fail(new AdError(
+                    eventGateHasStarted() ? AdErrorCode.AD_PLAYBACK_ERROR : AdErrorCode.AD_LOAD_ERROR,
+                    AdErrorStage.PLAYER,
+                    error == null ? null : error.getMessage(),
+                    error,
+                    "IMA",
+                    error == null ? null : String.valueOf(error.getErrorCodeNumber()),
+                    null
+                ));
+            })
             .build();
 
         DefaultMediaSourceFactory mediaSourceFactory =
@@ -138,11 +145,15 @@ final class AdPlaybackController implements AdPlayer {
 
             @Override
             public void onPlayerError(PlaybackException error) {
-                fail(
+                fail(new AdError(
                     AdErrorCode.PLAYER_ERROR,
-                    error.getMessage() == null ? "Media3 playback failed" : error.getMessage(),
-                    error
-                );
+                    AdErrorStage.PLAYER,
+                    error.getMessage(),
+                    error,
+                    "MEDIA3",
+                    String.valueOf(error.errorCode),
+                    null
+                ));
             }
         });
         playerView.setPlayer(player);
@@ -176,6 +187,7 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void handleAdEvent(AdEvent event) {
+        SdkLog.i("AdSdkPlayer", "IMA event=" + event.getType() + " data=" + event.getAdData());
         switch (event.getType()) {
             case LOADED:
                 notifyLoaded();
@@ -257,9 +269,15 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void fail(AdErrorCode code, String message, Throwable cause) {
+        fail(new AdError(code, AdErrorStage.PLAYER,
+            cause == null ? message : cause.getMessage(), cause));
+    }
+
+    private void fail(AdError error) {
+        SdkLog.e("AdSdkPlayer", "error=" + error, error.getCause());
         if (eventGate.markTerminal()) {
             clearStartupTimeout();
-            listener.onError(new AdError(code, AdErrorStage.PLAYER, message, cause));
+            listener.onError(error);
         }
     }
 

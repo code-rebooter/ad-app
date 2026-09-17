@@ -42,16 +42,15 @@ public final class SdkRuntime {
         SdkConfig config,
         InitializationListener listener
     ) {
+        SdkLog.configure(config.isDebugLogging());
+        SdkLog.i("AdSdk", "initialize timeoutMs=" + config.getAdCallbackTimeoutMs());
         try {
             sessionCreator = componentsFactory.create(context, config, dispatcher);
+            SdkLog.i("AdSdk", "onInitialized");
             dispatcher.dispatch(listener::onInitialized);
         } catch (RuntimeException error) {
-            AdError adError = new AdError(
-                AdErrorCode.INTERNAL_ERROR,
-                AdErrorStage.INITIALIZATION,
-                "Unable to initialize ad SDK",
-                error
-            );
+            SdkLog.e("AdSdk", "initialization failed", error);
+            AdError adError = AdErrors.from(AdErrorCode.INTERNAL_ERROR, AdErrorStage.INITIALIZATION, error, null);
             dispatcher.dispatch(() -> listener.onError(adError));
         }
     }
@@ -61,6 +60,8 @@ public final class SdkRuntime {
         AdRequest request,
         AdListener listener
     ) {
+        SdkLog.i("AdSdk", "play requestId=" + request.getRequestId()
+            + " container=" + System.identityHashCode(container));
         SessionCreator activeSessionCreator = sessionCreator;
         if (activeSessionCreator == null) {
             AdError error = new AdError(
@@ -70,6 +71,7 @@ public final class SdkRuntime {
                 null
             );
             FailedAdSession failedSession = new FailedAdSession();
+            SdkLog.w("AdSdk", "onFinished " + AdResult.error(error));
             dispatcher.dispatch(() -> listener.onFinished(failedSession, AdResult.error(error)));
             return failedSession;
         }
@@ -107,9 +109,11 @@ public final class SdkRuntime {
             ManifestAdConfig manifestConfig = ManifestAdConfig.read(applicationContext);
             String channelId = manifestConfig.getChannelId();
             String apiBaseUrl = resolveApiBaseUrl(channelId);
+            SdkLog.i("AdSdk", "channel=" + channelId + " apiBaseUrl=" + apiBaseUrl);
             Gson gson = new Gson();
             OkHttpClient okHttpClient = new OkHttpClient.Builder()
                 .callTimeout(20L, TimeUnit.SECONDS)
+                .addInterceptor(new SdkHttpLoggingInterceptor())
                 .build();
             RemoteAdConfigResolver resolver = new RemoteAdConfigClient(
                 applicationContext,

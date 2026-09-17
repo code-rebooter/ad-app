@@ -6,11 +6,13 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.FormError;
 import com.google.android.ump.UserMessagingPlatform;
+import com.smart.android.adsdk.AdError;
+import com.smart.android.adsdk.AdErrorCode;
+import com.smart.android.adsdk.AdErrorStage;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +36,7 @@ final class AdConsentManager {
         final String privacyOptionsStatus;
         final String storedConsentSnapshot;
         final StoredConsentSnapshot storedConsentSnapshotData;
+        final AdError error;
 
         Result(
             ConsentAction action,
@@ -44,7 +47,8 @@ final class AdConsentManager {
             boolean formAvailable,
             String privacyOptionsStatus,
             String storedConsentSnapshot,
-            StoredConsentSnapshot storedConsentSnapshotData
+            StoredConsentSnapshot storedConsentSnapshotData,
+            AdError error
         ) {
             this.action = action;
             this.canRequestAds = canRequestAds;
@@ -55,6 +59,7 @@ final class AdConsentManager {
             this.privacyOptionsStatus = privacyOptionsStatus;
             this.storedConsentSnapshot = storedConsentSnapshot;
             this.storedConsentSnapshotData = storedConsentSnapshotData;
+            this.error = error;
         }
     }
 
@@ -125,9 +130,11 @@ final class AdConsentManager {
                 consentInformation = information;
             }
 
+            SdkLog.i(TAG, "request action=" + action + " state=" + state
+                + " canRequestAds=" + information.canRequestAds() + " pendingCallbacks=" + PENDING_CALLBACKS.size());
             if (state == State.COMPLETE && information.canRequestAds()) {
                 if (!shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
-                    callback.onResult(buildResult(appContext, action, null, false));
+                    callback.onResult(buildResult(appContext, action, null, false, null));
                     return;
                 }
                 state = State.IDLE;
@@ -136,7 +143,7 @@ final class AdConsentManager {
             PENDING_CALLBACKS.add(callback);
             if (state != State.IDLE) {
                 if (activeAction != action) {
-                    Log.w(TAG, "已有 UMP action=" + activeAction + " 正在执行，本次 action=" + action + " 将复用当前流程");
+                    SdkLog.w(TAG, "已有 UMP action=" + activeAction + " 正在执行，本次 action=" + action + " 将复用当前流程");
                 }
                 return;
             }
@@ -149,8 +156,9 @@ final class AdConsentManager {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
                 appContext.startActivity(intent);
             } catch (RuntimeException error) {
-                Log.e(TAG, "无法启动 UMP consent Activity", error);
-                finishFlow(action, messageOrDefault(error, "Unable to start UMP consent Activity"), true, false);
+                SdkLog.e(TAG, "无法启动 UMP consent Activity", error);
+                finishFlow(action, messageOrDefault(error, "Unable to start UMP consent Activity"), true, false,
+                    AdErrors.from(AdErrorCode.INTERNAL_ERROR, AdErrorStage.CONFIG, error, null));
             }
         });
     }
@@ -173,13 +181,13 @@ final class AdConsentManager {
             ConsentRequestParameters requestParameters = new ConsentRequestParameters.Builder().build();
             ConsentAction action = activeAction;
 
-            Log.i(TAG, "开始更新 UMP consent 信息，action=" + action);
+            SdkLog.i(TAG, "开始更新 UMP consent 信息，action=" + action);
             ConsentInformation finalInformation = information;
             information.requestConsentInfoUpdate(
                 activity,
                 requestParameters,
                 () -> {
-                    Log.i(
+                    SdkLog.i(
                         TAG,
                         "UMP consent 信息更新完成，status=" + finalInformation.getConsentStatus()
                             + "，canRequestAds=" + finalInformation.canRequestAds()
@@ -208,12 +216,12 @@ final class AdConsentManager {
                     }
                 },
                 requestError -> {
-                    Log.w(
+                    SdkLog.w(
                         TAG,
                         "UMP consent 信息更新失败，canRequestAds=" + finalInformation.canRequestAds()
                             + "，error=" + requestError.getMessage()
                     );
-                    finishFlow(action, requestError.getMessage(), !finalInformation.canRequestAds(), false);
+                    finishFlow(action, requestError.getMessage(), !finalInformation.canRequestAds(), false, umpError(requestError));
                 }
             );
         });
@@ -227,22 +235,22 @@ final class AdConsentManager {
         }
         if (!information.isConsentFormAvailable()) {
             String message = "UMP consent form is unavailable after consent info update";
-            Log.w(TAG, message + "，" + buildStoredConsentSnapshot(activity.getApplicationContext()));
+            SdkLog.w(TAG, message + "，" + buildStoredConsentSnapshot(activity.getApplicationContext()));
             finishFlow(action, message, !information.canRequestAds(), false);
             return;
         }
 
-        Log.i(TAG, "开始加载 UMP consent 表单用于静默完成用户操作，action=" + action);
+        SdkLog.i(TAG, "开始加载 UMP consent 表单用于静默完成用户操作，action=" + action);
         ConsentInformation finalInformation = information;
         UserMessagingPlatform.loadConsentForm(
             activity.getApplicationContext(),
             consentForm -> MAIN_HANDLER.post(() -> {
                 Activity hostActivity = hostActivityRef == null ? null : hostActivityRef.get();
                 if (state != State.GATHERING_CONSENT || hostActivity != activity) {
-                    Log.w(TAG, "UMP consent 表单已加载，但宿主 Activity 已失效");
+                    SdkLog.w(TAG, "UMP consent 表单已加载，但宿主 Activity 已失效");
                     return;
                 }
-                Log.i(TAG, "UMP consent 表单加载完成，开始静默执行 action=" + action);
+                SdkLog.i(TAG, "UMP consent 表单加载完成，开始静默执行 action=" + action);
                 SilentConsentFormRunner.showAndApplyDecisionSilently(
                     activity,
                     consentForm,
@@ -250,30 +258,32 @@ final class AdConsentManager {
                     result -> MAIN_HANDLER.post(() -> completeAfterConsentForm(
                         action,
                         result.formError,
-                        result.localErrorMessage
+                        result.localErrorMessage,
+                        result.cause
                     ))
                 );
             }),
             loadError -> MAIN_HANDLER.post(() -> {
-                Log.w(
+                SdkLog.w(
                     TAG,
                     "UMP consent 表单加载失败，canRequestAds=" + finalInformation.canRequestAds()
                         + "，error=" + loadError.getMessage()
                 );
-                finishFlow(action, loadError.getMessage(), !finalInformation.canRequestAds(), false);
+                finishFlow(action, loadError.getMessage(), !finalInformation.canRequestAds(), false, umpError(loadError));
             })
         );
     }
 
     private static void showSilentPrivacyOptionsForm(Activity activity, ConsentAction action) {
-        Log.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=" + action);
+        SdkLog.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=" + action);
         SilentConsentFormRunner.showPrivacyOptionsAndApplyDecisionSilently(
             activity,
             decisionModeFor(action),
             result -> MAIN_HANDLER.post(() -> completeAfterConsentForm(
                 action,
                 result.formError,
-                result.localErrorMessage
+                result.localErrorMessage,
+                result.cause
             ))
         );
     }
@@ -317,7 +327,8 @@ final class AdConsentManager {
     private static void completeAfterConsentForm(
         ConsentAction action,
         FormError formError,
-        String localErrorMessage
+        String localErrorMessage,
+        Throwable cause
     ) {
         ConsentInformation information = consentInformation;
         boolean canRequestAds = information != null && information.canRequestAds();
@@ -326,18 +337,26 @@ final class AdConsentManager {
             ? ""
             : buildStoredConsentSnapshot(hostActivity.getApplicationContext());
         String errorMessage = formError == null ? localErrorMessage : formError.getMessage();
-        if (errorMessage == null) {
-            Log.i(TAG, "UMP consent 静默流程结束，action=" + action + "，canRequestAds=" + canRequestAds + "，" + snapshot);
+        if (errorMessage == null && cause == null && formError == null) {
+            SdkLog.i(TAG, "UMP consent 静默流程结束，action=" + action + "，canRequestAds=" + canRequestAds + "，" + snapshot);
         } else {
-            Log.w(
+            SdkLog.w(
                 TAG,
                 "UMP consent 静默流程结束但返回错误，action=" + action
                     + "，canRequestAds=" + canRequestAds
                     + "，error=" + errorMessage
+                    + "，cause=" + cause
                     + "，" + snapshot
             );
         }
-        finishFlow(action, errorMessage, errorMessage != null && !canRequestAds, false);
+        AdError error = formError != null ? umpError(formError)
+            : cause == null ? null : AdErrors.from(AdErrorCode.INTERNAL_ERROR, AdErrorStage.CONFIG, cause, null);
+        finishFlow(action, errorMessage, (errorMessage != null || cause != null) && !canRequestAds, false, error);
+    }
+
+    private static AdError umpError(FormError error) {
+        return new AdError(AdErrorCode.INTERNAL_ERROR, AdErrorStage.CONFIG, error.getMessage(), null,
+            "UMP", String.valueOf(error.getErrorCode()), null);
     }
 
     static String getConsentString(Context context) {
@@ -381,7 +400,8 @@ final class AdConsentManager {
         Context context,
         ConsentAction action,
         String errorMessage,
-        boolean deferred
+        boolean deferred,
+        AdError error
     ) {
         ConsentInformation information = consentInformation;
         StoredConsentSnapshot snapshotData = context == null
@@ -399,7 +419,8 @@ final class AdConsentManager {
             information != null && information.isConsentFormAvailable(),
             privacyOptionsStatus,
             snapshotData.toLogString(),
-            snapshotData
+            snapshotData,
+            error
         );
     }
 
@@ -409,15 +430,28 @@ final class AdConsentManager {
         boolean allowRetry,
         boolean deferred
     ) {
+        finishFlow(action, errorMessage, allowRetry, deferred, null);
+    }
+
+    private static void finishFlow(
+        ConsentAction action,
+        String errorMessage,
+        boolean allowRetry,
+        boolean deferred,
+        AdError error
+    ) {
         Result result = buildResult(
             hostActivityRef == null || hostActivityRef.get() == null
                 ? null
                 : hostActivityRef.get().getApplicationContext(),
             action,
             errorMessage,
-            deferred
+            deferred,
+            error
         );
         state = allowRetry && !result.canRequestAds ? State.IDLE : State.COMPLETE;
+        SdkLog.i(TAG, "finished action=" + action + " state=" + state + " canRequestAds=" + result.canRequestAds
+            + " reason=" + errorMessage + " error=" + error + " callbacks=" + PENDING_CALLBACKS.size());
 
         List<Callback> callbacks = new ArrayList<>(PENDING_CALLBACKS);
         PENDING_CALLBACKS.clear();

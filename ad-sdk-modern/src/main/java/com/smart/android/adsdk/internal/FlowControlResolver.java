@@ -8,6 +8,10 @@ interface FlowControlResolver {
 
         void onBlocked(String reason);
 
+        default void onBlocked(String reason, com.smart.android.adsdk.AdError error) {
+            onBlocked(reason);
+        }
+
         void onError(Throwable error);
     }
 }

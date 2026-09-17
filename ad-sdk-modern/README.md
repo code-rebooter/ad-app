@@ -95,7 +95,9 @@ AdSession session = AdSdk.play(
 
         @Override
         public void onFinished(AdSession session, AdResult result) {
-            if (result.getStatus() == AdResultStatus.ERROR) {
+            Log.i("AdSdk", "onFinished status=" + result.getStatus()
+                + ", reason=" + result.getReason());
+            if (result.getError() != null) {
                 Log.e("AdSdk", result.getError().getMessage(), result.getError().getCause());
             }
         }
@@ -113,3 +115,9 @@ session.release();
 ```
 
 广告容器销毁时必须调用 `release()`。
+
+一次 `AdSdk.play()` 处理一轮广告，`onFinished` 表示本轮结束，状态可能是 `COMPLETED`、`SKIPPED`、`ERROR` 或 `CANCELLED`。需要下一轮广告时，由接入方按业务间隔再次调用 `AdSdk.play()`；已结束的 session 不能通过 `resume()` 重新播放。
+
+## 6. 本地待发布的诊断增强
+
+当前源码新增了系统属性日志、`onFinished` 自动输出结束详情和原始错误码回传，使用方法见 [诊断日志说明](DIAGNOSTICS.md)。这些改动尚未发布，不包含在上面的远程 `v1.0.15` 中；依赖坐标保持原样，待发布时再更新。

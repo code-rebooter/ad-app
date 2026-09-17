@@ -32,6 +32,12 @@ final class RemoteAdConfigParser {
             }
 
             JsonObject root = rootElement.getAsJsonObject();
+            JsonElement businessCode = root.get("code");
+            if (businessCode != null && !businessCode.isJsonNull()
+                && businessCode.getAsInt() != SUCCESS_CODE && businessCode.getAsInt() != HTTP_STYLE_SUCCESS_CODE) {
+                AdResponseException error = AdResponseException.api(responseBody, businessCode.getAsString());
+                throw new RemoteAdConfigParseException(error.getMessage(), error);
+            }
             JsonObject data = resolveDataObject(root);
             if (data == null) {
                 return RemoteAdConfigResult.skipped("NO_CONFIG_DATA");
@@ -65,17 +71,13 @@ final class RemoteAdConfigParser {
         } catch (RemoteAdConfigParseException error) {
             throw error;
         } catch (RuntimeException error) {
-            throw new RemoteAdConfigParseException("Unable to parse ad config response", error);
+            throw new RemoteAdConfigParseException(error.getMessage(), error);
         }
     }
 
     private JsonObject resolveDataObject(JsonObject root) throws RemoteAdConfigParseException {
         if (!root.has("code")) {
             return root;
-        }
-        int code = root.get("code").getAsInt();
-        if (code != SUCCESS_CODE && code != HTTP_STYLE_SUCCESS_CODE) {
-            throw new RemoteAdConfigParseException("ad config business code was " + code);
         }
         JsonElement dataElement = root.get("data");
         if (dataElement == null || dataElement.isJsonNull()) {

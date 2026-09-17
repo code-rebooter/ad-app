@@ -2,7 +2,6 @@ package com.smart.android.adsdk.internal;
 
 import android.content.Context;
 import android.os.Build;
-import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -93,7 +92,7 @@ final class AdConsentResolver implements ConsentResolver {
                     }
                     String pendingAction = getPendingRemoteAction(appContext);
                     if (pendingAction != null) {
-                        Log.i(TAG, "Retry pending CMP action locally without requesting another decision: "
+                        SdkLog.i(TAG, "Retry pending CMP action locally without requesting another decision: "
                             + pendingAction);
                         applyDecision(
                             result,
@@ -117,7 +116,8 @@ final class AdConsentResolver implements ConsentResolver {
                     }
                     if (!result.canRequestAds && !result.formAvailable) {
                         completion.complete(() -> callback.onBlocked(
-                            result.errorMessage == null ? "UMP_CONSENT_FORM_UNAVAILABLE" : result.errorMessage
+                            result.errorMessage == null ? "UMP_CONSENT_FORM_UNAVAILABLE" : result.errorMessage,
+                            result.error
                         ));
                         return;
                     }
@@ -134,12 +134,8 @@ final class AdConsentResolver implements ConsentResolver {
                 }
             );
         } catch (RuntimeException error) {
-            completion.complete(() -> callback.onError(new AdError(
-                AdErrorCode.INTERNAL_ERROR,
-                AdErrorStage.INTERNAL,
-                "Unable to start silent UMP consent flow",
-                error
-            )));
+            completion.complete(() -> callback.onError(AdErrors.from(
+                AdErrorCode.INTERNAL_ERROR, AdErrorStage.INTERNAL, error, null)));
         }
 
         return () -> {
@@ -170,11 +166,12 @@ final class AdConsentResolver implements ConsentResolver {
                     return;
                 }
                 if (error != null || isBlank(decision)) {
-                    Log.w(TAG, "CMP decision unavailable, error=" + valueOrEmpty(error));
+                    SdkLog.w(TAG, "CMP decision unavailable, error=" + error);
                     if (initialResult.canRequestAds) {
                         completion.complete(callback::onAllowed);
                     } else {
-                        completion.complete(() -> callback.onBlocked("CMP_DECISION_UNAVAILABLE"));
+                        completion.complete(() -> callback.onBlocked(
+                            error == null ? "CMP_DECISION_UNAVAILABLE" : error.getMessage(), error));
                     }
                     return;
                 }
@@ -238,14 +235,18 @@ final class AdConsentResolver implements ConsentResolver {
                 if (initialResult.canRequestAds) {
                     completion.complete(callback::onAllowed);
                 } else {
-                    completion.complete(() -> callback.onBlocked("UMP_CONSENT_NOT_READY"));
+                    completion.complete(() -> callback.onBlocked(
+                        initialResult.errorMessage == null ? "UMP_CONSENT_NOT_READY" : initialResult.errorMessage,
+                        initialResult.error));
                 }
                 break;
             default:
                 if (initialResult.canRequestAds) {
                     completion.complete(callback::onAllowed);
                 } else {
-                    completion.complete(() -> callback.onBlocked("UNKNOWN_CMP_DECISION"));
+                    completion.complete(() -> callback.onBlocked(
+                        initialResult.errorMessage == null ? "UNKNOWN_CMP_DECISION" : initialResult.errorMessage,
+                        initialResult.error));
                 }
                 break;
         }
@@ -265,7 +266,7 @@ final class AdConsentResolver implements ConsentResolver {
             context,
             action,
             result -> {
-                if (result.canRequestAds && isBlank(result.errorMessage)) {
+                if (result.canRequestAds && isBlank(result.errorMessage) && result.error == null) {
                     persistLastAppliedRemoteAction(context, reportAction);
                     clearPendingRemoteAction(context);
                     if (isReportableAction(reportAction)) {
@@ -283,7 +284,8 @@ final class AdConsentResolver implements ConsentResolver {
                     completion.complete(callback::onAllowed);
                 } else {
                     completion.complete(() -> callback.onBlocked(
-                        result.errorMessage == null ? "UMP_DID_NOT_ALLOW_AD_REQUEST" : result.errorMessage
+                        result.errorMessage == null ? "UMP_DID_NOT_ALLOW_AD_REQUEST" : result.errorMessage,
+                        result.error
                     ));
                 }
             }
@@ -308,7 +310,7 @@ final class AdConsentResolver implements ConsentResolver {
             }
             return normalized;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to read pending CMP action", error);
+            SdkLog.w(TAG, "Unable to read pending CMP action", error);
             clearPendingRemoteAction(context);
             return null;
         }
@@ -324,7 +326,7 @@ final class AdConsentResolver implements ConsentResolver {
                 .putString(KEY_PENDING_REMOTE_ACTION, action)
                 .apply();
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to persist pending CMP action", error);
+            SdkLog.w(TAG, "Unable to persist pending CMP action", error);
         }
     }
 
@@ -338,7 +340,7 @@ final class AdConsentResolver implements ConsentResolver {
             String normalized = action.trim().toUpperCase(Locale.US);
             return isReportableAction(normalized) ? normalized : null;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to read last applied CMP action", error);
+            SdkLog.w(TAG, "Unable to read last applied CMP action", error);
             return null;
         }
     }
@@ -353,7 +355,7 @@ final class AdConsentResolver implements ConsentResolver {
                 .putString(KEY_LAST_APPLIED_REMOTE_ACTION, action)
                 .apply();
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to persist last applied CMP action", error);
+            SdkLog.w(TAG, "Unable to persist last applied CMP action", error);
         }
     }
 
@@ -364,7 +366,7 @@ final class AdConsentResolver implements ConsentResolver {
                 .remove(KEY_PENDING_REMOTE_ACTION)
                 .apply();
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to clear pending CMP action", error);
+            SdkLog.w(TAG, "Unable to clear pending CMP action", error);
         }
     }
 
@@ -406,7 +408,7 @@ final class AdConsentResolver implements ConsentResolver {
     }
 
     private interface DecisionCallback {
-        void onResult(String decision, String error);
+        void onResult(String decision, AdError error);
     }
 
     private interface ReportCallback {
@@ -451,25 +453,42 @@ final class AdConsentResolver implements ConsentResolver {
             call.enqueue(new okhttp3.Callback() {
                 @Override
                 public void onFailure(Call call, IOException error) {
-                    onResult.onResult(null, error.getMessage() == null ? "network error" : error.getMessage());
+                    onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, error, null));
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) {
+                    String body = null;
                     try (Response closeableResponse = response) {
+                        ResponseBody responseBody = closeableResponse.body();
+                        body = responseBody == null ? "" : responseBody.string();
                         if (!closeableResponse.isSuccessful()) {
-                            onResult.onResult(null, "HTTP " + closeableResponse.code());
+                            onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                                AdResponseException.http(closeableResponse.code(), closeableResponse.message(), body), body));
                             return;
                         }
-                        ResponseBody responseBody = closeableResponse.body();
-                        String body = responseBody == null ? "" : responseBody.string();
+                        JsonElement root = JsonParser.parseString(body);
+                        if (root.isJsonObject() && root.getAsJsonObject().has("code")) {
+                            int code = root.getAsJsonObject().get("code").getAsInt();
+                            if (code != SUCCESS_CODE && code != HTTP_STYLE_SUCCESS_CODE) {
+                                onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                                    AdResponseException.api(body, String.valueOf(code)), body));
+                                return;
+                            }
+                        }
                         try {
-                            onResult.onResult(parseDecisionAction(body), null);
+                            String decision = parseDecisionAction(body);
+                            onResult.onResult(decision, !isSupportedDecision(decision)
+                                ? AdErrors.from(AdErrorCode.CONFIG_PARSE_ERROR, AdErrorStage.CONFIG,
+                                    AdResponseException.api(body, "CMP_DECISION_UNAVAILABLE"), body)
+                                : null);
                         } catch (RuntimeException error) {
-                            onResult.onResult(null, error.getMessage() == null ? "parse error" : error.getMessage());
+                            onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_PARSE_ERROR, AdErrorStage.CONFIG, error, body));
                         }
                     } catch (IOException error) {
-                        onResult.onResult(null, error.getMessage() == null ? "network error" : error.getMessage());
+                        onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, error, body));
+                    } catch (RuntimeException error) {
+                        onResult.onResult(null, AdErrors.from(AdErrorCode.CONFIG_PARSE_ERROR, AdErrorStage.CONFIG, error, body));
                     }
                 }
             });
@@ -497,14 +516,17 @@ final class AdConsentResolver implements ConsentResolver {
             call.enqueue(new okhttp3.Callback() {
                 @Override
                 public void onFailure(Call call, IOException error) {
-                    onResult.onResult(error.getMessage() == null ? "network error" : error.getMessage());
+                    SdkLog.e(TAG, "consent-report failed", error);
+                    onResult.onResult(error.getMessage() == null ? error.toString() : error.getMessage());
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) {
                     try (Response closeableResponse = response) {
                         if (!closeableResponse.isSuccessful()) {
-                            onResult.onResult("HTTP " + closeableResponse.code());
+                            SdkLog.w(TAG, "consent-report HTTP=" + closeableResponse.code()
+                                + " message=" + closeableResponse.message());
+                            onResult.onResult(closeableResponse.message());
                             return;
                         }
                         onResult.onResult(null);
@@ -531,13 +553,23 @@ final class AdConsentResolver implements ConsentResolver {
             return isBlank(value) ? null : value.trim();
         }
 
+        private boolean isSupportedDecision(String decision) {
+            if (isBlank(decision)) return false;
+            switch (decision.trim().toUpperCase(Locale.US)) {
+                case ACTION_ACCEPT_ALL:
+                case ACTION_REJECT:
+                case ACTION_SAVE_SETTINGS:
+                case ACTION_MAYBE_LATER:
+                case ACTION_SKIP_ALREADY_DECIDED:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         private JsonObject resolveDataObject(JsonObject root) {
             if (!root.has("code")) {
                 return root;
-            }
-            int code = root.get("code").getAsInt();
-            if (code != SUCCESS_CODE && code != HTTP_STYLE_SUCCESS_CODE) {
-                throw new IllegalStateException("CMP decision business code was " + code);
             }
             JsonElement dataElement = root.get("data");
             if (dataElement == null || dataElement.isJsonNull()) {

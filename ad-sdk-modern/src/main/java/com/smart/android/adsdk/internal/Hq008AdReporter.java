@@ -69,20 +69,30 @@ final class Hq008AdReporter {
     }
 
     void finished(String requestId, long createdAtMs, AdResult result) {
+        Map<String, Object> diagnostics = baseDiagnostics(createdAtMs);
+        diagnostics.put("status", result.getStatus().name());
+        diagnostics.put("reason", result.getReason());
+        AdError error = result.getError();
+        if (error != null) {
+            diagnostics.put("errorSource", error.getSource());
+            diagnostics.put("originalCode", error.getOriginalCode());
+            diagnostics.put("originalMessage", error.getMessage());
+            diagnostics.put("errorStage", error.getStage().name());
+            diagnostics.put("responseBody", error.getResponseBody());
+        }
         if (result.getStatus() == AdResultStatus.COMPLETED) {
-            report(requestId, EVENT_COMPLETED, "COMPLETED", baseDiagnostics(createdAtMs));
+            report(requestId, EVENT_COMPLETED, "COMPLETED", diagnostics);
         } else if (result.getStatus() == AdResultStatus.ERROR) {
-            AdError error = result.getError();
             report(
                 requestId,
                 EVENT_ERROR,
                 error == null ? "AD_ERROR" : error.getMessage(),
-                baseDiagnostics(createdAtMs)
+                diagnostics
             );
         } else if (result.getStatus() == AdResultStatus.SKIPPED) {
-            report(requestId, EVENT_ERROR, result.getReason(), baseDiagnostics(createdAtMs));
+            report(requestId, EVENT_ERROR, result.getMessage(), diagnostics);
         } else if (result.getStatus() == AdResultStatus.CANCELLED) {
-            report(requestId, EVENT_ERROR, "CANCELLED", baseDiagnostics(createdAtMs));
+            report(requestId, EVENT_ERROR, "CANCELLED", diagnostics);
         }
     }
 
@@ -115,7 +125,7 @@ final class Hq008AdReporter {
         body.put("app_id", deviceInfo.packageName);
         body.put("make", deviceInfo.make);
         body.put("model", deviceInfo.model);
-        body.put("message", message == null || message.trim().isEmpty() ? "AD_ERROR" : message);
+        body.put("message", message == null ? "" : message);
         body.put("diagnostic_info", gson.toJson(diagnostics));
         Request request = new Request.Builder()
             .url(reportUrl)
@@ -126,10 +136,13 @@ final class Hq008AdReporter {
         call.enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(Call call, java.io.IOException error) {
+                SdkLog.e("AdSdkReport", "requestId=" + requestId + " event=" + eventType + " report failed", error);
             }
 
             @Override
             public void onResponse(Call call, okhttp3.Response response) {
+                SdkLog.i("AdSdkReport", "requestId=" + requestId + " event=" + eventType
+                    + " report HTTP=" + response.code());
                 response.close();
             }
         });

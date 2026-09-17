@@ -11,6 +11,10 @@ public interface ConsentResolver {
 
         void onBlocked(String reason);
 
+        default void onBlocked(String reason, AdError error) {
+            onBlocked(reason);
+        }
+
         void onError(AdError error);
     }
 }

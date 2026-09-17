@@ -6,6 +6,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.smart.android.adsdk.AdError;
+import com.smart.android.adsdk.AdErrorCode;
+import com.smart.android.adsdk.AdErrorStage;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -74,22 +77,26 @@ final class FlowControlClient implements FlowControlResolver {
 
             @Override
             public void onResponse(Call call, Response response) {
+                String raw = null;
                 try (Response closeableResponse = response) {
+                    ResponseBody responseBody = closeableResponse.body();
+                    raw = responseBody == null ? "" : responseBody.string();
                     if (!closeableResponse.isSuccessful()) {
-                        callback.onError(new IOException("flow-control HTTP status " + closeableResponse.code()));
+                        callback.onError(AdResponseException.http(closeableResponse.code(), closeableResponse.message(), raw));
                         return;
                     }
-                    ResponseBody responseBody = closeableResponse.body();
-                    JsonObject data = parseDataObject(
-                        responseBody == null ? "" : responseBody.string()
-                    );
+                    JsonObject data = parseDataObject(raw);
                     if (readBoolean(data, "enabled", false)) {
+                        SdkLog.i("AdSdk", "flow-control allowed skip_cmp=" + readBoolean(data, "skip_cmp", false));
                         callback.onAllowed(readBoolean(data, "skip_cmp", false));
                     } else {
-                        callback.onBlocked("FLOW_CONTROL_DISABLED");
+                        AdError error = AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                            AdResponseException.api(raw, "FLOW_CONTROL_DISABLED"), raw);
+                        callback.onBlocked(AdResponseException.reason(raw, "FLOW_CONTROL_DISABLED"), error);
                     }
                 } catch (Throwable error) {
-                    callback.onError(error);
+                    callback.onError(raw != null && !(error instanceof AdResponseException)
+                        ? AdResponseException.parsing(error, raw) : error);
                 }
             }
         });
@@ -109,7 +116,7 @@ final class FlowControlClient implements FlowControlResolver {
         if (codeElement != null && !codeElement.isJsonNull()) {
             int code = codeElement.getAsInt();
             if (code != SUCCESS_CODE && code != HTTP_STYLE_SUCCESS_CODE) {
-                throw new IOException("flow-control business code was " + code);
+                throw AdResponseException.api(raw, String.valueOf(code));
             }
         }
         JsonElement result = root.get("result");

@@ -129,31 +129,34 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
             @Override
             public void onFailure(Call call, IOException error) {
                 if (!sequence.isCancelled()) {
-                    callback.onResolved(RemoteAdConfigResult.skipped("AUTHORIZE_FAIL"));
+                    finishAuthorizeFailure(callback, AdErrorCode.CONFIG_NETWORK_ERROR, error, null);
                 }
             }
 
             @Override
             public void onResponse(Call call, Response response) {
+                String raw = null;
                 try (Response closeableResponse = response) {
                     if (sequence.isCancelled()) {
                         return;
                     }
+                    ResponseBody responseBody = closeableResponse.body();
+                    raw = responseBody == null ? "" : responseBody.string();
                     if (!closeableResponse.isSuccessful()) {
-                        callback.onResolved(RemoteAdConfigResult.skipped("AUTHORIZE_FAIL"));
+                        finishAuthorizeFailure(callback, AdErrorCode.CONFIG_HTTP_ERROR,
+                            AdResponseException.http(closeableResponse.code(), closeableResponse.message(), raw), raw);
                         return;
                     }
-                    ResponseBody responseBody = closeableResponse.body();
-                    JsonObject data = parseDataObject(
-                        responseBody == null ? "" : responseBody.string(),
-                        "authorize"
-                    );
+                    JsonObject data = parseDataObject(raw, "authorize");
                     String resolvedRequestId = readString(data, "request_id");
                     if (resolvedRequestId.isEmpty()) {
                         resolvedRequestId = requestId;
                     }
                     if (!readBoolean(data, "authorized", false)) {
-                        callback.onResolved(RemoteAdConfigResult.skipped("AUTHORIZE_DENIED"));
+                        AdError error = AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                            AdResponseException.api(raw, "AUTHORIZE_DENIED"), raw);
+                        callback.onResolved(RemoteAdConfigResult.skipped(
+                            AdResponseException.reason(raw, "AUTHORIZE_DENIED"), error));
                         return;
                     }
                     Long callbackTimeoutSeconds = readNullableLong(
@@ -177,11 +180,18 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
                     requestGamConfig(channelId, flowConfig, resolvedRequestId, callback, sequence);
                 } catch (Throwable error) {
                     if (!sequence.isCancelled()) {
-                        callback.onResolved(RemoteAdConfigResult.skipped("AUTHORIZE_FAIL"));
+                        finishAuthorizeFailure(callback, AdErrorCode.CONFIG_PARSE_ERROR, error, raw);
                     }
                 }
             }
         });
+    }
+
+    private void finishAuthorizeFailure(
+        RemoteAdConfigResolver.Callback callback, AdErrorCode category, Throwable cause, String raw
+    ) {
+        AdError error = AdErrors.from(category, AdErrorStage.CONFIG, cause, raw);
+        callback.onResolved(RemoteAdConfigResult.skipped(error.getMessage(), error));
     }
 
     private void requestGamConfig(
@@ -202,40 +212,43 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
             @Override
             public void onFailure(Call call, IOException error) {
                 if (!sequence.isCancelled()) {
-                    callback.onError(new AdError(
-                        AdErrorCode.CONFIG_NETWORK_ERROR,
-                        AdErrorStage.CONFIG,
-                        "Unable to request ad config",
-                        error
-                    ));
+                    callback.onError(AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, error, null));
                 }
             }
 
             @Override
             public void onResponse(Call call, Response response) {
+                String raw = null;
                 try (Response closeableResponse = response) {
                     if (sequence.isCancelled()) {
                         return;
                     }
+                    ResponseBody responseBody = closeableResponse.body();
+                    raw = responseBody == null ? "" : responseBody.string();
                     if (!closeableResponse.isSuccessful()) {
-                        callback.onError(new AdError(
-                            AdErrorCode.CONFIG_HTTP_ERROR,
-                            AdErrorStage.CONFIG,
-                            "ad config HTTP status " + closeableResponse.code(),
-                            null
-                        ));
+                        callback.onError(AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                            AdResponseException.http(closeableResponse.code(), closeableResponse.message(), raw), raw));
                         return;
                     }
-                    ResponseBody responseBody = closeableResponse.body();
                     if (responseBody == null) {
                         callback.onError(parseError("ad config response body was empty", null));
                         return;
                     }
                     try {
-                        callback.onResolved(parser.parse(responseBody.string(), flowConfig));
-                    } catch (RemoteAdConfigParseException | IOException error) {
-                        callback.onError(parseError("Unable to parse ad config response", error));
+                        RemoteAdConfigResult result = parser.parse(raw, flowConfig);
+                        if (!result.hasAd()) {
+                            AdError error = AdErrors.from(AdErrorCode.CONFIG_PARSE_ERROR, AdErrorStage.CONFIG,
+                                AdResponseException.api(raw, result.getSkipReason()), raw);
+                            result = RemoteAdConfigResult.skipped(
+                                AdResponseException.reason(raw, result.getSkipReason()), error);
+                        }
+                        callback.onResolved(result);
+                    } catch (RemoteAdConfigParseException error) {
+                        Throwable original = error.getCause() == null ? error : error.getCause();
+                        callback.onError(AdErrors.from(AdErrorCode.CONFIG_PARSE_ERROR, AdErrorStage.CONFIG, original, raw));
                     }
+                } catch (IOException error) {
+                    callback.onError(AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, error, raw));
                 }
             }
         });
@@ -291,7 +304,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         if (codeElement != null && !codeElement.isJsonNull()) {
             int code = codeElement.getAsInt();
             if (code != SUCCESS_CODE && code != HTTP_STYLE_SUCCESS_CODE) {
-                throw new IOException(label + " business code was " + code);
+                throw AdResponseException.api(raw, String.valueOf(code));
             }
         }
         JsonElement result = root.get("result");

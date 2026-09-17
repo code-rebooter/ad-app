@@ -19,6 +19,10 @@ public final class AdResult {
         return new AdResult(AdResultStatus.SKIPPED, reason, null);
     }
 
+    public static AdResult skipped(String reason, AdError error) {
+        return new AdResult(AdResultStatus.SKIPPED, reason, error);
+    }
+
     public static AdResult error(AdError error) {
         return new AdResult(AdResultStatus.ERROR, null, error);
     }
@@ -37,5 +41,18 @@ public final class AdResult {
 
     public AdError getError() {
         return error;
+    }
+
+    public String getMessage() {
+        if (error != null && error.getMessage() != null) {
+            return error.getMessage();
+        }
+        return reason == null ? status.name() : reason;
+    }
+
+    @Override
+    public String toString() {
+        return "AdResult{status=" + status + ", message=" + getMessage()
+            + ", reason=" + reason + ", error=" + error + "}";
     }
 }

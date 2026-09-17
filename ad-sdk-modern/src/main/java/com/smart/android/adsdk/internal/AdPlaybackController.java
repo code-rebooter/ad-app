@@ -5,6 +5,9 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.LayoutInflater;
+import android.view.TextureView;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import com.google.ads.interactivemedia.v3.api.AdEvent;
@@ -21,6 +24,7 @@ import androidx.media3.ui.PlayerView;
 import com.smart.android.adsdk.AdError;
 import com.smart.android.adsdk.AdErrorCode;
 import com.smart.android.adsdk.AdErrorStage;
+import com.smart.android.adsdk.modern.R;
 
 final class AdPlaybackController implements AdPlayer {
     private static final long SILENCE_CONTENT_DURATION_US = 60_000_000L;
@@ -90,7 +94,17 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void createPlayer(int adLoadTimeoutMs) {
-        playerView = new PlayerView(context);
+        // TextureView participates in the normal view hierarchy, so the entire video obeys
+        // adRoot alpha on every supported Android version (SurfaceView uses a separate surface).
+        playerView = (PlayerView) LayoutInflater.from(container.getContext()).inflate(
+            R.layout.ad_sdk_modern_player_view, container, false
+        );
+        View videoSurface = playerView.getVideoSurfaceView();
+        if (!(videoSurface instanceof TextureView)) {
+            throw new IllegalStateException("SDK player layout must use TextureView");
+        }
+        ((TextureView) videoSurface).setOpaque(false);
+        videoSurface.setAlpha(hiddenMode ? 0f : 1f);
         playerView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
@@ -98,7 +112,8 @@ final class AdPlaybackController implements AdPlayer {
         playerView.setUseController(false);
         playerView.setControllerHideDuringAds(true);
         playerView.setKeepContentOnPlayerReset(false);
-        playerView.setShutterBackgroundColor(Color.BLACK);
+        playerView.setShutterBackgroundColor(Color.TRANSPARENT);
+        playerView.setBackgroundColor(Color.TRANSPARENT);
 
         adsLoader = new ImaAdsLoader.Builder(context)
             .setMediaLoadTimeoutMs(adLoadTimeoutMs)
@@ -139,6 +154,7 @@ final class AdPlaybackController implements AdPlayer {
 
             @Override
             public void onRenderedFirstFrame() {
+                listener.onTrace("AD_FIRST_FRAME", "hiddenMode=" + hiddenMode);
                 eventGate.markFirstFrame();
                 revealWhenReady();
             }
@@ -166,10 +182,11 @@ final class AdPlaybackController implements AdPlayer {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        adRoot.setBackgroundColor(Color.BLACK);
+        adRoot.setBackgroundColor(Color.TRANSPARENT);
         adRoot.setAlpha(0f);
         adRoot.addView(playerView);
         container.addView(adRoot);
+        traceDisplay("attached");
     }
 
     private AdsMediaSource createAdMediaSource(String adTagUrl) {
@@ -249,10 +266,31 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void revealWhenReady() {
-        if (eventGate.consumeRevealReady() && adRoot != null && !hiddenMode) {
+        if (adRoot == null) return;
+        if (hiddenMode) {
+            adRoot.animate().cancel();
+            adRoot.setAlpha(0f);
+            traceDisplay("kept_hidden");
+            return;
+        }
+        if (eventGate.consumeRevealReady()) {
             adRoot.animate().cancel();
             adRoot.animate().alpha(1f).setDuration(150L).start();
+            traceDisplay("revealing_after_first_frame");
         }
+    }
+
+    private void traceDisplay(String action) {
+        View surface = playerView == null ? null : playerView.getVideoSurfaceView();
+        String details = "action=" + action + " hiddenMode=" + hiddenMode
+            + " surface=" + (surface == null ? "none" : surface.getClass().getSimpleName())
+            + " adRootAlpha=" + (adRoot == null ? "none" : adRoot.getAlpha())
+            + " surfaceAlpha=" + (surface == null ? "none" : surface.getAlpha())
+            + " hostAlpha=" + container.getAlpha()
+            + " hostVisibility=" + container.getVisibility()
+            + " hardwareAccelerated=" + container.isHardwareAccelerated();
+        SdkLog.i("AdSdkPlayer", details);
+        listener.onTrace("AD_DISPLAY_STATE", details);
     }
 
     private void complete() {
@@ -312,6 +350,11 @@ final class AdPlaybackController implements AdPlayer {
 
     private void releasePlayerResources() {
         clearStartupTimeout();
+        // Hide before tearing down the texture to avoid exposing an empty frame during release.
+        if (adRoot != null) {
+            adRoot.animate().cancel();
+            adRoot.setAlpha(0f);
+        }
         if (adsLoader != null) {
             adsLoader.setPlayer(null);
             adsLoader.release();

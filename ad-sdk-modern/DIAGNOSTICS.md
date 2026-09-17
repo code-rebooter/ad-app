@@ -74,3 +74,7 @@ public void onFinished(AdSession session, AdResult result) {
 `v1.0.16` 也会在每轮广告结束时，按后台 `popup_log_enabled` 开关上传整轮流程。它与本地 `persist.sys.ad.log` 开关独立，具体字段和适用范围见 [通用 SDK 流程同步说明](FLOW_SYNC.md)。
 
 本地结束日志新增 `phase` 和单调时钟计算的 `elapsedMs`。即使没有进入广告播放，也能判断停在流控、CMP、授权还是广告配置阶段。
+
+## v1.0.17 显示诊断
+
+`AD_DISPLAY_STATE` 记录 `hiddenMode`、实际视频视图类型、广告父层与视频层 alpha、宿主可见性及 `hardwareAccelerated`；`AD_FIRST_FRAME` 记录视频首帧到达。容器挂载后应看到 `surface=TextureView`、`hardwareAccelerated=true`；隐藏模式的广告父层与视频层 alpha 均为 0。容器未挂载时硬件加速状态不作为判断依据。

@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.16'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.17'
 ```
 
 ## 1. 仓库
@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.16'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.17'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```
@@ -46,7 +46,7 @@ dependencies {
 - 这个版本包含 Google UMP/CMP 流程。
 - 不要和 `ad-sdk`、`ad-sdk-modern-no-ump`、`ad-sdk-gam-vast` 同时接入。
 
-本地待发布的显示修复使用 `TextureView`，并在 SDK 清单中声明默认开启硬件加速；上面的远程 `v1.0.16` 尚不包含这些改动。宿主没有显式关闭时通常无需额外设置。`FloatingAdService` 悬浮窗创建参数、Activity 配置与实际状态确认方式见 [显示修复与硬件加速说明](DISPLAY_FIX.md#硬件加速配置)。
+`v1.0.17` 使用 `TextureView` 修复隐藏模式和起播黑底，并在 SDK 清单中声明默认开启硬件加速。宿主没有显式关闭时通常无需额外设置。`FloatingAdService` 悬浮窗创建参数、Activity 配置与实际状态确认方式见 [显示修复与硬件加速说明](DISPLAY_FIX.md#硬件加速配置)。
 
 ### HQ002 锁屏渠道配置
 
@@ -145,3 +145,7 @@ adb shell getprop persist.sys.ad.log
 - 后台 `sound_mode` 决定本轮播放声音；未返回时使用 `AdRequest` 设置。播放过程中可调用 `session.setSoundEnabled()`。
 - 后台 `hidden_mode` 控制 SDK 创建的内部广告层显隐，不直接改变传入的整个 `ViewGroup`。宿主容器自身的背景和其他子视图由宿主管理，隐藏模式不会自动静音。
 - CMP 远端决策失败或未知时，仍按现有 UMP 状态决定是否继续。未增加屏保专用接口、每日累计统计或自动轮询。
+
+## 8. v1.0.17 显示修复
+
+隐藏模式同时隐藏内部广告层和视频纹理；可见模式在 IMA STARTED 与视频首帧都到达后渐显。播放器背景和起播遮罩改为透明，释放前先隐藏内部广告层。新增 `AD_DISPLAY_STATE` 与 `AD_FIRST_FRAME` 诊断，仍受 `persist.sys.ad.log` 控制。声音 API 和后台声音优先级保持兼容。硬件加速接入方式与设备验证范围见 [显示修复说明](DISPLAY_FIX.md)。

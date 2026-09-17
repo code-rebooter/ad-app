@@ -1,6 +1,6 @@
-# 通用 SDK 流程同步说明（v1.0.16）
+# 通用 SDK 流程同步说明（v1.0.16 起）
 
-适用依赖：`com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.16`。`v1.0.15` 不包含这些新增能力。
+当前依赖：`com.github.code-rebooter.ad-app:ad-sdk-modern:v1.0.17`；本页流程能力从 `v1.0.16` 起提供。`v1.0.15` 不包含这些新增能力。
 
 ## 同步范围
 

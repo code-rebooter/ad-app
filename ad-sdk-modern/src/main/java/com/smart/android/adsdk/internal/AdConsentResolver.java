@@ -90,8 +90,12 @@ final class AdConsentResolver implements ConsentResolver {
                     if (cancelled.get() || completed.get()) {
                         return;
                     }
+                    callback.onTrace("CMP_STATUS", "canRequestAds=" + result.canRequestAds
+                        + " formAvailable=" + result.formAvailable + " privacyOptionsStatus="
+                        + result.privacyOptionsStatus + " error=" + result.error);
                     String pendingAction = getPendingRemoteAction(appContext);
                     if (pendingAction != null) {
+                        callback.onTrace("CMP_PENDING_RETRY", pendingAction);
                         SdkLog.i(TAG, "Retry pending CMP action locally without requesting another decision: "
                             + pendingAction);
                         applyDecision(
@@ -167,6 +171,7 @@ final class AdConsentResolver implements ConsentResolver {
                 }
                 if (error != null || isBlank(decision)) {
                     SdkLog.w(TAG, "CMP decision unavailable, error=" + error);
+                    callback.onTrace("CMP_DECISION_UNAVAILABLE", "action=" + decision + " error=" + error);
                     if (initialResult.canRequestAds) {
                         completion.complete(callback::onAllowed);
                     } else {
@@ -191,6 +196,7 @@ final class AdConsentResolver implements ConsentResolver {
         ConsentResolver.Callback callback
     ) {
         String normalizedDecision = decision.trim().toUpperCase(Locale.US);
+        callback.onTrace("CMP_DECISION", "action=" + normalizedDecision);
         String lastAppliedAction = getLastAppliedRemoteAction(context);
         if (initialResult.canRequestAds
             && isSameEffectiveAction(lastAppliedAction, normalizedDecision)) {
@@ -227,7 +233,10 @@ final class AdConsentResolver implements ConsentResolver {
                     context,
                     channelId,
                     ACTION_MAYBE_LATER,
-                    error -> completion.complete(callback::onAllowed)
+                    error -> {
+                        callback.onTrace("CONSENT_REPORT_RESULT", "action=MAYBE_LATER error=" + error);
+                        completion.complete(callback::onAllowed);
+                    }
                 );
                 networkCallTracker.track(reportCall);
                 break;
@@ -241,6 +250,7 @@ final class AdConsentResolver implements ConsentResolver {
                 }
                 break;
             default:
+                callback.onTrace("CMP_DECISION_UNAVAILABLE", "unknown action=" + normalizedDecision);
                 if (initialResult.canRequestAds) {
                     completion.complete(callback::onAllowed);
                 } else {
@@ -261,11 +271,16 @@ final class AdConsentResolver implements ConsentResolver {
         Completion completion,
         ConsentResolver.Callback callback
     ) {
+        callback.onTrace("USER_ACTION_START", "action=" + reportAction);
         persistPendingRemoteAction(context, reportAction);
         AdConsentManager.requestConsent(
             context,
             action,
             result -> {
+                callback.onTrace(result.error == null && isBlank(result.errorMessage)
+                    && result.canRequestAds ? "USER_ACTION_SUCCESS" : "USER_ACTION_FAIL",
+                    "action=" + reportAction + " canRequestAds=" + result.canRequestAds
+                        + " error=" + result.error + " message=" + result.errorMessage);
                 if (result.canRequestAds && isBlank(result.errorMessage) && result.error == null) {
                     persistLastAppliedRemoteAction(context, reportAction);
                     clearPendingRemoteAction(context);
@@ -274,7 +289,10 @@ final class AdConsentResolver implements ConsentResolver {
                             context,
                             channelId,
                             reportAction,
-                            error -> completion.complete(callback::onAllowed)
+                            error -> {
+                                callback.onTrace("CONSENT_REPORT_RESULT", "action=" + reportAction + " error=" + error);
+                                completion.complete(callback::onAllowed);
+                            }
                         );
                         networkCallTracker.track(reportCall);
                     } else {

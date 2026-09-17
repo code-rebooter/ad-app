@@ -152,13 +152,6 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
                     if (resolvedRequestId.isEmpty()) {
                         resolvedRequestId = requestId;
                     }
-                    if (!readBoolean(data, "authorized", false)) {
-                        AdError error = AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
-                            AdResponseException.api(raw, "AUTHORIZE_DENIED"), raw);
-                        callback.onResolved(RemoteAdConfigResult.skipped(
-                            AdResponseException.reason(raw, "AUTHORIZE_DENIED"), error));
-                        return;
-                    }
                     Long callbackTimeoutSeconds = readNullableLong(
                         data,
                         "ad_callback_timeout_seconds"
@@ -174,8 +167,18 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
                         readBoolean(data, "hidden_mode", true),
                         readNullableBoolean(data, "sound_mode"),
                         readLong(data, "next_request_seconds", 0L),
-                        AdCallbackTimeoutPolicy.resolveOverrideMs(callbackTimeoutSeconds)
+                        AdCallbackTimeoutPolicy.resolveOverrideMs(callbackTimeoutSeconds),
+                        readString(data, "client_ip")
                     );
+                    callback.onAuthorizationResponse(flowConfig);
+                    if (!readBoolean(data, "authorized", false)) {
+                        AdError error = AdErrors.from(AdErrorCode.CONFIG_HTTP_ERROR, AdErrorStage.CONFIG,
+                            AdResponseException.api(raw, "AUTHORIZE_DENIED"), raw);
+                        callback.onTrace("AUTHORIZE_DENIED", error.toString());
+                        callback.onResolved(RemoteAdConfigResult.skipped(
+                            AdResponseException.reason(raw, "AUTHORIZE_DENIED"), error));
+                        return;
+                    }
                     callback.onAuthorized(flowConfig);
                     requestGamConfig(channelId, flowConfig, resolvedRequestId, callback, sequence);
                 } catch (Throwable error) {
@@ -191,6 +194,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         RemoteAdConfigResolver.Callback callback, AdErrorCode category, Throwable cause, String raw
     ) {
         AdError error = AdErrors.from(category, AdErrorStage.CONFIG, cause, raw);
+        callback.onTrace("AUTHORIZE_CALLBACK_FAIL", error.toString());
         callback.onResolved(RemoteAdConfigResult.skipped(error.getMessage(), error));
     }
 
@@ -201,6 +205,8 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         RemoteAdConfigResolver.Callback callback,
         FlowCallSequence sequence
     ) {
+        if (sequence.isCancelled()) return;
+        callback.onTrace("GAM_CONFIG_REQUEST", "requestId=" + requestId);
         DeviceInfo deviceInfo = deviceInfoOrEmpty();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel_id", channelId);
@@ -242,6 +248,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
                             result = RemoteAdConfigResult.skipped(
                                 AdResponseException.reason(raw, result.getSkipReason()), error);
                         }
+                        callback.onTrace("GAM_CONFIG_RESULT", "hasAd=" + result.hasAd());
                         callback.onResolved(result);
                     } catch (RemoteAdConfigParseException error) {
                         Throwable original = error.getCause() == null ? error : error.getCause();

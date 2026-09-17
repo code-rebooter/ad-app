@@ -86,6 +86,7 @@ final class FlowControlClient implements FlowControlResolver {
                         return;
                     }
                     JsonObject data = parseDataObject(raw);
+                    callback.onPopupLogEnabled(readBoolean(data, "popup_log_enabled", true));
                     if (readBoolean(data, "enabled", false)) {
                         SdkLog.i("AdSdk", "flow-control allowed skip_cmp=" + readBoolean(data, "skip_cmp", false));
                         callback.onAllowed(readBoolean(data, "skip_cmp", false));

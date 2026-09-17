@@ -4,6 +4,9 @@ interface FlowControlResolver {
     Cancellable resolve(String channelId, Callback callback);
 
     interface Callback {
+        default void onPopupLogEnabled(boolean enabled) {
+        }
+
         void onAllowed(boolean skipCmp);
 
         void onBlocked(String reason);

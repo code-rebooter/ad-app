@@ -187,6 +187,7 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void handleAdEvent(AdEvent event) {
+        listener.onTrace("IMA_EVENT", "type=" + event.getType() + " data=" + event.getAdData());
         SdkLog.i("AdSdkPlayer", "IMA event=" + event.getType() + " data=" + event.getAdData());
         switch (event.getType()) {
             case LOADED:

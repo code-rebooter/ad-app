@@ -6,6 +6,7 @@ final class FlowAuthorizedConfig {
     private final Boolean soundEnabled;
     private final long nextRequestSeconds;
     private final Long adCallbackTimeoutMs;
+    private final String clientIp;
 
     FlowAuthorizedConfig(
         String requestId,
@@ -23,11 +24,22 @@ final class FlowAuthorizedConfig {
         long nextRequestSeconds,
         Long adCallbackTimeoutMs
     ) {
+        this(requestId, hiddenMode, soundEnabled, nextRequestSeconds, adCallbackTimeoutMs, null);
+    }
+
+    FlowAuthorizedConfig(String requestId, boolean hiddenMode, Boolean soundEnabled,
+                         long nextRequestSeconds, Long adCallbackTimeoutMs, String clientIp) {
         this.requestId = requestId;
         this.hiddenMode = hiddenMode;
         this.soundEnabled = soundEnabled;
-        this.nextRequestSeconds = nextRequestSeconds;
+        this.nextRequestSeconds = nextRequestSeconds >= 10L && nextRequestSeconds <= 86_400L
+            ? nextRequestSeconds : 0L;
         this.adCallbackTimeoutMs = adCallbackTimeoutMs;
+        this.clientIp = clientIp;
+    }
+
+    String getClientIp() {
+        return clientIp;
     }
 
     String getRequestId() {

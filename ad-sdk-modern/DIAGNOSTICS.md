@@ -67,3 +67,10 @@ public void onFinished(AdSession session, AdResult result) {
 | `SDK` / `JSON` | 本地校验、超时或解析错误；不会编造上游数字码 |
 
 后台未提供原因时保留本地诊断原因，如 `FLOW_CONTROL_DISABLED`、`AUTHORIZE_DENIED` 或 `NO_AD_TAG`，同时记录完整响应；网络/HTTP/解析异常不再只返回 `AUTHORIZE_FAIL` 或 `FLOW_CONTROL_FAIL`。
+
+
+## 整轮流程与耗时
+
+当前源码也会在每轮广告结束时，按后台 `popup_log_enabled` 开关上传整轮流程。它与本地 `persist.sys.ad.log` 开关独立，具体字段和适用范围见 [通用 SDK 流程同步说明](FLOW_SYNC.md)。
+
+本地结束日志新增 `phase` 和单调时钟计算的 `elapsedMs`。即使没有进入广告播放，也能判断停在流控、CMP、授权还是广告配置阶段。

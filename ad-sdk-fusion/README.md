@@ -32,9 +32,15 @@ dependencies {
 
 模块带有三个 TCL 2.8.02 原厂 AAR 子项目，后续远程发布会通过 Maven 传递依赖一起下载。单独复制主 `ad-sdk-fusion-release.aar` 不包含这些依赖，也不包含 Media3、UMP 等 Maven 库。
 
-### TCL 初始化配置
+### TCL 无需额外配置
 
-融合版统一内置项目方提供的 TCL 登记配置，宿主继续只配置原来的 `adAppId` 和 `adChannelId`，无需额外传 TCL 包名、签名或初始化 metadata。
+**宿主只填写原来的 `adAppId` 和 `adChannelId`，无需再填写任何 TCL 登记配置。**
+
+- 不需要在 Manifest 或 `manifestPlaceholders` 中配置 `tcl_app_key`、`partner_name`、`project_id`、`ad_overseas_project_id`。
+- 不需要传入 TCL 包名、签名 MD5、应用名称、版本名称或版本号；宿主保持自己的 `applicationId`、签名和应用版本。
+- 不需要单独调用 TCL 初始化，也不需要传第二个渠道。继续使用本文的 `AdSdk.initialize()` 和 `AdSdk.play()`；TCL 渠道由原渠道追加 `_TCL`，与 Google 共用按原渠道选定的业务域名。
+
+以下为 SDK 内置登记值，仅供对照，无需复制到宿主配置：
 
 | TCL 字段 | 内置值 |
 | --- | --- |
@@ -52,7 +58,7 @@ TCL 2.8.02 的 base AAR 在构建时打补丁，把授权参数、初始化配�
 
 Android 的宿主包名、APK 签名、资源和 Manifest 查询仍使用宿主实际信息；Google 分支及我们后台上报的宿主信息保持原有来源。IAB 授权数据仍从宿主自己的 SharedPreferences 读取。
 
-原始 TCL AAR 保留在 `vendor/base/sdk.aar`，实际本地依赖及 Maven 发布都使用构建生成的补丁 AAR，详情见 [TCL AAR 说明](vendor/README.md)。HTTP 请求头 `XTCL-App` 同步使用内置登记包名。具体覆盖范围和原厂 `appBundle` 固定值见 [身份配置覆盖核对](TCL_IDENTITY_COVERAGE.md)。后续调整登记配置只需改 SDK 内部桥接配置，宿主无需重新设计接入参数。
+使用融合模块配套的 TCL 依赖，不要另外导入原厂 demo 的 AAR 替换它们。原始 TCL AAR 保留在 `vendor/base/sdk.aar`，实际本地依赖及 Maven 发布都使用构建生成的补丁 AAR，详情见 [TCL AAR 说明](vendor/README.md)。HTTP 请求头 `XTCL-App` 同步使用内置登记包名。具体覆盖范围和原厂 `appBundle` 固定值见 [身份配置覆盖核对](TCL_IDENTITY_COVERAGE.md)。后续调整登记配置只需改 SDK 内部桥接配置，宿主无需重新设计接入参数。
 
 ## 渠道与共用域名
 

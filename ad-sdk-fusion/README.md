@@ -33,7 +33,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-fusion:v1.0.18'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-fusion:v1.0.19'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```

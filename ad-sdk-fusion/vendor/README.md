@@ -45,6 +45,6 @@
 
 `settings.gradle` 不再包含三个 TCL 子项目；JitPack 仅执行融合主模块的发布任务。生成的 POM 和 Gradle module metadata 不包含 `ad-sdk-fusion-tcl-*` 依赖。
 
-已发布的 `v1.0.18` 使用原来的分模块方式；这里描述的是之后的单包构建方式，尚未发布新版本。
+单包构建已随 `v1.0.19` 发布。远程主 AAR、POM 和 Gradle module metadata 已下载核对，JitPack 产物列表不再包含三个 TCL 子模块。
 
 本地验证：单包 AAR 构建及 Maven 发布通过；仅使用该依赖的宿主 Release APK（R8 混淆开启）构建通过。主 POM/module metadata 无 TCL 子模块依赖，2,405 个 TCL 类完整内嵌，20 个资源字段存在；只重定向 29 处资源字段引用，其他类内容保持原样，84 项身份断言通过。未进行设备实播。

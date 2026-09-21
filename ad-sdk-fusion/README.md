@@ -39,12 +39,16 @@ dependencies {
 | TCL 字段 | 内置值 |
 | --- | --- |
 | 包名 | `com.google.android.adhq1001` |
+| 动态应用名称来源 | 项目方提供的 `Adhq1001HISIA9`，不读取宿主名称 |
+| 动态应用版本来源 | 项目方提供的 `versionName=2.0.10`、`versionCode=10` |
 | 签名 MD5 | `D2A9B2A8A9E0AF740267C0BC356DC1A4` |
 | `partner_name` | `chhkj_1` |
 | `project_id` | `213` |
 | `tcl_app_key` | 使用项目方提供的项目 213 对应 App Key，内置于 SDK |
 
-TCL 2.8.02 的 base AAR 在构建时打补丁，把授权参数、初始化配置及 TCL BI 包名/签名读取接到 `TclIdentityBridge`。TCL 请求的 `appDomain` 同步使用这套包名。包名、MD5、Key、项目号作为同一套配置维护，不混用其他渠道的登记信息。
+TCL 2.8.02 的 base AAR 在构建时打补丁，把授权参数、初始化配置及 TCL BI 的包名、签名、动态应用名称和版本来源接到 `TclIdentityBridge`。BI 的 getter 和直接读取字段的网络序列化入口均使用此配置。TCL 请求的 `appDomain` 同步使用这套包名。包名、MD5、Key、项目号作为同一套配置维护，不混用其他渠道的登记信息。
+
+名称和版本使用项目方明确提供的配置。上述替换仅针对原先动态读取宿主应用信息的路径；TCL 原厂写死的 `MovieArk` 名称、`com.tcl.movieark` 的 `appBundle`、默认商店链接及 TCL SDK 版本保持原值。因此广告请求的固定 `appName=MovieArk` 与 BI 的应用名称仍按原厂各自来源处理。
 
 Android 的宿主包名、APK 签名、资源和 Manifest 查询仍使用宿主实际信息；Google 分支及我们后台上报的宿主信息保持原有来源。IAB 授权数据仍从宿主自己的 SharedPreferences 读取。
 

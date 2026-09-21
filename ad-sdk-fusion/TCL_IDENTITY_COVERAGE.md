@@ -1,40 +1,47 @@
-# TCL 2.8.02 身份配置覆盖核对
+# TCL 2.8.02 身份配置覆盖说明
 
-核对对象为融合模块实际使用的 base 补丁 AAR、原厂 media AAR、原厂 player AAR，共 2,405 个 class。检查了包名、签名、初始化参数的调用与字段来源，并追踪到请求参数和请求头的生成位置。
+本补丁针对 TCL 网络请求及上报中**动态读取宿主应用身份**的入口。原厂固定值、真实设备信息、Android 系统资源和进程判断分别保留原有含义。当前补丁为 `fusion-tcl-identity-3`，只改 base AAR 的 6 个类；media/player AAR 保持原文件。
 
-第一版补丁确有遗漏：`HttpRequester` 构造函数直接读取宿主包名，存入 `SignInterceptor.BuildConfig`，最终发送为 `XTCL-App` 请求头。`fusion-tcl-identity-2` 已补上此入口，base AAR 修改类数由 4 个变为 5 个。
+## 应用身份来源
 
-## 使用统一登记配置的路径
+包名 `com.google.android.adhq1001`、MD5 `D2A9B2A8A9E0AF740267C0BC356DC1A4`、App Key、项目号 `213`、partner `chhkj_1` 使用项目方提供的登记配置，集中在 `TclIdentityBridge`。
+
+应用名称和版本使用项目方明确提供的值，不从历史 APK 推断：
+
+- 应用名称 `Adhq1001HISIA9`。
+- `versionName=2.0.10`，`versionCode=10`。
+
+## 已替换的动态身份入口
 
 | 路径 | 参数来源及结果 |
 | --- | --- |
-| TCL 初始化与 SDK 配置请求 | `BasicParameters` 的 Key、partner、project getter 全部转到桥接类；配置接口 `adProjectId=213` |
-| 广告请求 | `VastAdRequestParams` 从上述 getter 取得 `appPackage`、`asfm`、`appKey`、`DevicePartner`、`application` |
-| 广告请求的 `appDomain` | `TclAdPlayer` 显式传入 `TclIdentityBridge.getPackageName()`；原厂参数生成器将其写入请求 |
+| TCL 初始化与配置请求 | `BasicParameters` 的 Key、partner、project getter 转到桥接类；配置接口 `adProjectId=213` |
+| 广告请求中的动态身份 | `VastAdRequestParams` 从 `BasicParameters` 取得 `appPackage`、`asfm`、`appKey`、`DevicePartner`、`application`，其动态版本来源也改为桥接值 |
+| 广告请求的 `appDomain` | 融合适配器传入桥接包名 |
 | HTTP 请求头 | `HttpRequester` 从桥接类设置包名，`SignInterceptor` 输出 `XTCL-App=com.google.android.adhq1001` |
-| TCL 广告 BI 参数 | `BiInitialization` / `BiReportUtil` 的应用包名、partner、project 来自 `BasicParameters` |
-| TCL 基础 BI | `BaseDataInfo.init` 最终写入登记包名和项目号；`GetBaseDataInfo.getAPPSecretString` 返回登记 MD5 的小写形式 |
-| 直接签名读取入口 | `Md5Utils.getSignatureMd5` 返回登记 MD5 的大写形式；原私有签名散列辅助方法不再由该入口调用 |
+| TCL 广告 BI | `BiInitialization` / `BiReportUtil` 所用包名、动态应用名称和版本、partner、project 来自桥接后的 `BasicParameters` |
+| TCL 基础 BI 初始化 | `BaseDataInfo.init` 在宿主 Manifest 和自定义值读取完成后、打印日志前，写入登记包名、项目号、名称和版本 |
+| TCL 基础 BI 网络输出 | `BaseDataInfo` 对应 getter 返回桥接值；`NetworkDataInfo.getFormatMessage` 的五项直接字段读取也转到桥接类，避免绕过 getter |
+| 签名读取 | `Md5Utils.getSignatureMd5` 返回登记 MD5 大写；`GetBaseDataInfo.getAPPSecretString` 返回同一 MD5 的小写形式，保持各自原厂格式 |
 
-TCL 业务登记配置仍为 `com.google.android.adhq1001` / 项目 `213` / partner `chhkj_1`，MD5 和 App Key 使用项目方提供的对应值。
+## 保留的原厂固定值
 
-## 保留原有含义的包名
+`VastAdRequestParams` 类字节码保持原样：其 `appName=MovieArk`、外部接入的 `appBundle=com.tcl.movieark`、默认商店链接 `https://play.google.com/store/apps/details?id=com.tcl.movieark` 都是 TCL 写死的值，不是从宿主读取，因此不替换。
 
-以下不是 TCL 登记身份的读取入口，保持真实系统或广告数据来源：
+TCL SDK 版本 `2.8.02`、播放器版本、网络签名算法及其服务级配置也保留原值。广告请求固定的 `appName` 与 BI 动态应用名称是不同路径，不为了让两者一致而改变原厂固定行为。
 
-- `BasicParameters.a/b`、`BaseDataInfo.getAppBaseInfo/init` 中的安装信息、应用名称和 Manifest 查询。
-- `DataReport$b.run` 中的主进程判断，比较当前 PID 的进程名和真实宿主包名。
-- ExoPlayer 原始资源 URI、`Resources.getIdentifier`、下载任务调度、系统 `MediaSessionCompat` 和编解码兼容判断。
-- 原厂播放器的本地诊断日志、指定应用 `com.tcl.cyberui` 的版本读取、待安装 APK 的包名解析。
-- 点击广告时的目标应用包名，以及打开 Google Play 时传入的真实宿主来源。
-- 融合模块读取宿主自己的 IAB SharedPreferences；Google 和自有后台的宿主设备信息采集。
+## 保留的本地或其他用途
 
-原厂 `VastAdRequestParams.generateBaseParams()` 对外部接入还会固定输出 `appBundle=com.tcl.movieark`，默认商店 URL 也指向该包名；这与另外发送的 `appPackage` / `asfm` 是不同字段。本次保留这段原厂逻辑，没有将其当作漏掉的宿主包名读取而替换。
+- `BasicParameters.a/b`、`BaseDataInfo.getAppBaseInfo/init` 查询真实安装包和 Manifest；这些宿主身份值不会作为上述网络身份字段的最终值。
+- `DataReport$b.run` 比较当前 PID 的进程名和真实宿主包名；资源 URI、`Resources.getIdentifier`、系统 MediaSession、调度和编解码兼容判断继续使用真实宿主。
+- 播放器的本地诊断信息、`com.tcl.cyberui` 的版本、待安装广告 APK 的包名保持各自来源。
+- 点击广告的目标包名及交给 Google Play 的来源参数属于跳转行为，不改成 TCL 登记配置。
+- 融合模块读取宿主自己的 IAB SharedPreferences；Google 和自有后台的宿主设备信息保持原有来源。
 
-## 已确认的范围
+广告请求 UA 来自 `http.agent`。附带 ExoPlayer 的通用 `Util.getUserAgent(Context, String)` 可以读取宿主版本，但在这三个 TCL AAR 中未发现调用它的指令；不因此改写整个通用工具库。播放器的实际网络行为仍需以设备请求为准。
 
-对生成的真实补丁字节码和融合主 AAR 执行了 36 项身份入口/桥接链接断言，结果通过；5 个修改类的方法通过 ASM 数据流检查。最终 `:ad-sdk-fusion:assembleRelease` 构建通过，主 AAR 包含匹配的桥接类。
+## 产物与范围
 
-本轮没有运行整套回归或操作设备，也没有发送真实广告请求。因此可以确认本版本已追踪的登记身份读取路径和构建产物，不能据此断言 TCL 服务端已经接受配置或真实广告一定播放成功。
+本地生成配套融合主 AAR 与 base 补丁 AAR，并核对桥接方法、BI 序列化入口、修改类的数据流以及原厂固定字段所在类保持不变。扫描范围为三个 TCL AAR 的 2,405 个 class。证据保存在 `output/ad-sdk-fusion/tcl-identity/audit/`。
 
-本地证据保存在项目 `output/ad-sdk-fusion/tcl-identity/audit/`，包括扫描代码、最终引用清单、断言结果和产物 SHA-256。
+没有运行整套回归、设备实播或远程发布。静态路径和本地产物核对不能替代真实流量验证，也不能证明 TCL 服务端已接受登记配置。

@@ -23,8 +23,13 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
     private static final String BASIC = 'com/tcl/ff/component/overseabase/base/util/BasicParameters'
     private static final String GLOBAL = 'com/tcl/ff/component/overseabase/base/util/GlobalContext'
     private static final String BI = 'com/tcl/ff/component/adsdkbi/bean/BaseDataInfo'
+    private static final String BI_NETWORK = 'com/tcl/ff/component/adsdkbi/bean/NetworkDataInfo'
     private static final String HTTP = 'com/tcl/ff/component/overseahttp/http/HttpRequester'
     private static final String STRING = '()Ljava/lang/String;'
+    private static final Map<String, String> BI_IDENTITY = [
+        appPackage: 'getPackageName', projectId: 'getProjectIdString',
+        appName: 'getAppName', appVersionName: 'getVersionName', appVersionCode: 'getVersionCode'
+    ].asImmutable()
 
     @InputFile abstract RegularFileProperty getInputAar()
     @OutputFile abstract RegularFileProperty getOutputAar()
@@ -41,7 +46,7 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
         List<String> changed = []
         [BASIC,
          'com/tcl/ff/component/overseabase/base/util/Md5Utils',
-         'com/tcl/ff/component/adsdkbi/bean/GetBaseDataInfo', BI, HTTP].each { name ->
+         'com/tcl/ff/component/adsdkbi/bean/GetBaseDataInfo', BI, BI_NETWORK, HTTP].each { name ->
             String entry = name + '.class'
             if (!classes.containsKey(entry)) throw new GradleException("TCL identity entry missing: ${entry}")
             classes[entry] = TclFusionAarPatchTask.transform(name, classes[entry])
@@ -49,7 +54,7 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
         }
         aar['classes.jar'] = pack(classes)
         aar['META-INF/fusion-tcl-identity.properties'] = [
-            'patchVersion=fusion-tcl-identity-2',
+            'patchVersion=fusion-tcl-identity-3',
             "originalAarSha256=${BASE_SHA256}",
             "patchedClassesJarSha256=${sha256(aar['classes.jar'])}",
             "bridge=${BRIDGE.replace('/', '.')}",
@@ -83,7 +88,8 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
                     }
                 }
             }
-            ['getPackageName', 'getAppKey', 'getPartnerName'].each {
+            ['getPackageName', 'getAppKey', 'getPartnerName',
+             'getAppName', 'getVersionName', 'getVersionCode'].each {
                 replaceGetter(node, it, STRING, it, ARETURN)
             }
             replaceGetter(node, 'getSignature', STRING, 'getSignatureMd5', ARETURN)
@@ -111,14 +117,40 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
         } else if (name == BI) {
             MethodNode method = requireMethod(node, 'init',
                 '(Landroid/content/Context;Lcom/tcl/ff/component/adsdkbi/bean/BaseDataInfo;)V')
-            method.instructions.toArray().findAll { it.opcode == RETURN }.each { insn ->
-                InsnList values = new InsnList()
-                ['appPackage': 'getPackageName', 'projectId': 'getProjectIdString'].each { field, getter ->
-                    values.add(new VarInsnNode(ALOAD, 0))
-                    values.add(new MethodInsnNode(INVOKESTATIC, BRIDGE, getter, STRING, false))
-                    values.add(new FieldInsnNode(PUTFIELD, BI, field, 'Ljava/lang/String;'))
+            // Normalize after manifest/custom values, before the initialization log and reports.
+            // The original getAppBaseInfo still queries the real installed host safely.
+            List<AbstractInsnNode> logStarts = method.instructions.toArray().findAll {
+                it instanceof TypeInsnNode && it.opcode == NEW && it.desc == 'java/lang/StringBuilder'
+            }
+            if (logStarts.size() != 1) throw new GradleException('TCL BI init log did not match 2.8.02')
+            InsnList values = new InsnList()
+            BI_IDENTITY.each { field, getter ->
+                values.add(new VarInsnNode(ALOAD, 0))
+                values.add(new MethodInsnNode(INVOKESTATIC, BRIDGE, getter, STRING, false))
+                values.add(new FieldInsnNode(PUTFIELD, BI, field, 'Ljava/lang/String;'))
+            }
+            method.instructions.insertBefore(logStarts[0], values)
+            ['getAppPackage': 'getPackageName', 'getProjectId': 'getProjectIdString',
+             'getAppName': 'getAppName', 'getAppVersionName': 'getVersionName',
+             'getAppVersionCode': 'getVersionCode'].each { getter, bridgeGetter ->
+                replaceGetter(node, getter, STRING, bridgeGetter, ARETURN)
+            }
+        } else if (name == BI_NETWORK) {
+            // This serializer reads public fields directly, bypassing BaseDataInfo getters.
+            // Fix only application identity fields at the outbound boundary.
+            MethodNode method = requireMethod(node, 'getFormatMessage', STRING)
+            Set<String> replaced = new HashSet<>()
+            method.instructions.toArray().each { insn ->
+                if (insn instanceof FieldInsnNode && insn.opcode == GETFIELD &&
+                    insn.owner == BI && insn.desc == 'Ljava/lang/String;' && BI_IDENTITY.containsKey(insn.name)) {
+                    method.instructions.insertBefore(insn, new InsnNode(POP))
+                    method.instructions.set(insn, new MethodInsnNode(INVOKESTATIC, BRIDGE,
+                        BI_IDENTITY[insn.name], STRING, false))
+                    replaced.add(insn.name)
                 }
-                method.instructions.insertBefore(insn, values)
+            }
+            if (replaced != BI_IDENTITY.keySet()) {
+                throw new GradleException('TCL BI outbound identity fields did not match 2.8.02')
             }
         }
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS)

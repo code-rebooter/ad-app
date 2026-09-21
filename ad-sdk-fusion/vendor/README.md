@@ -18,10 +18,11 @@
 
 修改入口：
 
-- `BasicParameters`：包名、签名 MD5、App Key、partner name、project ID。
+- `BasicParameters`：包名、签名 MD5、App Key、partner name、project ID，以及原先从宿主读取的应用名称、版本名称、版本号。
 - `Md5Utils.getSignatureMd5`：TCL 授权使用的 32 位大写 MD5。
 - `GetBaseDataInfo.getAPPSecretString`：TCL BI 使用的同一 MD5，保留原厂小写格式。
-- `BaseDataInfo.init`：TCL BI 的应用包名和项目号。
+- `BaseDataInfo.init`：宿主信息与自定义配置读取后、初始化日志打印前，统一 TCL BI 的应用包名、项目号、名称和版本；对应 getter 同样返回桥接配置。
+- `NetworkDataInfo.getFormatMessage`：直接读取字段生成网络消息的入口，同步使用上述五项桥接配置。
 - `HttpRequester`：HTTP 请求头 `XTCL-App` 的包名，与请求参数共用同一登记身份。
 
 `BasicParameters` 内部查询宿主安装信息和资源的代码仍使用真实宿主包名。补丁不修改宿主 APK 的包名或签名，不改变 Google 和自有后台的设备信息采集。
@@ -36,4 +37,4 @@
 
 这份补丁 AAR 需要与包含 `TclIdentityBridge` 的新版融合主模块配套使用，不能搭配之前生成的融合主 AAR。
 
-当前补丁版本为 `fusion-tcl-identity-2`，共修改 5 个类。覆盖路径、保留真实宿主包名的位置，以及原厂 `appBundle` 固定值的说明，见 [身份配置覆盖核对](../TCL_IDENTITY_COVERAGE.md)。
+当前补丁版本为 `fusion-tcl-identity-3`，共修改 6 个类。只替换 TCL 网络交互中动态读取的宿主应用身份；原厂 `MovieArk`、`com.tcl.movieark`、默认商店链接及 SDK 自身版本保持原样，`VastAdRequestParams` 类没有改写。覆盖路径和保留真实宿主信息的位置见 [身份配置覆盖核对](../TCL_IDENTITY_COVERAGE.md)。

@@ -23,6 +23,7 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
     private static final String BASIC = 'com/tcl/ff/component/overseabase/base/util/BasicParameters'
     private static final String GLOBAL = 'com/tcl/ff/component/overseabase/base/util/GlobalContext'
     private static final String BI = 'com/tcl/ff/component/adsdkbi/bean/BaseDataInfo'
+    private static final String HTTP = 'com/tcl/ff/component/overseahttp/http/HttpRequester'
     private static final String STRING = '()Ljava/lang/String;'
 
     @InputFile abstract RegularFileProperty getInputAar()
@@ -40,7 +41,7 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
         List<String> changed = []
         [BASIC,
          'com/tcl/ff/component/overseabase/base/util/Md5Utils',
-         'com/tcl/ff/component/adsdkbi/bean/GetBaseDataInfo', BI].each { name ->
+         'com/tcl/ff/component/adsdkbi/bean/GetBaseDataInfo', BI, HTTP].each { name ->
             String entry = name + '.class'
             if (!classes.containsKey(entry)) throw new GradleException("TCL identity entry missing: ${entry}")
             classes[entry] = TclFusionAarPatchTask.transform(name, classes[entry])
@@ -48,7 +49,7 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
         }
         aar['classes.jar'] = pack(classes)
         aar['META-INF/fusion-tcl-identity.properties'] = [
-            'patchVersion=fusion-tcl-identity-1',
+            'patchVersion=fusion-tcl-identity-2',
             "originalAarSha256=${BASE_SHA256}",
             "patchedClassesJarSha256=${sha256(aar['classes.jar'])}",
             "bridge=${BRIDGE.replace('/', '.')}",
@@ -92,6 +93,21 @@ abstract class TclFusionAarPatchTask extends DefaultTask implements Opcodes {
                 'getSignatureMd5', ARETURN)
         } else if (name.endsWith('/GetBaseDataInfo')) {
             replaceGetter(node, 'getAPPSecretString', STRING, 'getBiSignatureMd5', ARETURN)
+        } else if (name == HTTP) {
+            // XTCL-App is captured by the shared HTTP client before any ad request is made.
+            // It must use the same registration as appPackage/asfm in the request body.
+            MethodNode method = requireMethod(node, '<init>', '()V')
+            int replaced = 0
+            method.instructions.toArray().each { insn ->
+                if (insn instanceof MethodInsnNode && insn.owner == 'android/content/Context' &&
+                    insn.name == 'getPackageName' && insn.desc == STRING) {
+                    method.instructions.insertBefore(insn, new InsnNode(POP))
+                    method.instructions.set(insn,
+                        new MethodInsnNode(INVOKESTATIC, BRIDGE, 'getPackageName', STRING, false))
+                    replaced++
+                }
+            }
+            if (replaced != 1) throw new GradleException('TCL XTCL-App package source did not match 2.8.02')
         } else if (name == BI) {
             MethodNode method = requireMethod(node, 'init',
                 '(Landroid/content/Context;Lcom/tcl/ff/component/adsdkbi/bean/BaseDataInfo;)V')

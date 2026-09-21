@@ -48,7 +48,7 @@ TCL 2.8.02 的 base AAR 在构建时打补丁，把授权参数、初始化配�
 
 Android 的宿主包名、APK 签名、资源和 Manifest 查询仍使用宿主实际信息；Google 分支及我们后台上报的宿主信息保持原有来源。IAB 授权数据仍从宿主自己的 SharedPreferences 读取。
 
-原始 TCL AAR 保留在 `vendor/base/sdk.aar`，实际本地依赖及 Maven 发布都使用构建生成的补丁 AAR，详情见 [TCL AAR 说明](vendor/README.md)。后续调整登记配置只需改 SDK 内部桥接配置，宿主无需重新设计接入参数。
+原始 TCL AAR 保留在 `vendor/base/sdk.aar`，实际本地依赖及 Maven 发布都使用构建生成的补丁 AAR，详情见 [TCL AAR 说明](vendor/README.md)。HTTP 请求头 `XTCL-App` 同步使用内置登记包名。具体覆盖范围和原厂 `appBundle` 固定值见 [身份配置覆盖核对](TCL_IDENTITY_COVERAGE.md)。后续调整登记配置只需改 SDK 内部桥接配置，宿主无需重新设计接入参数。
 
 ## 渠道与共用域名
 

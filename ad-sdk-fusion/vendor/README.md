@@ -61,4 +61,4 @@ CMP 请求基类 `com.tcl.ff.component.oversea.model.requset.a` 的 `appbundle`�
 
 构建输入通过原始 SHA-256 校验，CMP classes.jar、资源和 consumer rules 直接合入融合主 AAR，不发布 CMP 子模块。
 
-本次针对 CMP 的本地验证：`prepareEmbeddedTcl` 与 `generateReleaseRFile` 通过；四份内嵌 JAR 共 2,572 个不重复类，CMP 167 个类完整保留，24 个 CMP 类需要资源字段 owner 重定向，合并后全部 126 个资源字段在生成的 R 中存在。CMP 请求基类二进制保持原样，consumer rules 已合入。最终完整 AAR 构建及运行流程随上层迁移验证。
+本次针对 CMP 的本地验证：`prepareEmbeddedTcl` 与 `generateReleaseRFile` 通过；四份内嵌 JAR 共 2,572 个不重复类，CMP 167 个类完整保留，24 个 CMP 类需要资源字段 owner 重定向，合并后全部 126 个资源字段在生成的 R 中存在。CMP 请求基类二进制保持原样，consumer rules 已合入。最终完整 AAR、本地 Maven 发布与 R8 宿主 Release APK 均构建成功；设备初始化及广告轮次的实际结果和限制见 [CMP 修复记录](../CMP_REPAIR_VALIDATION.md)。

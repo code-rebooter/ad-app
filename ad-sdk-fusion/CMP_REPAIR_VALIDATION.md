@@ -14,7 +14,7 @@
 
 ## 本地验证
 
-2026-09-21，33 项定向 JVM 检查通过：后端协议及原始错误、CMP 等待与取消、两渠道串行与结果聚合、CMP 请求响应进入最终流程上报。融合 Release AAR 和本地 Maven 发布成功。
+2026-09-21，33 项定向 JVM 检查通过：后端协议及原始错误、CMP 等待与取消、两渠道串行与结果聚合、CMP 请求响应进入最终流程上报。融合 Release AAR 和本地 Maven 发布成功；最终依赖的宿主 Release APK（R8 开启）构建成功，并已在下述设备安装、启动复核。
 
 最终 AAR 内四份 TCL JAR 共 2,572 个不重复类，其中 CMP 167 个。全部 126 个供应商资源字段可解析；POM/module metadata 无 TCL 子模块依赖。公开 API 的 12 份 Java 文件与单家 SDK 相同。
 
@@ -29,3 +29,5 @@
 实际广告轮次中，Google/TCL 各自请求共享域名的 flow-control 和 authorize。两家后台均返回 skip_cmp=true、popup_log_enabled=false，按服务端配置跳过本轮 CMP 决策与流程日志上传。Google 返回原始 IMA 303 后进入 TCL，TCL 返回原始 -1000；宿主 onFinished 仅一次，status=ERROR，message 保留原始 IMA 文案。未发生应用崩溃。
 
 这次真机结果证明初始化、两家串行和错误回传路径，**不代表广告实播成功，也未验证远端 CMP 决策至 user/action/consent-report 的完整成功链路**。该链路真机验证需要后台允许本轮进入 CMP（skip_cmp=false）。
+
+最终本地 AAR SHA-256：`b6c1d01d650f77c9fd78362edf26e9f128a883bb58b3a007f48ba732cef5880b`。最终 R8 Demo SHA-256：`c57e3ebb64951fc02635e3c4402edaf7f316db31385453fd1b2af49430935ff1`。

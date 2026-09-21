@@ -20,19 +20,22 @@ abstract class TclFusionBundleTask extends DefaultTask {
     private static final String RESOURCE_NAMESPACE = 'com.smart.android.adsdk.fusion'
     private static final Map<String, String> ORIGINAL_HASHES = [
         media: '22426d990e7e27e1fea05b2c014ea4960d3fa5da5efe2b92f945704ab3abc9ca',
-        player: '74d2c79e0af1a62697e36bc84929d28504ca264d69856505fdd3606e9a743907'
+        player: '74d2c79e0af1a62697e36bc84929d28504ca264d69856505fdd3606e9a743907',
+        cmp: '5a6b19906daaf715c48a079aa185c908b906d23536a709dc57589f85e07f833f'
     ]
 
     @InputFile abstract RegularFileProperty getBaseAar()
     @InputFile abstract RegularFileProperty getMediaAar()
     @InputFile abstract RegularFileProperty getPlayerAar()
+    @InputFile abstract RegularFileProperty getCmpAar()
     @OutputDirectory abstract DirectoryProperty getOutputDirectory()
 
     @TaskAction
     void prepare() {
         Map<String, byte[]> inputs = [base: baseAar.get().asFile.bytes,
                                      media: mediaAar.get().asFile.bytes,
-                                     player: playerAar.get().asFile.bytes]
+                                     player: playerAar.get().asFile.bytes,
+                                     cmp: cmpAar.get().asFile.bytes]
         ORIGINAL_HASHES.each { name, hash ->
             if (TclFusionBundleTask.sha256(inputs[name]) != hash) {
                 throw new GradleException("Embedded TCL ${name} must be the original 2.8.02 AAR")
@@ -103,7 +106,7 @@ abstract class TclFusionBundleTask extends DefaultTask {
         TclFusionBundleTask.write(output, 'java-resources/META-INF/fusion-tcl-identity.properties', identity)
         TclFusionBundleTask.write(output, 'java-resources/META-INF/fusion-tcl-resource-references.txt',
             resourceReferences.join('\n').concat('\n').getBytes('UTF-8'))
-        logger.lifecycle("Embedded 3 TCL JARs, resources and consumer rules; redirected ${resourceReferences.size()} resource fields")
+        logger.lifecycle("Embedded ${archives.size()} TCL JARs, resources and consumer rules; redirected ${resourceReferences.size()} resource fields")
     }
 
     private static void write(File root, String path, byte[] bytes) {

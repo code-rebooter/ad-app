@@ -148,12 +148,9 @@ public final class SdkRuntime {
                 new TclAdPlayer(applicationContext, container, channels.tclChannel, adListener);
             ConsentResolver googleConsent = new AdConsentResolver(http, gson,
                 apiBaseUrl + "api/v2/ad/consent-popup", apiBaseUrl + "api/v2/ad/consent-report");
-            // HQ008 Flow SDK's TCL path is flow-control -> authorize -> TCL.
-            // Google retains its UMP policy; TCL receives the existing IAB consent signals.
-            ConsentResolver tclConsent = (ctx, channel, callback) -> {
-                callback.onAllowed();
-                return () -> {};
-            };
+            TclConsentResolver tclConsent = new TclConsentResolver(applicationContext, http, gson,
+                apiBaseUrl, dispatcher);
+            tclConsent.initialize(applicationContext, channels.tclChannel);
             Hq008AdReporter googleReporter = new Hq008AdReporter(
                 () -> DeviceInfo.collect(applicationContext), http, gson, channels.googleChannel, apiBaseUrl, "ima");
             Hq008AdReporter tclReporter = new Hq008AdReporter(

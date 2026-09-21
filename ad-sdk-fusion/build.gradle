@@ -3,6 +3,7 @@ import com.smart.lsap.TclFusionBundleTask
 
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
 }
 
 apply from: "$rootDir/gradle/jitpack-publish.gradle"
@@ -19,6 +20,7 @@ def prepareTcl = tasks.register('prepareEmbeddedTcl', TclFusionBundleTask) {
     baseAar.set(patchTcl.flatMap { it.outputAar })
     mediaAar.set(layout.projectDirectory.file('vendor/media/sdk.aar'))
     playerAar.set(layout.projectDirectory.file('vendor/player/sdk.aar'))
+    cmpAar.set(layout.projectDirectory.file('vendor/cmp/sdk.aar'))
     outputDirectory.set(layout.buildDirectory.dir('generated/embeddedTcl'))
 }
 def embeddedTclDir = layout.buildDirectory.dir('generated/embeddedTcl')
@@ -44,9 +46,13 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
     sourceSets.main {
         resources.srcDir embeddedTclDir.map { it.dir('java-resources').asFile }
-        ['base', 'media', 'player'].each { component ->
+        ['base', 'media', 'player', 'cmp'].each { component ->
             res.srcDir embeddedTclDir.map { it.dir("${component}/res").asFile }
             assets.srcDir embeddedTclDir.map { it.dir("${component}/assets").asFile }
         }
@@ -68,7 +74,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.14.0'
     implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
 
-    ['base', 'media', 'player'].each { component ->
+    ['base', 'media', 'player', 'cmp'].each { component ->
         implementation files(embeddedTclDir.map { it.file("libs/tcl-${component}.jar").asFile }).builtBy(prepareTcl)
     }
     implementation 'com.google.guava:guava:33.5.0-android'

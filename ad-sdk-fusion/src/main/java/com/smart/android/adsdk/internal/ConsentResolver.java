@@ -10,6 +10,10 @@ public interface ConsentResolver {
         default void onTrace(String eventType, String message) {
         }
 
+        default void onTrace(String eventType, String message, String data) {
+            onTrace(eventType, message);
+        }
+
         void onAllowed();
 
         void onBlocked(String reason);

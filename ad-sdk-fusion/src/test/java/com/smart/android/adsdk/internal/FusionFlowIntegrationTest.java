@@ -12,6 +12,29 @@ import org.junit.Test;
 
 /** Real channel sessions + HTTP clients + reporting; only playback and time are simulated. */
 public class FusionFlowIntegrationTest {
+    @Test public void tclCmpDetailsSurviveSessionAndBackendTraceUpload() throws Exception {
+        try (Fixture f = new Fixture()) {
+            f.skipCmp = false;
+            f.session.start(); f.until(() -> f.google.playing);
+            f.google.listener.onCompleted(); f.until(() -> f.tcl.playing);
+            f.tcl.listener.onCompleted();
+            f.until(() -> f.count("consent-log-report", null, "GOOGLE_AD_TV_LOCKSCREEN_HQ002_TCL") == 1);
+            boolean found = false;
+            for (Captured c : f.captured) {
+                if (!c.path.endsWith("/consent-log-report") || !c.body.get("channel_id").getAsString().endsWith("_TCL")) continue;
+                JsonObject summary = JsonParser.parseString(c.body.get("ad_log").getAsString()).getAsJsonObject();
+                for (JsonElement element : summary.getAsJsonArray("steps")) {
+                    JsonObject step = element.getAsJsonObject();
+                    if ("CMP_API_SUCCESS".equals(step.get("eventType").getAsString())) {
+                        assertEquals("{\"response\":{\"code\":200}}", step.get("adLog").getAsString());
+                        found = true;
+                    }
+                }
+            }
+            assertTrue("CMP response missing from backend trace", found);
+        }
+    }
+
     @Test public void channelsAuthorizeSeriallyAndReportOriginalIdsToOneDomain() throws Exception {
         try (Fixture f = new Fixture()) {
             f.session.start(); f.until(() -> f.google.playing);
@@ -78,6 +101,7 @@ public class FusionFlowIntegrationTest {
         final FakePlayer google = new FakePlayer(), tcl = new FakePlayer();
         final Clock googleTime = new Clock(), tclTime = new Clock();
         final String base = "https://api.kartna.cc/";
+        boolean skipCmp = true;
         final OkHttpClient http = new OkHttpClient.Builder().addInterceptor(chain -> {
             Request r = chain.request(); Buffer buffer = new Buffer(); r.body().writeTo(buffer);
             JsonObject body = JsonParser.parseString(buffer.readUtf8()).getAsJsonObject();
@@ -85,7 +109,7 @@ public class FusionFlowIntegrationTest {
             String path = r.url().encodedPath();
             boolean isTcl = body.has("channel_id") && body.get("channel_id").getAsString().endsWith("_TCL");
             String response = "{\"code\":100000,\"data\":{}}";
-            if (path.endsWith("flow-control")) response = "{\"code\":100000,\"data\":{\"enabled\":true,\"skip_cmp\":true}}";
+            if (path.endsWith("flow-control")) response = "{\"code\":100000,\"data\":{\"enabled\":true,\"skip_cmp\":" + skipCmp + "}}";
             if (path.endsWith("authorize")) response = "{\"code\":100000,\"data\":{\"authorized\":true,\"request_id\":\"server-"
                 + (isTcl ? "tcl" : "google") + "\",\"hidden_mode\":" + !isTcl + ",\"sound_mode\":" + isTcl
                 + ",\"next_request_seconds\":" + (isTcl ? 600 : 120) + ",\"ad_callback_timeout_seconds\":" + (isTcl ? 90 : 60) + "}}";
@@ -105,7 +129,10 @@ public class FusionFlowIntegrationTest {
                 new RemoteAdConfigClient(DeviceInfo::empty, http, gson, new RemoteAdConfigParser(gson), base, isTcl),
                 (container, events) -> { player.listener = events; return player; },
                 new FlowControlClient(DeviceInfo::empty, http, gson, base),
-                (ctx, id, callback) -> { callback.onAllowed(); return () -> {}; },
+                (ctx, id, callback) -> {
+                    if (isTcl) callback.onTrace("CMP_API_SUCCESS", "status", "{\"response\":{\"code\":200}}");
+                    callback.onAllowed(); return () -> {};
+                },
                 new Hq008AdReporter(DeviceInfo::empty, http, gson, channel, base, isTcl ? "tcl" : "ima"),
                 180_000, isTcl ? tclTime : googleTime, callbacks::add);
         }

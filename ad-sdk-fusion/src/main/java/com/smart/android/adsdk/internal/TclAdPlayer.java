@@ -1,7 +1,6 @@
 package com.smart.android.adsdk.internal;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -10,6 +9,7 @@ import android.view.ViewGroup;
 import com.smart.android.adsdk.AdError;
 import com.smart.android.adsdk.AdErrorCode;
 import com.smart.android.adsdk.AdErrorStage;
+import com.smart.android.adsdk.internal.tclcmp.TclCmpManager;
 import com.tcl.ff.component.overseabase.base.constant.AdReportSwitchConfig;
 import com.tcl.ff.component.overseabase.base.constant.AdType;
 import com.tcl.ff.component.overseabasebusiness.requestparams.RequestParams;
@@ -171,13 +171,12 @@ final class TclAdPlayer implements AdPlayer {
             .setDeviceMake(Build.MANUFACTURER).setDeviceModel(Build.MODEL);
         String country = Locale.getDefault().getCountry();
         if (country != null && country.length() == 2) builder.setArea(country.toUpperCase(Locale.US));
-        SharedPreferences consent = context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
-        Object applies = consent.getAll().get("IABTCF_gdprApplies");
-        if (applies != null && ("0".equals(applies.toString()) || "1".equals(applies.toString()))) {
-            builder.setGdpr(applies.toString());
+        String consent = TclCmpManager.getConsentString();
+        if (consent != null && !consent.isEmpty()) {
+            builder.setGdpr(TclCmpManager.getGdpr()).setGdprConsent(consent)
+                .setGdprSource(TclCmpManager.getGdprSource());
+            listener.onTrace("AD_REQUEST_GDPR_ATTACHED", "provider=TCL consentLength=" + consent.length());
         }
-        String tc = consent.getString("IABTCF_TCString", "");
-        if (tc != null && !tc.isEmpty()) builder.setGdprConsent(tc).setGdprSource("IABTCF");
         return builder.build();
     }
 

@@ -27,11 +27,19 @@ final class FlowTrace {
     }
 
     synchronized void record(String event, String message) {
+        record(event, message, null);
+    }
+
+    synchronized void record(String event, String message, String data) {
         if (finished) return;
         Map<String, Object> step = new LinkedHashMap<>();
         step.put("elapsedMs", Math.max(0L, clock.nowMs() - startedAtMs));
         step.put("eventType", event);
         step.put("eventMessage", limit(message, 512));
+        if (data != null && !data.isEmpty()) {
+            step.put("adLog", limit(data, 32_000));
+            if (data.length() > 32_000) step.put("adLogTruncated", true);
+        }
         steps.add(step);
         if (steps.size() > 80) {
             steps.remove(1); // Preserve the start plus the latest 79 steps.

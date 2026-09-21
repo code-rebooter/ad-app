@@ -232,6 +232,11 @@ final class AdSessionImpl implements ChannelSession {
                     }
 
                     @Override
+                    public void onTrace(String eventType, String message, String data) {
+                        dispatcher.dispatch(() -> flowTrace.record(eventType, message, data));
+                    }
+
+                    @Override
                     public void onAllowed() {
                         dispatcher.dispatch(() -> {
                             recordTrace("CMP_ALLOWED", "CMP allowed");

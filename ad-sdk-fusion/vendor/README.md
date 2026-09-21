@@ -2,7 +2,7 @@
 
 原厂版本：2.8.02。来自项目已有 TCL demo 的 app/libs。目录下的 `sdk.aar` 是保留的原始输入文件。
 
-这三个子项目分别发布 AAR，供 ad-sdk-fusion 的 Maven POM 传递引用；不改变原有单家 SDK 的依赖。
+这三份 AAR 仅作为构建输入，代码、资源和 consumer rules 均合入 `ad-sdk-fusion`，不再独立发布 Maven 模块。原有单家 SDK 保持独立。
 
 | 目录 | 原始文件 | SHA-256 |
 | --- | --- | --- |
@@ -12,7 +12,7 @@
 
 ## 融合版身份配置补丁
 
-`base` 子项目的 `patchTclFusionAar` 在构建时生成 `base/build/patched/sdk.aar`；本地项目依赖和 Maven 发布均指向该生成文件。`media`、`player` 使用原始 AAR。
+融合模块的 `patchTclFusionAar` 生成 `build/tcl/base-patched.aar`，再由 `prepareEmbeddedTcl` 与原始 media/player 一起打包。最终只发布融合主 AAR。
 
 补丁源码：`buildSrc/src/main/groovy/com/smart/lsap/TclFusionAarPatchTask.groovy`。身份配置：融合模块 `TclIdentityBridge.java`。补丁不内嵌第二份配置，所有入口共用桥接类的登记信息。
 
@@ -32,9 +32,19 @@
 只生成补丁 AAR：
 
 ```sh
-./gradlew :ad-sdk-fusion-tcl-base:patchTclFusionAar --offline --console=plain --no-daemon
+./gradlew :ad-sdk-fusion:patchTclFusionAar --offline --console=plain --no-daemon
 ```
 
-这份补丁 AAR 需要与包含 `TclIdentityBridge` 的新版融合主模块配套使用，不能搭配之前生成的融合主 AAR。
+这份中间补丁 AAR 不对外发布。最终主 AAR 内含 `libs/tcl-base.jar`、`libs/tcl-media.jar`、`libs/tcl-player.jar`，以及合并的资源、consumer rules 和身份桥接类。
 
 当前补丁版本为 `fusion-tcl-identity-3`，共修改 6 个类。只替换 TCL 网络交互中动态读取的宿主应用身份；原厂 `MovieArk`、`com.tcl.movieark`、默认商店链接及 SDK 自身版本保持原样，`VastAdRequestParams` 类没有改写。覆盖路径和保留真实宿主信息的位置见 [身份配置覆盖核对](../TCL_IDENTITY_COVERAGE.md)。
+
+## 单个 AAR 的打包方式
+
+`TclFusionBundleTask` 提取三份输入的资源和混淆规则，并把三份 classes.jar 嵌入主 AAR。TCL 原资源命名空间的字段引用改指融合模块的 R 类，使 Android 宿主能为单个 AAR 生成正确资源 ID；不修改资源名、广告参数和固定字符串。原始 AAR 文件保持不变。原 media/player Manifest 的 `allowBackup=false` 由融合 Manifest 保留，网络权限原已声明。
+
+`settings.gradle` 不再包含三个 TCL 子项目；JitPack 仅执行融合主模块的发布任务。生成的 POM 和 Gradle module metadata 不包含 `ad-sdk-fusion-tcl-*` 依赖。
+
+已发布的 `v1.0.18` 使用原来的分模块方式；这里描述的是之后的单包构建方式，尚未发布新版本。
+
+本地验证：单包 AAR 构建及 Maven 发布通过；仅使用该依赖的宿主 Release APK（R8 混淆开启）构建通过。主 POM/module metadata 无 TCL 子模块依赖，2,405 个 TCL 类完整内嵌，20 个资源字段存在；只重定向 29 处资源字段引用，其他类内容保持原样，84 项身份断言通过。未进行设备实播。

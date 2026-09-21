@@ -38,9 +38,3 @@ include ':hq008-flow-sdk'
 include ':hq008-flow-demo'
 
 include ':ad-sdk-fusion'
-include ':ad-sdk-fusion-tcl-base'
-project(':ad-sdk-fusion-tcl-base').projectDir = file('ad-sdk-fusion/vendor/base')
-include ':ad-sdk-fusion-tcl-media'
-project(':ad-sdk-fusion-tcl-media').projectDir = file('ad-sdk-fusion/vendor/media')
-include ':ad-sdk-fusion-tcl-player'
-project(':ad-sdk-fusion-tcl-player').projectDir = file('ad-sdk-fusion/vendor/player')

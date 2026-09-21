@@ -1,6 +1,6 @@
 # TCL 2.8.02 身份配置覆盖说明
 
-本补丁针对 TCL 网络请求及上报中**动态读取宿主应用身份**的入口。原厂固定值、真实设备信息、Android 系统资源和进程判断分别保留原有含义。当前补丁为 `fusion-tcl-identity-3`，只改 base AAR 的 6 个类；media/player AAR 保持原文件。
+本补丁针对 TCL 网络请求及上报中**动态读取宿主应用身份**的入口。原厂固定值、真实设备信息、Android 系统资源和进程判断分别保留原有含义。当前补丁为 `fusion-tcl-identity-3`，身份补丁只改 base AAR 的 6 个类；原始三份 AAR 保持原文件。单包打包另行重定向 TCL 的资源字段引用，详见 `vendor/README.md`，不改变应用身份或原厂固定广告字段。
 
 ## 应用身份来源
 
@@ -42,14 +42,14 @@ TCL SDK 版本 `2.8.02`、播放器版本、网络签名算法及其服务级配
 
 ## 产物与范围
 
-本地生成配套融合主 AAR 与 base 补丁 AAR，并核对桥接方法、BI 序列化入口、修改类的数据流以及原厂固定字段所在类保持不变。扫描范围为三个 TCL AAR 的 2,405 个 class。证据保存在 `output/ad-sdk-fusion/tcl-identity/audit/`。
+身份核对针对融合主模块及 base 身份补丁；单包构建把该补丁内嵌进主 AAR。已核对桥接方法、BI 序列化入口、修改类的数据流以及原厂固定字段所在类保持不变。扫描范围为三个 TCL AAR 的 2,405 个 class。证据保存在 `output/ad-sdk-fusion/tcl-identity/audit/`。
 
 复核结果：
 
-- 三个原始 AAR 的 SHA-256 与登记的原厂输入一致；media/player 直接使用原始文件。
+- 三个原始 AAR 的 SHA-256 与登记的原厂输入一致；media/player 构建输入使用原始文件，单包打包仅重定向必要的资源字段引用。
 - base 补丁只改变 6 个类中预期的 20 个方法逻辑；其余类字节码与 AAR 资源保持原样。ASM 自动重算的最大栈深和局部变量数单独排除，不当作业务逻辑变更。
 - `VastAdRequestParams`、`SignInterceptor` 及其服务级固定配置均未改写；MovieArk、固定 appBundle、商店链接和 TCL SDK 版本保持原值。
 - 对配套产物的 84 项身份入口、桥接链接和配置断言通过，修改类通过 ASM 数据流核对；扩大到全部 PackageManager 调用及 ApplicationInfo/PackageInfo 字段的复查没有发现新的 TCL 动态宿主身份上报来源。
 - 融合模块和三个 TCL AAR 的有效 Manifest 没有要求 TCL 登记配置的占位符；融合适配器无宿主 TCL metadata 校验，登记读取直接进入桥接类。宿主只需原有 `adAppId`、`adChannelId`，不需要额外填写 TCL 配置或单独初始化 TCL。
 
-没有运行整套回归、设备实播或远程发布。静态路径和本地产物核对不能替代真实流量验证，也不能证明 TCL 服务端已接受登记配置。
+身份补丁已随 `v1.0.18` 发布；单包构建尚未另发远程版本。没有进行设备实播或真实流量验证，静态路径和本地产物核对不能证明 TCL 服务端已接受登记配置。

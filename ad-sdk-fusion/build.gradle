@@ -1,3 +1,6 @@
+import com.smart.lsap.TclFusionAarPatchTask
+import com.smart.lsap.TclFusionBundleTask
+
 plugins {
     alias(libs.plugins.android.library)
 }
@@ -8,6 +11,18 @@ base {
     archivesName = 'ad-sdk-fusion'
 }
 
+def patchTcl = tasks.register('patchTclFusionAar', TclFusionAarPatchTask) {
+    inputAar.set(layout.projectDirectory.file('vendor/base/sdk.aar'))
+    outputAar.set(layout.buildDirectory.file('tcl/base-patched.aar'))
+}
+def prepareTcl = tasks.register('prepareEmbeddedTcl', TclFusionBundleTask) {
+    baseAar.set(patchTcl.flatMap { it.outputAar })
+    mediaAar.set(layout.projectDirectory.file('vendor/media/sdk.aar'))
+    playerAar.set(layout.projectDirectory.file('vendor/player/sdk.aar'))
+    outputDirectory.set(layout.buildDirectory.dir('generated/embeddedTcl'))
+}
+def embeddedTclDir = layout.buildDirectory.dir('generated/embeddedTcl')
+
 android {
     namespace 'com.smart.android.adsdk.fusion'
     compileSdk 36
@@ -15,6 +30,7 @@ android {
     defaultConfig {
         minSdk 23
         consumerProguardFiles 'consumer-rules.pro'
+        consumerProguardFiles embeddedTclDir.map { it.file('consumer-rules.pro').asFile }
     }
 
     buildTypes {
@@ -28,7 +44,18 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    sourceSets.main {
+        resources.srcDir embeddedTclDir.map { it.dir('java-resources').asFile }
+        ['base', 'media', 'player'].each { component ->
+            res.srcDir embeddedTclDir.map { it.dir("${component}/res").asFile }
+            assets.srcDir embeddedTclDir.map { it.dir("${component}/assets").asFile }
+        }
+    }
+
 }
+
+tasks.named('preBuild').configure { dependsOn prepareTcl }
+tasks.matching { it.name == 'sourceReleaseJar' }.configureEach { dependsOn prepareTcl }
 
 dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:2.3.0')
@@ -41,9 +68,9 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.14.0'
     implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
 
-    implementation project(path: ':ad-sdk-fusion-tcl-base', configuration: 'default')
-    implementation project(path: ':ad-sdk-fusion-tcl-media', configuration: 'default')
-    implementation project(path: ':ad-sdk-fusion-tcl-player', configuration: 'default')
+    ['base', 'media', 'player'].each { component ->
+        implementation files(embeddedTclDir.map { it.file("libs/tcl-${component}.jar").asFile }).builtBy(prepareTcl)
+    }
     implementation 'com.google.guava:guava:33.5.0-android'
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'androidx.leanback:leanback:1.0.0'

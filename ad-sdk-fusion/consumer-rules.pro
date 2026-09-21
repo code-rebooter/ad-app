@@ -6,6 +6,9 @@
 # TCL 2.8.02 loads its own factories/configuration and serialization models reflectively.
 -keep class com.tcl.** { *; }
 
+# The patched TCL vendor AAR calls this shared identity bridge directly.
+-keep class com.smart.android.adsdk.internal.TclIdentityBridge { public static *; }
+
 # Optional TCL Google/PAL adapters and cache/protocol extensions are not bundled.
 # TCL detects adapters/cache by class presence; this module uses its native HTTP VAST path.
 -dontwarn com.tcl.ff.component.media.ima.GPalInitiator

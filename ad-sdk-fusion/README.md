@@ -34,17 +34,21 @@ dependencies {
 
 ### TCL 初始化配置
 
-TCL 2.8.02 除渠道外还需要 `tcl_app_key`、`partner_name`、`project_id`。本实现兼容读取应用原有的 Manifest metadata，没有内置主项目或演示项目的凭据：
+融合版统一内置项目方提供的 TCL 登记配置，宿主继续只配置原来的 `adAppId` 和 `adChannelId`，无需额外传 TCL 包名、签名或初始化 metadata。
 
-```xml
-<application>
-    <meta-data android:name="tcl_app_key" android:value="客户对应的 TCL App Key" />
-    <meta-data android:name="partner_name" android:value="客户对应的 Partner Name" />
-    <meta-data android:name="project_id" android:value="客户对应的 Project ID" />
-</application>
-```
+| TCL 字段 | 内置值 |
+| --- | --- |
+| 包名 | `com.google.android.adhq1001` |
+| 签名 MD5 | `D2A9B2A8A9E0AF740267C0BC356DC1A4` |
+| `partner_name` | `chhkj_1` |
+| `project_id` | `213` |
+| `tcl_app_key` | 使用项目方提供的项目 213 对应 App Key，内置于 SDK |
 
-已经由宿主初始化 TCL 的应用沿用该初始化状态。未初始化且缺少配置时，TCL 分支返回明确的初始化错误，并参与整轮结果合并。**正式客户配置及其交付方式尚待确定**；以上说明的是当前支持的配置入口，不代表宿主必须手工增加三项配置。后续若由 SDK 提供配置，宿主仍可只传原来的一个渠道号。
+TCL 2.8.02 的 base AAR 在构建时打补丁，把授权参数、初始化配置及 TCL BI 包名/签名读取接到 `TclIdentityBridge`。TCL 请求的 `appDomain` 同步使用这套包名。包名、MD5、Key、项目号作为同一套配置维护，不混用其他渠道的登记信息。
+
+Android 的宿主包名、APK 签名、资源和 Manifest 查询仍使用宿主实际信息；Google 分支及我们后台上报的宿主信息保持原有来源。IAB 授权数据仍从宿主自己的 SharedPreferences 读取。
+
+原始 TCL AAR 保留在 `vendor/base/sdk.aar`，实际本地依赖及 Maven 发布都使用构建生成的补丁 AAR，详情见 [TCL AAR 说明](vendor/README.md)。后续调整登记配置只需改 SDK 内部桥接配置，宿主无需重新设计接入参数。
 
 ## 渠道与共用域名
 

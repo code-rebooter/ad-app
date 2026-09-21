@@ -2,10 +2,7 @@ package com.smart.android.adsdk.internal;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
@@ -60,12 +57,13 @@ final class TclAdPlayer implements AdPlayer {
                 requestAd();
                 return;
             }
-            validateInitializationMetadata();
             AdReportSwitchConfig switches = new AdReportSwitchConfig();
             switches.setPrivacyAgreed(true);
             switches.setUxpEnabled(true);
             switches.setErrorStatisticsEnabled(true);
-            listener.onTrace("TCL_INITIALIZE", "channel=" + channel);
+            listener.onTrace("TCL_INITIALIZE", "channel=" + channel
+                + " package=" + TclIdentityBridge.getPackageName()
+                + " projectId=" + TclIdentityBridge.getProjectId());
             Initialization.init(context, switches, () -> dispatch(() -> {
                 main.removeCallbacks(initPoll);
                 requestAd();
@@ -82,23 +80,6 @@ final class TclAdPlayer implements AdPlayer {
             if (Initialization.isHasInit()) requestAd();
             else main.postDelayed(initPoll, 500L);
         } catch (RuntimeException | LinkageError error) { fail(error, AdErrorStage.INITIALIZATION); }
-    }
-
-    @SuppressWarnings("deprecation")
-    private void validateInitializationMetadata() {
-        try {
-            ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                context.getPackageName(), PackageManager.GET_META_DATA);
-            Bundle values = info.metaData;
-            for (String key : new String[] {"tcl_app_key", "partner_name", "project_id"}) {
-                Object value = values == null ? null : values.get(key);
-                if (value == null || value.toString().trim().isEmpty() || value.toString().startsWith("${")) {
-                    throw new IllegalArgumentException("Missing TCL initialization metadata: " + key);
-                }
-            }
-        } catch (PackageManager.NameNotFoundException error) {
-            throw new IllegalArgumentException("Unable to read TCL initialization metadata", error);
-        }
     }
 
     private void requestAd() {
@@ -184,7 +165,7 @@ final class TclAdPlayer implements AdPlayer {
 
     private RequestParams buildRequestParams() {
         RequestParams.Builder builder = new RequestParams.Builder()
-            .setAppCat("app").setAppDomain(context.getPackageName()).setChannelName(channel)
+            .setAppCat("app").setAppDomain(TclIdentityBridge.getPackageName()).setChannelName(channel)
             .setContentLanguage(Locale.getDefault().getLanguage()).setContentTitle("App Content")
             .setDevice("android").setDeviceLanguage(Locale.getDefault().toLanguageTag())
             .setDeviceMake(Build.MANUFACTURER).setDeviceModel(Build.MODEL);

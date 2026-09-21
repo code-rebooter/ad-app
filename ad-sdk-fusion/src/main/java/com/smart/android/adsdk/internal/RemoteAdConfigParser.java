@@ -1,0 +1,117 @@
+package com.smart.android.adsdk.internal;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+final class RemoteAdConfigParser {
+    static final int DEFAULT_AD_LOAD_TIMEOUT_MS = 20_000;
+    static final long DEFAULT_AD_STARTUP_TIMEOUT_MS = 35_000L;
+    private static final int SUCCESS_CODE = 100_000;
+    private static final int HTTP_STYLE_SUCCESS_CODE = 200;
+
+    private final Gson gson;
+
+    RemoteAdConfigParser(Gson gson) {
+        this.gson = gson;
+    }
+
+    RemoteAdConfigResult parse(String responseBody) throws RemoteAdConfigParseException {
+        return parse(responseBody, null);
+    }
+
+    RemoteAdConfigResult parse(
+        String responseBody,
+        FlowAuthorizedConfig flowConfig
+    ) throws RemoteAdConfigParseException {
+        try {
+            JsonElement rootElement = JsonParser.parseString(responseBody);
+            if (!rootElement.isJsonObject()) {
+                throw new RemoteAdConfigParseException("ad config response must be a JSON object");
+            }
+
+            JsonObject root = rootElement.getAsJsonObject();
+            JsonElement businessCode = root.get("code");
+            if (businessCode != null && !businessCode.isJsonNull()
+                && businessCode.getAsInt() != SUCCESS_CODE && businessCode.getAsInt() != HTTP_STYLE_SUCCESS_CODE) {
+                AdResponseException error = AdResponseException.api(responseBody, businessCode.getAsString());
+                throw new RemoteAdConfigParseException(error.getMessage(), error);
+            }
+            JsonObject data = resolveDataObject(root);
+            if (data == null) {
+                return RemoteAdConfigResult.skipped("NO_CONFIG_DATA");
+            }
+            String adTagUrl = readString(data, "ad_tag_url");
+            if (adTagUrl.trim().isEmpty()) {
+                return RemoteAdConfigResult.skipped("NO_AD_TAG");
+            }
+
+            int adLoadTimeoutMs = readPositiveInt(
+                data,
+                "ad_load_timeout_ms",
+                DEFAULT_AD_LOAD_TIMEOUT_MS
+            );
+            long adStartupTimeoutMs = readPositiveLong(
+                data,
+                "ad_startup_timeout_ms",
+                DEFAULT_AD_STARTUP_TIMEOUT_MS
+            );
+            return RemoteAdConfigResult.withAd(
+                new AdPlaybackConfig(
+                    adTagUrl,
+                    adLoadTimeoutMs,
+                    adStartupTimeoutMs,
+                    flowConfig == null ? null : flowConfig.getRequestId(),
+                    flowConfig != null && flowConfig.isHiddenMode(),
+                    flowConfig == null ? null : flowConfig.getSoundEnabled(),
+                    flowConfig == null ? 0L : flowConfig.getNextRequestSeconds()
+                )
+            );
+        } catch (RemoteAdConfigParseException error) {
+            throw error;
+        } catch (RuntimeException error) {
+            throw new RemoteAdConfigParseException(error.getMessage(), error);
+        }
+    }
+
+    private JsonObject resolveDataObject(JsonObject root) throws RemoteAdConfigParseException {
+        if (!root.has("code")) {
+            return root;
+        }
+        JsonElement dataElement = root.get("data");
+        if (dataElement == null || dataElement.isJsonNull()) {
+            return null;
+        }
+        if (!dataElement.isJsonObject()) {
+            throw new RemoteAdConfigParseException("ad config data must be a JSON object");
+        }
+        return dataElement.getAsJsonObject();
+    }
+
+    private String readString(JsonObject object, String fieldName) {
+        JsonElement element = object.get(fieldName);
+        if (element == null || element.isJsonNull()) {
+            return "";
+        }
+        return element.getAsString();
+    }
+
+    private int readPositiveInt(JsonObject object, String fieldName, int defaultValue) {
+        JsonElement element = object.get(fieldName);
+        if (element == null || element.isJsonNull()) {
+            return defaultValue;
+        }
+        int value = element.getAsInt();
+        return value > 0 ? value : defaultValue;
+    }
+
+    private long readPositiveLong(JsonObject object, String fieldName, long defaultValue) {
+        JsonElement element = object.get(fieldName);
+        if (element == null || element.isJsonNull()) {
+            return defaultValue;
+        }
+        long value = element.getAsLong();
+        return value > 0L ? value : defaultValue;
+    }
+}

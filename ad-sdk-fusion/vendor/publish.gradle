@@ -1,0 +1,18 @@
+// Package the supplied TCL AAR as a transitive Maven artifact; no host fileTree setup.
+apply plugin: 'base'
+apply plugin: 'maven-publish'
+group = findProperty('PUBLISH_GROUP_ID') ?: System.getenv('GROUP') ?: 'com.github.code-rebooter.ad-app'
+version = findProperty('PUBLISH_VERSION') ?: System.getenv('VERSION') ?: '0.0.0-local'
+configurations { maybeCreate('default') }
+artifacts { add('default', file('sdk.aar')) }
+publishing {
+    publications {
+        release(MavenPublication) {
+            groupId = project.group.toString()
+            artifactId = project.name
+            version = project.version.toString()
+            artifact(file('sdk.aar'))
+            pom { name = project.name; description = 'TCL overseas SDK 2.8.02 binary dependency for ad-sdk-fusion' }
+        }
+    }
+}

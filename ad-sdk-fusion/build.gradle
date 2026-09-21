@@ -1,0 +1,57 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+apply from: "$rootDir/gradle/jitpack-publish.gradle"
+
+base {
+    archivesName = 'ad-sdk-fusion'
+}
+
+android {
+    namespace 'com.smart.android.adsdk.fusion'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 23
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+}
+
+dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.3.0')
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.media3:media3-exoplayer:1.10.1'
+    implementation 'androidx.media3:media3-ui:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer-ima:1.10.1'
+
+    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+    implementation 'com.google.code.gson:gson:2.14.0'
+    implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
+
+    implementation project(path: ':ad-sdk-fusion-tcl-base', configuration: 'default')
+    implementation project(path: ':ad-sdk-fusion-tcl-media', configuration: 'default')
+    implementation project(path: ':ad-sdk-fusion-tcl-player', configuration: 'default')
+    implementation 'com.google.guava:guava:33.5.0-android'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.leanback:leanback:1.0.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    implementation 'com.github.bumptech.glide:glide:4.11.0'
+    implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    testImplementation 'junit:junit:4.13.2'
+}

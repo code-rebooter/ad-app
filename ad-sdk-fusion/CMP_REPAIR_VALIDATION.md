@@ -31,3 +31,9 @@
 这次真机结果证明初始化、两家串行和错误回传路径，**不代表广告实播成功，也未验证远端 CMP 决策至 user/action/consent-report 的完整成功链路**。该链路真机验证需要后台允许本轮进入 CMP（skip_cmp=false）。
 
 最终本地 AAR SHA-256：`b6c1d01d650f77c9fd78362edf26e9f128a883bb58b3a007f48ba732cef5880b`。最终 R8 Demo SHA-256：`c57e3ebb64951fc02635e3c4402edaf7f316db31385453fd1b2af49430935ff1`。
+
+## 远程发布
+
+2026-09-22，`v1.0.20` 已由 JitPack 成功构建，标签提交为 `21195e05c1bcc4e809d663ff912cdf04c58773b7`。远程 AAR、POM、Gradle module metadata 和 sources JAR 均下载成功。62 份 SDK 源文件与已验证代码一致；TCL 四组件及 CMP 167 个类均内嵌，没有新增 TCL Maven 子模块。
+
+远程 AAR SHA-256：`3e7fa4d0b9613ec4175bde6f9d746c9e9717673e6d0f66f91944323352f9aa74`。发布证据位于 `output/ad-sdk-fusion/v1.0.20/remote/`；新一轮使用该远程依赖的设备验证记录位于 `output/ad-sdk-fusion/v1.0.20/device-validation/`。

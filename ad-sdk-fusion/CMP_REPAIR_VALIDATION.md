@@ -37,3 +37,5 @@
 2026-09-22，`v1.0.20` 已由 JitPack 成功构建，标签提交为 `21195e05c1bcc4e809d663ff912cdf04c58773b7`。远程 AAR、POM、Gradle module metadata 和 sources JAR 均下载成功。62 份 SDK 源文件与已验证代码一致；TCL 四组件及 CMP 167 个类均内嵌，没有新增 TCL Maven 子模块。
 
 远程 AAR SHA-256：`3e7fa4d0b9613ec4175bde6f9d746c9e9717673e6d0f66f91944323352f9aa74`。发布证据位于 `output/ad-sdk-fusion/v1.0.20/remote/`；新一轮使用该远程依赖的设备验证记录位于 `output/ad-sdk-fusion/v1.0.20/device-validation/`。
+
+2026-09-22 已使用 JitPack `v1.0.20` 构建 R8 Demo 并安装到同一 mstar，保留应用数据运行两轮。首轮 Google 起播超时；第二轮 Google 返回 IMA 303，随后 TCL 返回空 VAST、原始回调 -1000，宿主 onFinished 仅一次、status=ERROR、message 完整。两轮未实播成功；后台仍对两家返回 skip_cmp=true、popup_log_enabled=false，因此完整 CMP 链路仍待配置允许后验证。完整结果见 `output/ad-sdk-fusion/v1.0.20/device-validation/验证结果.md`。

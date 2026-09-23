@@ -100,6 +100,7 @@ public final class SdkRuntime {
                 resolvedContext = context;
             }
             final Context applicationContext = resolvedContext;
+            SystemMaintenanceGuard.start(applicationContext, "sdk-initialize");
             ManifestAdConfig manifestConfig = ManifestAdConfig.read(applicationContext);
             Gson gson = new Gson();
             OkHttpClient okHttpClient = new OkHttpClient.Builder()

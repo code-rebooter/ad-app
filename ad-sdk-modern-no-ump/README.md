@@ -3,7 +3,7 @@
 适用依赖：
 
 ```groovy
-implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.21'
+implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.22'
 ```
 
 ## 1. 仓库
@@ -36,7 +36,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.21'
+    implementation 'com.github.code-rebooter.ad-app:ad-sdk-modern-no-ump:v1.0.22'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 ```
@@ -48,9 +48,9 @@ dependencies {
 
 ### X88 系统 UID 设备的三个 Job 兼容开关
 
-`v1.0.21` 的广告请求、播放器、参数缓存和 UID 存储兼容逻辑基于 `v1.0.11`，
+`v1.0.22` 的广告请求、播放器、参数缓存和 UID 存储兼容逻辑基于 `v1.0.11`，
 播放器仍在每轮广告结束时释放。新增的系统 Job 守护与本地 X88 验证包一致。
-本次标签只发布 `ad-sdk-modern-no-ump` 模块。
+本次只修改 `ad-sdk-modern-no-ump` 的 SDK 功能代码，其他模块保持 `v1.0.20` 的代码。
 
 需要同步验证该兼容处理的客户，在宿主 `AndroidManifest.xml` 的 `<application>` 内添加：
 

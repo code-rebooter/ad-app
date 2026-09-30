@@ -30,6 +30,7 @@ import com.google.ads.interactivemedia.v3.api.ImaSdkFactory
 import com.google.ads.interactivemedia.v3.api.ImaSdkSettings
 import com.google.common.collect.ImmutableList
 import com.smart.android.ad_app.AdConfigManager
+import com.smart.android.ad_app.logging.PropertyLog
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.adDebugPrintln
 import kotlin.apply
@@ -63,7 +64,8 @@ class VastAdPlayerView @JvmOverloads constructor(
     var onAdClicked: (() -> Unit)? = null
     var onAdError: ((String) -> Unit)? = null
     var requestAdId: String? = null
-    var enableDebugLogging: Boolean = false
+    private val enableDebugLogging: Boolean
+        get() = PropertyLog.isEnabled()
 
     var isMuted: Boolean = true
         set(value) {

@@ -12,10 +12,20 @@ class Hq008AdSdkDependencyIsolationTest {
         val buildGradle = readProjectFile("app/build.gradle")
 
         assertTrue(buildGradle.contains("hq008TclSharedPatchedAars.each { patchedAar ->"))
-        assertTrue(buildGradle.contains("hq008Implementation patchedAar"))
-        assertTrue(buildGradle.contains("hq008NoneuImplementation patchedAar"))
-        assertTrue(buildGradle.contains("hq008Noneuc2Implementation patchedAar"))
-        assertTrue(buildGradle.contains("tcl_polyImplementation patchedAar"))
+        listOf(
+            "hq008Implementation patchedAar",
+            "tcl_aishangImplementation patchedAar",
+            "ad_ytx01Implementation patchedAar",
+            "ad_ytx01_sxkImplementation patchedAar",
+            "ad_ytx01_jxImplementation patchedAar",
+            "ad_album_101_001Implementation patchedAar",
+            "hq008NoneuImplementation patchedAar",
+            "hq008Noneuc2Implementation patchedAar",
+            "tcl_polyImplementation patchedAar",
+            "hq008XHSXImplementation patchedAar"
+        ).forEach { dependency ->
+            assertTrue("TCL 2.8.02 渠道必须使用修补后的 AAR: $dependency", buildGradle.contains(dependency))
+        }
         assertTrue(buildGradle.contains("tcl_polyImplementation 'org.poly-gamma.android.origin:origin:0.1.2.0.1778809170'"))
 
         assertNoPublicDependency(buildGradle, "implementation\\s+fileTree\\(dir: tclDemoLibsDir")

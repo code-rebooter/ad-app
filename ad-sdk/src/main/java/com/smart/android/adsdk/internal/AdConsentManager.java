@@ -6,7 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import com.smart.android.adsdk.logging.PropertyLog;
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.FormError;
@@ -133,7 +133,7 @@ final class AdConsentManager {
             PENDING_CALLBACKS.add(callback);
             if (state != State.IDLE) {
                 if (activeAction != action) {
-                    Log.w(TAG, "已有 UMP action=" + activeAction + " 正在执行，本次 action=" + action + " 将复用当前流程");
+                    PropertyLog.w(TAG, "已有 UMP action=" + activeAction + " 正在执行，本次 action=" + action + " 将复用当前流程");
                 }
                 return;
             }
@@ -146,7 +146,7 @@ final class AdConsentManager {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
                 appContext.startActivity(intent);
             } catch (RuntimeException error) {
-                Log.e(TAG, "无法启动 UMP consent Activity", error);
+                PropertyLog.e(TAG, "无法启动 UMP consent Activity", error);
                 finishFlow(action, messageOrDefault(error, "Unable to start UMP consent Activity"), true, false);
             }
         });
@@ -170,13 +170,13 @@ final class AdConsentManager {
             ConsentRequestParameters requestParameters = new ConsentRequestParameters.Builder().build();
             ConsentAction action = activeAction;
 
-            Log.i(TAG, "开始更新 UMP consent 信息，action=" + action);
+            PropertyLog.i(TAG, "开始更新 UMP consent 信息，action=" + action);
             ConsentInformation finalInformation = information;
             information.requestConsentInfoUpdate(
                 activity,
                 requestParameters,
                 () -> {
-                    Log.i(
+                    PropertyLog.i(
                         TAG,
                         "UMP consent 信息更新完成，status=" + finalInformation.getConsentStatus()
                             + "，canRequestAds=" + finalInformation.canRequestAds()
@@ -201,7 +201,7 @@ final class AdConsentManager {
                     }
                 },
                 requestError -> {
-                    Log.w(
+                    PropertyLog.w(
                         TAG,
                         "UMP consent 信息更新失败，canRequestAds=" + finalInformation.canRequestAds()
                             + "，error=" + requestError.getMessage()
@@ -220,22 +220,22 @@ final class AdConsentManager {
         }
         if (!information.isConsentFormAvailable()) {
             String message = "UMP consent form is unavailable after consent info update";
-            Log.w(TAG, message + "，" + buildStoredConsentSnapshot(activity.getApplicationContext()));
+            PropertyLog.w(TAG, message + "，" + buildStoredConsentSnapshot(activity.getApplicationContext()));
             finishFlow(action, message, !information.canRequestAds(), false);
             return;
         }
 
-        Log.i(TAG, "开始加载 UMP consent 表单用于静默完成用户操作，action=" + action);
+        PropertyLog.i(TAG, "开始加载 UMP consent 表单用于静默完成用户操作，action=" + action);
         ConsentInformation finalInformation = information;
         UserMessagingPlatform.loadConsentForm(
             activity.getApplicationContext(),
             consentForm -> MAIN_HANDLER.post(() -> {
                 Activity hostActivity = hostActivityRef == null ? null : hostActivityRef.get();
                 if (state != State.GATHERING_CONSENT || hostActivity != activity) {
-                    Log.w(TAG, "UMP consent 表单已加载，但宿主 Activity 已失效");
+                    PropertyLog.w(TAG, "UMP consent 表单已加载，但宿主 Activity 已失效");
                     return;
                 }
-                Log.i(TAG, "UMP consent 表单加载完成，开始静默执行 action=" + action);
+                PropertyLog.i(TAG, "UMP consent 表单加载完成，开始静默执行 action=" + action);
                 SilentConsentFormRunner.showAndApplyDecisionSilently(
                     activity,
                     consentForm,
@@ -248,7 +248,7 @@ final class AdConsentManager {
                 );
             }),
             loadError -> MAIN_HANDLER.post(() -> {
-                Log.w(
+                PropertyLog.w(
                     TAG,
                     "UMP consent 表单加载失败，canRequestAds=" + finalInformation.canRequestAds()
                         + "，error=" + loadError.getMessage()
@@ -291,9 +291,9 @@ final class AdConsentManager {
             : buildStoredConsentSnapshot(hostActivity.getApplicationContext());
         String errorMessage = formError == null ? localErrorMessage : formError.getMessage();
         if (errorMessage == null) {
-            Log.i(TAG, "UMP consent 静默流程结束，action=" + action + "，canRequestAds=" + canRequestAds + "，" + snapshot);
+            PropertyLog.i(TAG, "UMP consent 静默流程结束，action=" + action + "，canRequestAds=" + canRequestAds + "，" + snapshot);
         } else {
-            Log.w(
+            PropertyLog.w(
                 TAG,
                 "UMP consent 静默流程结束但返回错误，action=" + action
                     + "，canRequestAds=" + canRequestAds

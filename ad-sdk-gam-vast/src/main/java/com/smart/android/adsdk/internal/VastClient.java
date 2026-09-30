@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -17,9 +19,11 @@ final class VastClient {
     private final OkHttpClient okHttpClient;
     private final VastParser parser = new VastParser();
     private final VmapParser vmapParser = new VmapParser();
+    private final String userAgent;
 
     VastClient(OkHttpClient okHttpClient) {
         this.okHttpClient = okHttpClient;
+        this.userAgent = HttpUserAgent.get();
     }
 
     Cancellable load(String url, int timeoutMs, Callback callback) {
@@ -35,14 +39,17 @@ final class VastClient {
     }
 
     private final class LoadOperation implements Cancellable {
-        private final int timeoutMs;
         private final Callback callback;
+        private final OkHttpClient requestClient;
         private volatile boolean cancelled;
         private volatile Call activeCall;
 
         LoadOperation(int timeoutMs, Callback callback) {
-            this.timeoutMs = timeoutMs;
             this.callback = callback;
+            this.requestClient = okHttpClient.newBuilder()
+                .callTimeout(Math.max(1_000, timeoutMs), TimeUnit.MILLISECONDS)
+                .cookieJar(new InMemoryCookieJar())
+                .build();
         }
 
         void load(String url, int depth, TrackingBundle inherited) {
@@ -85,10 +92,11 @@ final class VastClient {
                 )));
                 return;
             }
-            OkHttpClient requestClient = okHttpClient.newBuilder()
-                .callTimeout(Math.max(1_000, timeoutMs), TimeUnit.MILLISECONDS)
+            Request request = new Request.Builder()
+                .url(httpUrl)
+                .header("User-Agent", userAgent)
+                .get()
                 .build();
-            Request request = new Request.Builder().url(httpUrl).get().build();
             Call call = requestClient.newCall(request);
             activeCall = call;
             call.enqueue(new okhttp3.Callback() {
@@ -144,7 +152,7 @@ final class VastClient {
                                     301,
                                     java.util.Collections.emptyList()
                                 );
-                            internalCallback.onError(inherited.toError(vastError));
+                            internalCallback.onError(inherited.toError(withResponseContext(vastError, depth)));
                         }
                     }
                 }
@@ -161,7 +169,7 @@ final class VastClient {
             if (parsed.hasSequencedSources()) {
                 if (inherited.hasWrapperLayers() && !inherited.allowsMultipleAds()) {
                     internalCallback.onError(inherited.toError(new VastLoadException(
-                        "VAST wrapper resolved to an ad pod, which is not supported",
+                        "SDK_REJECTED_AD_POD (VAST 303): wrapper disallowed multiple ads",
                         303,
                         java.util.Collections.emptyList()
                     )));
@@ -181,7 +189,7 @@ final class VastClient {
                     && parsed.getAdBreak().getAds().size() > 1
                     && !inherited.allowsMultipleAds()) {
                     internalCallback.onError(inherited.toError(new VastLoadException(
-                        "VAST wrapper resolved to an ad pod, which is not supported",
+                        "SDK_REJECTED_AD_POD (VAST 303): wrapper disallowed multiple ads",
                         303,
                         java.util.Collections.emptyList()
                     )));
@@ -236,7 +244,7 @@ final class VastClient {
             if (index >= sources.size()) {
                 if (resolvedAds.isEmpty()) {
                     internalCallback.onError(inherited.toError(new VastLoadException(
-                        "VAST ad pod did not resolve to playable ads",
+                        "AD_SERVER_NO_PLAYABLE_AD_POD (VAST 303): ad pod contained no playable ads",
                         303,
                         java.util.Collections.emptyList()
                     )));
@@ -297,7 +305,7 @@ final class VastClient {
             VmapAdBreak adBreak = firstPlayableBreak(schedule);
             if (adBreak == null) {
                 internalCallback.onError(inherited.toError(new VastLoadException(
-                    "VMAP response contained no playable ad break",
+                    "SDK_UNSUPPORTED_VMAP_SCHEDULE (VAST 303): no playable start ad break",
                     303,
                     java.util.Collections.emptyList()
                 )));
@@ -339,6 +347,20 @@ final class VastClient {
                 || normalized.contains("<vmap:VMAP");
         }
 
+        private VastLoadException withResponseContext(VastLoadException error, int depth) {
+            String message = error.getMessage();
+            if (message == null || !message.startsWith("AD_SERVER_NO_AD")) {
+                return error;
+            }
+            return new VastLoadException(
+                "AD_SERVER_NO_AD (VAST 303): response at wrapper depth " + depth
+                    + " contained no <Ad> element",
+                error.getCause(),
+                error.getVastErrorCode(),
+                error.getErrorTrackers()
+            );
+        }
+
         @Override
         public void cancel() {
             cancelled = true;
@@ -358,6 +380,47 @@ final class VastClient {
     private String resolveNextUrl(HttpUrl baseUrl, String value) {
         HttpUrl resolved = baseUrl.resolve(value);
         return resolved == null ? null : resolved.toString();
+    }
+
+    private static final class InMemoryCookieJar implements CookieJar {
+        private final List<Cookie> cookies = new ArrayList<>();
+
+        @Override
+        public synchronized void saveFromResponse(HttpUrl url, List<Cookie> responseCookies) {
+            long now = System.currentTimeMillis();
+            for (Cookie responseCookie : responseCookies) {
+                for (int index = cookies.size() - 1; index >= 0; index--) {
+                    Cookie stored = cookies.get(index);
+                    if (stored.expiresAt() <= now || sameCookie(stored, responseCookie)) {
+                        cookies.remove(index);
+                    }
+                }
+                if (responseCookie.expiresAt() > now) {
+                    cookies.add(responseCookie);
+                }
+            }
+        }
+
+        @Override
+        public synchronized List<Cookie> loadForRequest(HttpUrl url) {
+            long now = System.currentTimeMillis();
+            List<Cookie> matching = new ArrayList<>();
+            for (int index = cookies.size() - 1; index >= 0; index--) {
+                Cookie cookie = cookies.get(index);
+                if (cookie.expiresAt() <= now) {
+                    cookies.remove(index);
+                } else if (cookie.matches(url)) {
+                    matching.add(cookie);
+                }
+            }
+            return matching;
+        }
+
+        private boolean sameCookie(Cookie left, Cookie right) {
+            return left.name().equals(right.name())
+                && left.domain().equals(right.domain())
+                && left.path().equals(right.path());
+        }
     }
 
     static final class TrackingBundle {

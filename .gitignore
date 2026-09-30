@@ -9,3 +9,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Local device diagnostics
+/artifacts/
+/x88_*.txt
+/x88_*.err

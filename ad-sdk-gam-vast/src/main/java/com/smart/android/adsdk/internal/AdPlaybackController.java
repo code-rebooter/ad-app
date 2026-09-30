@@ -6,12 +6,18 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
+import com.smart.android.adsdk.gamvast.logging.PropertyLog;
 import android.view.Gravity;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -29,7 +35,10 @@ import java.util.Set;
 import okhttp3.OkHttpClient;
 
 final class AdPlaybackController implements AdPlayer {
+    private static final String TAG = "GamVastPlayer";
     private static final long PROGRESS_POLL_MS = 250L;
+    private static final long PLAYER_RELEASE_TIMEOUT_MS = 500L;
+    private static final long SURFACE_DETACH_TIMEOUT_MS = 500L;
 
     private final Context context;
     private final ViewGroup container;
@@ -37,6 +46,7 @@ final class AdPlaybackController implements AdPlayer {
     private final OkHttpClient okHttpClient;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final PlaybackEventGate eventGate = new PlaybackEventGate();
+    private final String controllerId = Integer.toHexString(System.identityHashCode(this));
 
     private FrameLayout adRoot;
     private PlayerView playerView;
@@ -65,6 +75,7 @@ final class AdPlaybackController implements AdPlayer {
     private boolean paused;
     private boolean fallbackInProgress;
     private boolean hiddenMode;
+    private boolean resourcesReleased;
     private int mediaIndex = -1;
 
     AdPlaybackController(
@@ -81,7 +92,16 @@ final class AdPlaybackController implements AdPlayer {
 
     @Override
     public void play(AdPlaybackConfig config, boolean soundEnabled) {
-        releasePlayerResources();
+        runOnMainThread(() -> playOnMain(config, soundEnabled));
+    }
+
+    private void playOnMain(AdPlaybackConfig config, boolean soundEnabled) {
+        if (resourcesReleased || eventGate.isTerminal()) {
+            logEvent("playIgnored", "released=" + resourcesReleased
+                + ", terminal=" + eventGate.isTerminal());
+            return;
+        }
+        long playStartedAtMs = opStart("play.initialize");
         startupTimeoutMs = config.getAdStartupTimeoutMs();
         hiddenMode = config.isHiddenMode();
         tracker = new VastTracker(okHttpClient);
@@ -125,10 +145,15 @@ final class AdPlaybackController implements AdPlayer {
                 }
             }
         );
+        opEnd("play.initialize", playStartedAtMs);
     }
 
     @Override
     public void pause() {
+        runOnMainThread(this::pauseOnMain);
+    }
+
+    private void pauseOnMain() {
         if (player != null && eventGate.hasStarted() && player.isPlaying()) {
             player.pause();
             paused = true;
@@ -140,6 +165,10 @@ final class AdPlaybackController implements AdPlayer {
 
     @Override
     public void resume() {
+        runOnMainThread(this::resumeOnMain);
+    }
+
+    private void resumeOnMain() {
         if (player != null && paused) {
             player.play();
             paused = false;
@@ -151,6 +180,13 @@ final class AdPlaybackController implements AdPlayer {
 
     @Override
     public void setSoundEnabled(boolean enabled) {
+        runOnMainThread(() -> setSoundEnabledOnMain(enabled));
+    }
+
+    private void setSoundEnabledOnMain(boolean enabled) {
+        if (resourcesReleased) {
+            return;
+        }
         if (player != null) {
             player.setVolume(enabled ? 1f : 0f);
             if (vastAd != null && tracker != null && soundEnabled != enabled) {
@@ -163,28 +199,38 @@ final class AdPlaybackController implements AdPlayer {
     @Override
     public void release() {
         eventGate.markTerminal();
-        releasePlayerResources();
+        runOnMainThread(this::releasePlayerResources);
     }
 
     private void createPlayer() {
-        playerView = new PlayerView(context);
-        playerView.setLayoutParams(new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        playerView.setUseController(false);
-        playerView.setKeepContentOnPlayerReset(false);
-        playerView.setShutterBackgroundColor(Color.BLACK);
-        playerView.setOnClickListener(view -> handleAdClick());
+        long startedAtMs = opStart("player.create");
+        try {
+            playerView = new PlayerView(context);
+            playerView.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            playerView.setUseController(false);
+            playerView.setKeepContentOnPlayerReset(false);
+            playerView.setShutterBackgroundColor(Color.BLACK);
+            playerView.setOnClickListener(view -> handleAdClick());
 
-        DefaultMediaSourceFactory mediaSourceFactory =
-            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context));
-        player = new ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build();
-        player.addListener(new Player.Listener() {
+            DefaultMediaSourceFactory mediaSourceFactory =
+                new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context));
+            AudioAttributes adAudioAttributes = new AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build();
+            player = new ExoPlayer.Builder(context)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setAudioAttributes(adAudioAttributes, true)
+                .setReleaseTimeoutMs(PLAYER_RELEASE_TIMEOUT_MS)
+                .setDetachSurfaceTimeoutMs(SURFACE_DETACH_TIMEOUT_MS)
+                .build();
+            player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
+                logEvent("stateChanged", "state=" + playerStateName(playbackState));
                 if (eventGate.isTerminal()) {
                     return;
                 }
@@ -211,25 +257,36 @@ final class AdPlaybackController implements AdPlayer {
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
+                logEvent("isPlayingChanged", "isPlaying=" + isPlaying);
                 maybeReportCurrentAdStarted(isPlaying);
             }
 
             @Override
             public void onRenderedFirstFrame() {
+                logEvent("firstFrame", "state=" + currentPlayerState());
                 eventGate.markFirstFrame();
                 revealWhenReady();
             }
 
             @Override
             public void onPlayerError(PlaybackException error) {
+                PropertyLog.e(TAG, eventPrefix("playerError")
+                    + ", errorCode=" + error.errorCode
+                    + ", message=" + error.getMessage(), error);
                 handleMediaFailure(
                     405,
                     error.getMessage() == null ? "Media3 playback failed" : error.getMessage(),
                     error
                 );
             }
-        });
-        playerView.setPlayer(player);
+            });
+            long setPlayerStartedAtMs = opStart("view.setPlayer");
+            playerView.setPlayer(player);
+            opEnd("view.setPlayer", setPlayerStartedAtMs);
+            installSurfaceDiagnostics();
+        } finally {
+            opEnd("player.create", startedAtMs);
+        }
     }
 
     private void maybeReportCurrentAdStarted(boolean isPlaying) {
@@ -248,6 +305,8 @@ final class AdPlaybackController implements AdPlayer {
 
     private void handleVastLoaded(VastAdBreak adBreak) {
         if (eventGate.isTerminal() || player == null) {
+            logEvent("vastLoadedIgnored", "terminal=" + eventGate.isTerminal()
+                + ", hasPlayer=" + (player != null));
             return;
         }
         if (adBreak == null || adBreak.getAds().isEmpty()) {
@@ -256,6 +315,7 @@ final class AdPlaybackController implements AdPlayer {
         }
         vastAdBreak = adBreak;
         vastAd = adBreak.firstAd();
+        logEvent("vastLoaded", "adCount=" + adBreak.getAds().size());
         if (vastAd == null || vastAd.getMediaUrl() == null || vastAd.getMediaUrl().isEmpty()) {
             fail(AdErrorCode.AD_LOAD_ERROR, "VAST did not provide a media URL", null);
             return;
@@ -295,6 +355,9 @@ final class AdPlaybackController implements AdPlayer {
             }
             VastMediaFile mediaFile = mediaFiles.get(mediaIndex);
             try {
+                logEvent("mediaCandidate", "candidate=" + (mediaIndex + 1)
+                    + "/" + mediaFiles.size()
+                    + ", mime=" + valueOrEmpty(mediaFile.getPlayerMimeType()));
                 if (tracker != null) {
                     tracker.setMediaType(mediaFile.getPlayerMimeType());
                 }
@@ -304,13 +367,32 @@ final class AdPlaybackController implements AdPlayer {
                     && !mediaFile.getPlayerMimeType().isEmpty()) {
                     mediaItemBuilder.setMimeType(mediaFile.getPlayerMimeType());
                 }
-                player.setMediaItem(mediaItemBuilder.build());
-                player.setPlayWhenReady(true);
-                player.prepare();
+                long setMediaItemStartedAtMs = opStart("media.setItem");
+                try {
+                    player.setMediaItem(mediaItemBuilder.build());
+                } finally {
+                    opEnd("media.setItem", setMediaItemStartedAtMs);
+                }
+                long playWhenReadyStartedAtMs = opStart("media.setPlayWhenReady");
+                try {
+                    player.setPlayWhenReady(true);
+                } finally {
+                    opEnd("media.setPlayWhenReady", playWhenReadyStartedAtMs);
+                }
+                long prepareStartedAtMs = opStart("media.prepare");
+                try {
+                    player.prepare();
+                } finally {
+                    opEnd("media.prepare", prepareStartedAtMs);
+                }
                 maybeReportCurrentAdStarted(player.isPlaying());
                 fallbackInProgress = false;
                 return;
             } catch (RuntimeException error) {
+                PropertyLog.e(TAG, eventPrefix("mediaCandidateFailed")
+                    + ", candidate=" + (mediaIndex + 1)
+                    + "/" + mediaFiles.size()
+                    + ", mime=" + valueOrEmpty(mediaFile.getPlayerMimeType()), error);
                 failedMediaIndexes.add(mediaIndex);
                 previousError = error;
                 errorCode = 403;
@@ -344,15 +426,20 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void attachPlayerView() {
-        adRoot = new FrameLayout(context);
-        adRoot.setLayoutParams(new ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        adRoot.setBackgroundColor(Color.BLACK);
-        adRoot.setAlpha(0f);
-        adRoot.addView(playerView);
-        container.addView(adRoot);
+        long startedAtMs = opStart("view.attachRoot");
+        try {
+            adRoot = new FrameLayout(context);
+            adRoot.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            adRoot.setBackgroundColor(Color.BLACK);
+            adRoot.setAlpha(0f);
+            adRoot.addView(playerView);
+            container.addView(adRoot);
+        } finally {
+            opEnd("view.attachRoot", startedAtMs);
+        }
     }
 
     private void reportStart() {
@@ -638,25 +725,56 @@ final class AdPlaybackController implements AdPlayer {
     }
 
     private void releasePlayerResources() {
+        if (resourcesReleased) {
+            return;
+        }
+        resourcesReleased = true;
         clearStartupTimeout();
         stopProgressPolling();
         if (vastCall != null) {
             vastCall.cancel();
             vastCall = null;
         }
-        if (playerView != null) {
-            playerView.setPlayer(null);
+        ExoPlayer playerToRelease = player;
+        if (playerToRelease != null) {
+            long releaseAllStartedAtMs = opStart("release.all");
+            long stopStartedAtMs = opStart("player.stop");
+            try {
+                playerToRelease.stop();
+            } catch (RuntimeException | LinkageError error) {
+                PropertyLog.e(TAG, "ExoPlayer stop failed during release", error);
+            } finally {
+                opEnd("player.stop", stopStartedAtMs);
+            }
+            long releaseStartedAtMs = opStart("player.release");
+            try {
+                playerToRelease.release();
+            } catch (RuntimeException | LinkageError error) {
+                PropertyLog.e(TAG, "ExoPlayer release failed", error);
+            } finally {
+                opEnd("player.release", releaseStartedAtMs);
+            }
+            opEnd("release.all", releaseAllStartedAtMs);
         }
-        if (player != null) {
-            player.stop();
-            player.release();
-            player = null;
+        player = null;
+        if (playerView != null) {
+            long detachStartedAtMs = opStart("view.detachPlayer");
+            try {
+                playerView.setPlayer(null);
+            } finally {
+                opEnd("view.detachPlayer", detachStartedAtMs);
+            }
         }
         if (adRoot != null) {
-            adRoot.animate().cancel();
-            container.removeView(adRoot);
-            adRoot.removeAllViews();
-            adRoot = null;
+            long removeStartedAtMs = opStart("view.removeRoot");
+            try {
+                adRoot.animate().cancel();
+                container.removeView(adRoot);
+                adRoot.removeAllViews();
+                adRoot = null;
+            } finally {
+                opEnd("view.removeRoot", removeStartedAtMs);
+            }
         }
         skipButton = null;
         playerView = null;
@@ -680,6 +798,96 @@ final class AdPlaybackController implements AdPlayer {
         fallbackInProgress = false;
         hiddenMode = false;
         mediaIndex = -1;
+    }
+
+    private void runOnMainThread(Runnable action) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action.run();
+        } else {
+            mainHandler.post(action);
+        }
+    }
+
+    private void installSurfaceDiagnostics() {
+        View videoSurfaceView = playerView == null ? null : playerView.getVideoSurfaceView();
+        logEvent("surfaceView", "class="
+            + (videoSurfaceView == null ? "null" : videoSurfaceView.getClass().getName()));
+        if (!(videoSurfaceView instanceof SurfaceView)) {
+            return;
+        }
+        ((SurfaceView) videoSurfaceView).getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                PropertyLog.i(TAG, "SURFACE_EVENT created" + diagnosticSuffix()
+                    + ", valid=" + holder.getSurface().isValid());
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                PropertyLog.i(TAG, "SURFACE_EVENT changed" + diagnosticSuffix()
+                    + ", format=" + format
+                    + ", size=" + width + "x" + height
+                    + ", valid=" + holder.getSurface().isValid());
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                PropertyLog.i(TAG, "SURFACE_EVENT destroyed" + diagnosticSuffix()
+                    + ", valid=" + holder.getSurface().isValid());
+            }
+        });
+    }
+
+    private long opStart(String operation) {
+        long startedAtMs = SystemClock.elapsedRealtime();
+        PropertyLog.i(TAG, "PLAYER_OP begin" + diagnosticSuffix()
+            + ", op=" + operation
+            + ", state=" + currentPlayerState());
+        return startedAtMs;
+    }
+
+    private void opEnd(String operation, long startedAtMs) {
+        PropertyLog.i(TAG, "PLAYER_OP end" + diagnosticSuffix()
+            + ", op=" + operation
+            + ", elapsedMs=" + (SystemClock.elapsedRealtime() - startedAtMs)
+            + ", state=" + currentPlayerState());
+    }
+
+    private void logEvent(String event, String detail) {
+        PropertyLog.i(TAG, eventPrefix(event) + (TextUtils.isEmpty(detail) ? "" : ", " + detail));
+    }
+
+    private String eventPrefix(String event) {
+        return "PLAYER_EVENT " + event + diagnosticSuffix();
+    }
+
+    private String diagnosticSuffix() {
+        return ", controller=" + controllerId
+            + ", mediaIndex=" + mediaIndex
+            + ", thread=" + Thread.currentThread().getName();
+    }
+
+    private String currentPlayerState() {
+        return player == null ? "NO_PLAYER" : playerStateName(player.getPlaybackState());
+    }
+
+    private String playerStateName(int state) {
+        switch (state) {
+            case Player.STATE_IDLE:
+                return "IDLE";
+            case Player.STATE_BUFFERING:
+                return "BUFFERING";
+            case Player.STATE_READY:
+                return "READY";
+            case Player.STATE_ENDED:
+                return "ENDED";
+            default:
+                return "UNKNOWN(" + state + ")";
+        }
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private int dp(int value) {

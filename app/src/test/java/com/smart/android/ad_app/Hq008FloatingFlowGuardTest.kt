@@ -2,7 +2,9 @@ package com.smart.android.ad_app
 
 import org.junit.After
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class Hq008FloatingFlowGuardTest {
@@ -66,5 +68,39 @@ class Hq008FloatingFlowGuardTest {
                 maxDurationMs = 1_000L
             )
         )
+    }
+
+    @Test
+    fun `cancelling active flow invalidates its token and permits a new flow`() {
+        val first = Hq008FloatingFlowGuard.tryEnter(
+            channelId = "AD_YTX01_JX",
+            nowMs = 1_000L,
+            maxDurationMs = 60_000L
+        )!!
+
+        assertTrue(invokeIsActive(first))
+        invokeCancelActive()
+        assertFalse(invokeIsActive(first))
+        assertNotNull(
+            Hq008FloatingFlowGuard.tryEnter(
+                channelId = "AD_YTX01_JX",
+                nowMs = 2_000L,
+                maxDurationMs = 60_000L
+            )
+        )
+    }
+
+    private fun invokeIsActive(token: Hq008FloatingFlowGuard.Token): Boolean {
+        val method = Hq008FloatingFlowGuard::class.java.getMethod(
+            "isActive",
+            Hq008FloatingFlowGuard.Token::class.java
+        )
+        return method.invoke(null, token) as Boolean
+    }
+
+    private fun invokeCancelActive() {
+        Hq008FloatingFlowGuard::class.java
+            .getMethod("cancelActive", String::class.java)
+            .invoke(null, "unit_test")
     }
 }

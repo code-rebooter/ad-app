@@ -1,11 +1,11 @@
 package com.smart.android.ad_app
 
 import com.smart.android.ad_app.AdLocalLog as Log
+import com.smart.android.ad_app.logging.PropertyLog
 import android.view.ViewGroup
 import com.zykj.vastplayer.manager.ZyVideoAd
 
 object AdManagerImpl : IAdManager {
-    private const val isDebugMode = false
     private const val isFillVideo = false
     private const val adIdValue = "112"
     private const val channelId = "3"
@@ -26,7 +26,7 @@ object AdManagerImpl : IAdManager {
     ) {
         val container = flRoot.requireFrameLayout("hq003容器不是 FrameLayout，广告展示失败", adError)
             ?: return
-        val zyVideoAd = ZyVideoAd(appContext, isDebugMode, isFillVideo, adIdValue, channelId)
+        val zyVideoAd = ZyVideoAd(appContext, PropertyLog.isEnabled(), isFillVideo, adIdValue, channelId)
 
         zyVideoAd.addAdEventListener(object : ZyVideoAd.JoyeAdListener {
             override fun onStart() {

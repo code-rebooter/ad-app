@@ -17,6 +17,8 @@ class HaierUserAgentInstallerTest {
         assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008XHSX"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_aishang"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_sxk"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_jx"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_album_101_001"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneu"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneuc2"))

@@ -4,3 +4,8 @@ plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
 }
+
+subprojects { module ->
+    module.plugins.withId('com.android.application') { module.apply from: rootProject.file('gradle/property-logging.gradle') }
+    module.plugins.withId('com.android.library') { module.apply from: rootProject.file('gradle/property-logging.gradle') }
+}

@@ -1,5 +1,7 @@
 package com.smart.android.ad_app
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import android.view.View
 import android.view.ViewGroup
 import com.smart.android.ad_app.AdLocalLog as Log
@@ -13,7 +15,7 @@ object AdManagerImpl : IAdManager {
         // 广告初始化
         adDebugPrintln("hq005的广告初始化")
         Sdk.init(appContext)
-        Sdk.getAd().setEnableLog(BuildConfig.DEBUG)
+        Sdk.getAd().setEnableLog(PropertyLog.isEnabled())
     }
 
     private var mController: Controller? = null

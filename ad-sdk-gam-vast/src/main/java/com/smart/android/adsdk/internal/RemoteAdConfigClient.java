@@ -33,6 +33,8 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
     private final RemoteAdConfigParser parser;
     private final String apiBaseUrl;
     private final String resolveUrl;
+    private final Object deviceInfoLock = new Object();
+    private volatile DeviceInfo cachedDeviceInfo;
 
     RemoteAdConfigClient(
         Context context,
@@ -91,7 +93,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         FlowCallSequence sequence,
         Runnable onAllowed
     ) {
-        DeviceInfo deviceInfo = deviceInfoProvider.collect();
+        DeviceInfo deviceInfo = deviceInfo();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel_id", channelId);
         body.put("mac", deviceInfo.mac);
@@ -144,7 +146,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         FlowCallSequence sequence,
         AuthorizeCallback onAuthorized
     ) {
-        DeviceInfo deviceInfo = deviceInfoProvider.collect();
+        DeviceInfo deviceInfo = deviceInfo();
         Map<String, Object> body = buildAuthorizeBody(channelId, localRequestId, deviceInfo);
         Request request = buildJsonPost(apiBaseUrl + "api/v2/ad/sdk/authorize", body);
         Call call = okHttpClient.newCall(request);
@@ -203,7 +205,7 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         RemoteAdConfigResolver.Callback callback,
         FlowCallSequence sequence
     ) {
-        DeviceInfo deviceInfo = deviceInfoProvider.collect();
+        DeviceInfo deviceInfo = deviceInfo();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel_id", channelId);
         body.put("mac", deviceInfo.mac.isEmpty() ? "00:00:00:00:00:00" : deviceInfo.mac);
@@ -285,6 +287,24 @@ final class RemoteAdConfigClient implements RemoteAdConfigResolver {
         body.put("local_ip", deviceInfo.localIp);
         body.put("mac", deviceInfo.mac);
         return body;
+    }
+
+    private DeviceInfo deviceInfo() {
+        DeviceInfo current = cachedDeviceInfo;
+        if (current != null) {
+            return current;
+        }
+        synchronized (deviceInfoLock) {
+            current = cachedDeviceInfo;
+            if (current == null) {
+                current = deviceInfoProvider.collect();
+                if (current == null) {
+                    throw new IllegalStateException("Device info collector returned null");
+                }
+                cachedDeviceInfo = current;
+            }
+            return current;
+        }
     }
 
     private Request buildJsonPost(String url, Map<String, Object> body) {

@@ -4,10 +4,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -18,6 +21,99 @@ import okhttp3.ResponseBody;
 import org.junit.Test;
 
 public class VastClientTest {
+    @Test
+    public void sendsInitialAdTagWithoutChangingParametersOrCorrelator() throws Exception {
+        String adTagUrl = "https://pubads.g.doubleclick.net/gampad/ads"
+            + "?iu=%2F23334778486%2FTVDesktop%2Fvideo-1"
+            + "&description_url=https%3A%2F%2Fghtfor.cc"
+            + "&sz=640x480%7C1280x720&output=vast&env=vp&impl=s&correlator=";
+        Map<String, String> responses = new LinkedHashMap<>();
+        responses.put(adTagUrl, "<VAST version=\"4.3\"><Ad><InLine>"
+            + "<Creatives><Creative><Linear><MediaFiles>"
+            + "<MediaFile type=\"video/mp4\"><![CDATA[https://cdn.test/video.mp4]]></MediaFile>"
+            + "</MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>");
+        RoutingInterceptor interceptor = new RoutingInterceptor(responses);
+        VastClient client = new VastClient(new OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .build());
+        CallbackRecorder callback = new CallbackRecorder();
+
+        client.load(adTagUrl, 5_000, callback);
+
+        callback.awaitAdBreak();
+        assertEquals(adTagUrl, interceptor.requestUrls.get(0));
+    }
+
+    @Test
+    public void keepsWrapperCookiesInMemoryForCurrentLoadOperation() throws Exception {
+        MockWebServer server = new MockWebServer();
+        server.start();
+        String baseUrl = server.url("/").toString();
+        server.enqueue(new MockResponse.Builder()
+            .addHeader("Content-Type", "application/xml")
+            .addHeader("Set-Cookie", "vast_session=abc123; Path=/; HttpOnly")
+            .body("<VAST version=\"4.3\"><Ad><Wrapper>"
+                + "<VASTAdTagURI><![CDATA[" + baseUrl + "inline]]></VASTAdTagURI>"
+                + "</Wrapper></Ad></VAST>")
+            .build());
+        server.enqueue(new MockResponse.Builder()
+            .addHeader("Content-Type", "application/xml")
+            .body("<VAST version=\"4.3\"><Ad><InLine>"
+                + "<Creatives><Creative><Linear><MediaFiles>"
+                + "<MediaFile type=\"video/mp4\"><![CDATA[https://cdn.test/video.mp4]]></MediaFile>"
+                + "</MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>")
+            .build());
+        try {
+            VastClient client = new VastClient(new OkHttpClient.Builder().build());
+            CallbackRecorder callback = new CallbackRecorder();
+
+            client.load(baseUrl + "wrapper", 5_000, callback);
+
+            callback.awaitAdBreak();
+            server.takeRequest(2, TimeUnit.SECONDS);
+            assertEquals(
+                "vast_session=abc123",
+                server.takeRequest(2, TimeUnit.SECONDS).getHeaders().get("Cookie")
+            );
+        } finally {
+            server.close();
+        }
+    }
+
+    @Test
+    public void sendsDeviceUserAgentOnInitialAndWrapperRequests() throws Exception {
+        Map<String, String> responses = new LinkedHashMap<>();
+        responses.put("https://ads.test/wrapper", "<VAST version=\"4.3\"><Ad><Wrapper>"
+            + "<VASTAdTagURI><![CDATA[https://ads.test/inline]]></VASTAdTagURI>"
+            + "</Wrapper></Ad></VAST>");
+        responses.put("https://ads.test/inline", "<VAST version=\"4.3\"><Ad><InLine>"
+            + "<Creatives><Creative><Linear><MediaFiles>"
+            + "<MediaFile type=\"video/mp4\"><![CDATA[https://cdn.test/video.mp4]]></MediaFile>"
+            + "</MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>");
+        RoutingInterceptor interceptor = new RoutingInterceptor(responses);
+        String previousUserAgent = System.getProperty("http.agent");
+        System.setProperty("http.agent", "Test Android Device User Agent");
+        try {
+            VastClient client = new VastClient(new OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .build());
+            CallbackRecorder callback = new CallbackRecorder();
+
+            client.load("https://ads.test/wrapper", 5_000, callback);
+
+            callback.awaitAdBreak();
+            assertEquals(2, interceptor.userAgents.size());
+            assertEquals("Test Android Device User Agent", interceptor.userAgents.get(0));
+            assertEquals("Test Android Device User Agent", interceptor.userAgents.get(1));
+        } finally {
+            if (previousUserAgent == null) {
+                System.clearProperty("http.agent");
+            } else {
+                System.setProperty("http.agent", previousUserAgent);
+            }
+        }
+    }
+
     @Test
     public void loadsFirstPlayableVastFromVmapAdBreak() throws Exception {
         Map<String, String> responses = new LinkedHashMap<>();
@@ -73,7 +169,28 @@ public class VastClientTest {
 
         VastLoadException error = callback.awaitError();
         assertEquals(303, error.getVastErrorCode());
+        assertTrue(error.getMessage().startsWith("SDK_UNSUPPORTED_VMAP_SCHEDULE"));
         assertEquals(1, interceptor.requestCount);
+    }
+
+    @Test
+    public void identifiesEmptyFinalVastAsAdServerNoAdResponse() throws Exception {
+        Map<String, String> responses = new LinkedHashMap<>();
+        responses.put("https://ads.test/wrapper", "<VAST version=\"4.3\"><Ad><Wrapper>"
+            + "<VASTAdTagURI><![CDATA[https://ads.test/empty]]></VASTAdTagURI>"
+            + "</Wrapper></Ad></VAST>");
+        responses.put("https://ads.test/empty", "<VAST version=\"4.3\"></VAST>");
+        VastClient client = new VastClient(new OkHttpClient.Builder()
+            .addInterceptor(new RoutingInterceptor(responses))
+            .build());
+        CallbackRecorder callback = new CallbackRecorder();
+
+        client.load("https://ads.test/wrapper", 5_000, callback);
+
+        VastLoadException error = callback.awaitError();
+        assertEquals(303, error.getVastErrorCode());
+        assertTrue(error.getMessage().startsWith("AD_SERVER_NO_AD"));
+        assertTrue(error.getMessage().contains("wrapper depth 1"));
     }
 
     @Test
@@ -440,6 +557,8 @@ public class VastClientTest {
 
     private static final class RoutingInterceptor implements Interceptor {
         private final Map<String, String> responses;
+        private final java.util.List<String> userAgents = new ArrayList<>();
+        private final java.util.List<String> requestUrls = new ArrayList<>();
         private int requestCount;
 
         RoutingInterceptor(Map<String, String> responses) {
@@ -450,6 +569,8 @@ public class VastClientTest {
         public Response intercept(Chain chain) throws IOException {
             Request request = chain.request();
             requestCount++;
+            userAgents.add(request.header("User-Agent"));
+            requestUrls.add(request.url().toString());
             String body = responses.get(request.url().toString());
             if (body == null) {
                 return response(request, 404, "");

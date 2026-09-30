@@ -42,6 +42,43 @@ public class GamVastSdkFlowContractTest {
         assertFalse(moduleSource.contains("ConsentResolver"));
     }
 
+    @Test
+    public void playerLifecycleRunsOnMainThreadAndReleasesBeforeSurfaceDetach() throws Exception {
+        String controllerSource = readProjectFile(
+            "ad-sdk-gam-vast/src/main/java/com/smart/android/adsdk/internal/AdPlaybackController.java"
+        );
+        String factorySource = readProjectFile(
+            "ad-sdk-gam-vast/src/main/java/com/smart/android/adsdk/internal/AdPlaybackControllerFactory.java"
+        );
+
+        assertTrue(controllerSource.contains("runOnMainThread(() -> playOnMain("));
+        assertTrue(controllerSource.contains("runOnMainThread(this::pauseOnMain)"));
+        assertTrue(controllerSource.contains("runOnMainThread(this::resumeOnMain)"));
+        assertTrue(controllerSource.contains("runOnMainThread(() -> setSoundEnabledOnMain(enabled))"));
+        assertTrue(controllerSource.contains("runOnMainThread(this::releasePlayerResources)"));
+        assertFalse(controllerSource.contains("releaseAsync"));
+        assertFalse(controllerSource.contains("Media3ReleaseThreadGuard"));
+        assertFalse(factorySource.contains("PlayerReleaseCoordinator"));
+
+        int stopPlayer = controllerSource.indexOf("playerToRelease.stop()");
+        int releasePlayer = controllerSource.indexOf("playerToRelease.release()");
+        int detachPlayerView = controllerSource.indexOf("playerView.setPlayer(null)");
+        int removeAdView = controllerSource.indexOf("container.removeView(adRoot)");
+        assertTrue(stopPlayer >= 0);
+        assertTrue(releasePlayer > stopPlayer);
+        assertTrue(detachPlayerView > releasePlayer);
+        assertTrue(removeAdView > detachPlayerView);
+    }
+
+    @Test
+    public void playerDelegatesAudioFocusLifecycleToMedia3() throws Exception {
+        String controllerSource = readProjectFile(
+            "ad-sdk-gam-vast/src/main/java/com/smart/android/adsdk/internal/AdPlaybackController.java"
+        );
+
+        assertTrue(controllerSource.contains(".setAudioAttributes(adAudioAttributes, true)"));
+    }
+
     private String readProjectFile(String path) throws IOException {
         Path relative = Paths.get(path);
         Path directory = Paths.get("").toAbsolutePath();

@@ -36,3 +36,5 @@ include ':ad-sdk-gam-vast'
 include ':ad-sdk-gam-vast-demo'
 include ':hq008-flow-sdk'
 include ':hq008-flow-demo'
+
+include ':ad-sdk-fusion'

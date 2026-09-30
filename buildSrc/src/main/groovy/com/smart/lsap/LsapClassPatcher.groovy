@@ -696,10 +696,22 @@ final class LsapClassPatcher implements Opcodes {
         String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
 
         node.methods.each { MethodNode method ->
+            if (patchHq008RenderSurfacePolicy(entryName, method, bridge)) {
+                changed = true
+            }
+            if (patchHq008AudioFocusPolicy(entryName, method, bridge)) {
+                changed = true
+            }
+            if (patchHq008ExoAudioTrackPolicy(entryName, method, bridge)) {
+                changed = true
+            }
             if (patchHq008VastViewSizeChecker(entryName, method)) {
                 changed = true
             }
             if (patchHq008VastLifecycleGate(entryName, method)) {
+                changed = true
+            }
+            if (patchHq008VideoOutputFrameRate(entryName, method, bridge)) {
                 changed = true
             }
             for (AbstractInsnNode instruction = method.instructions.first;
@@ -876,6 +888,247 @@ final class LsapClassPatcher implements Opcodes {
         )
         node.accept(writer)
         return writer.toByteArray()
+    }
+
+    private static boolean patchHq008RenderSurfacePolicy(
+        String entryName,
+        MethodNode method,
+        String bridge
+    ) {
+        if (entryName == 'com/tcl/ff/component/uniplayer/f/k.class' &&
+            method.name == 'setSurfaceType' && method.desc == '(IZ)V') {
+            LabelNode keep = new LabelNode()
+            InsnList normalization = new InsnList()
+            normalization.add(new MethodInsnNode(
+                INVOKESTATIC,
+                bridge,
+                'shouldApplySxkPlaybackPatch',
+                '()Z',
+                false
+            ))
+            normalization.add(new JumpInsnNode(IFEQ, keep))
+            normalization.add(new VarInsnNode(ILOAD, 1))
+            normalization.add(new JumpInsnNode(IFNE, keep))
+            normalization.add(new InsnNode(ICONST_1))
+            normalization.add(new VarInsnNode(ISTORE, 1))
+            normalization.add(keep)
+            method.instructions.insert(normalization)
+            return true
+        }
+        return false
+    }
+
+    private static boolean patchHq008VideoOutputFrameRate(
+        String entryName,
+        MethodNode method,
+        String bridge
+    ) {
+        String renderer = 'com/google/android/exoplayer2/video/MediaCodecVideoRenderer'
+        String codecAdapter = 'com/google/android/exoplayer2/mediacodec/MediaCodecAdapter'
+        String processDescriptor =
+            "(JJL${codecAdapter};Ljava/nio/ByteBuffer;IIIJZZLcom/google/android/exoplayer2/Format;)Z"
+        if (entryName != "${renderer}.class" ||
+            method.name != 'processOutputBuffer' ||
+            method.desc != processDescriptor) {
+            return false
+        }
+
+        MethodInsnNode elapsedRealtimeCall = null
+        for (AbstractInsnNode instruction = method.instructions.first;
+             instruction != null;
+             instruction = instruction.next) {
+            if (instruction instanceof MethodInsnNode) {
+                MethodInsnNode call = (MethodInsnNode) instruction
+                if (call.opcode == INVOKESTATIC &&
+                    call.owner == 'android/os/SystemClock' &&
+                    call.name == 'elapsedRealtime' &&
+                    call.desc == '()J') {
+                    elapsedRealtimeCall = call
+                    break
+                }
+            }
+        }
+        if (elapsedRealtimeCall == null) {
+            return false
+        }
+
+        AbstractInsnNode insertionPoint = previousCodeInstruction(elapsedRealtimeCall)
+        insertionPoint = previousCodeInstruction(insertionPoint)
+        insertionPoint = previousCodeInstruction(insertionPoint)
+        if (!(insertionPoint instanceof VarInsnNode) ||
+            insertionPoint.opcode != ALOAD ||
+            ((VarInsnNode) insertionPoint).var != 0) {
+            return false
+        }
+
+        LabelNode renderFrame = new LabelNode()
+        InsnList throttle = new InsnList()
+        throttle.add(new VarInsnNode(ILOAD, 6))
+        throttle.add(new JumpInsnNode(IFEQ, renderFrame))
+        throttle.add(new VarInsnNode(ILOAD, 13))
+        throttle.add(new JumpInsnNode(IFNE, renderFrame))
+        throttle.add(new VarInsnNode(ALOAD, 0))
+        throttle.add(new FieldInsnNode(
+            GETFIELD,
+            renderer,
+            'renderedFirstFrameAfterReset',
+            'Z'
+        ))
+        throttle.add(new JumpInsnNode(IFEQ, renderFrame))
+        throttle.add(new VarInsnNode(ALOAD, 0))
+        throttle.add(new VarInsnNode(LLOAD, 8))
+        throttle.add(
+            new MethodInsnNode(
+                INVOKESTATIC,
+                bridge,
+                'shouldRenderSxkVideoFrame',
+                '(Ljava/lang/Object;J)Z',
+                false
+            )
+        )
+        throttle.add(new JumpInsnNode(IFNE, renderFrame))
+        throttle.add(new VarInsnNode(ALOAD, 0))
+        throttle.add(new VarInsnNode(ALOAD, 5))
+        throttle.add(new VarInsnNode(ILOAD, 7))
+        throttle.add(new VarInsnNode(LLOAD, 8))
+        throttle.add(
+            new MethodInsnNode(
+                INVOKEVIRTUAL,
+                renderer,
+                'skipOutputBuffer',
+                "(L${codecAdapter};IJ)V",
+                false
+            )
+        )
+        throttle.add(new InsnNode(ICONST_1))
+        throttle.add(new InsnNode(IRETURN))
+        throttle.add(renderFrame)
+        method.instructions.insertBefore(insertionPoint, throttle)
+        return true
+    }
+
+    private static boolean patchHq008ExoAudioTrackPolicy(
+        String entryName,
+        MethodNode method,
+        String bridge
+    ) {
+        String delegate = 'com/tcl/tuniplayer_exo/a'
+        String builder =
+            'com/google/android/exoplayer2/trackselection/DefaultTrackSelector$Parameters$Builder'
+        if (entryName != "${delegate}.class" ||
+            method.name != 'a' ||
+            method.desc !=
+                '(Landroid/content/Context;)Lcom/google/android/exoplayer2/ExoPlayer;') {
+            return false
+        }
+
+        MethodInsnNode buildUponParametersCall = null
+        MethodInsnNode clearOverridesCall = null
+        for (AbstractInsnNode instruction = method.instructions.first;
+             instruction != null;
+             instruction = instruction.next) {
+            if (instruction instanceof MethodInsnNode) {
+                MethodInsnNode call = (MethodInsnNode) instruction
+                if (call.opcode == INVOKEVIRTUAL &&
+                    call.owner ==
+                        'com/google/android/exoplayer2/trackselection/DefaultTrackSelector' &&
+                    call.name == 'buildUponParameters' &&
+                    call.desc == "()L${builder};") {
+                    buildUponParametersCall = call
+                }
+                if (call.opcode == INVOKEVIRTUAL &&
+                    call.owner == builder &&
+                    call.name == 'clearOverrides' &&
+                    call.desc == "()L${builder};") {
+                    clearOverridesCall = call
+                    break
+                }
+            }
+        }
+        if (buildUponParametersCall == null || clearOverridesCall == null) {
+            return false
+        }
+
+        VarInsnNode builderStore = null
+        for (AbstractInsnNode instruction = buildUponParametersCall.next;
+             instruction != null && instruction != clearOverridesCall;
+             instruction = instruction.next) {
+            if (instruction instanceof VarInsnNode && instruction.opcode == ASTORE) {
+                builderStore = (VarInsnNode) instruction
+                break
+            }
+        }
+        AbstractInsnNode clearOverridesPop = clearOverridesCall.next
+        while (clearOverridesPop instanceof LabelNode ||
+            clearOverridesPop instanceof LineNumberNode ||
+            clearOverridesPop instanceof FrameNode) {
+            clearOverridesPop = clearOverridesPop.next
+        }
+        if (builderStore == null ||
+            clearOverridesPop?.opcode != POP) {
+            return false
+        }
+
+        LabelNode keepAudioTrack = new LabelNode()
+        InsnList disableAudio = new InsnList()
+        disableAudio.add(new MethodInsnNode(
+            INVOKESTATIC,
+            bridge,
+            'shouldApplySxkPlaybackPatch',
+            '()Z',
+            false
+        ))
+        disableAudio.add(new JumpInsnNode(IFEQ, keepAudioTrack))
+        disableAudio.add(new VarInsnNode(ALOAD, builderStore.var))
+        disableAudio.add(new InsnNode(ICONST_1))
+        disableAudio.add(new InsnNode(ICONST_1))
+        disableAudio.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            builder,
+            'setTrackTypeDisabled',
+            "(IZ)L${builder};",
+            false
+        ))
+        disableAudio.add(new InsnNode(POP))
+        disableAudio.add(keepAudioTrack)
+        method.instructions.insert(clearOverridesPop, disableAudio)
+        return true
+    }
+
+    private static AbstractInsnNode previousCodeInstruction(AbstractInsnNode instruction) {
+        AbstractInsnNode previous = instruction?.previous
+        while (previous instanceof LabelNode ||
+            previous instanceof LineNumberNode ||
+            previous instanceof FrameNode) {
+            previous = previous.previous
+        }
+        return previous
+    }
+
+    private static boolean patchHq008AudioFocusPolicy(
+        String entryName,
+        MethodNode method,
+        String bridge
+    ) {
+        if (entryName == 'com/tcl/uniplayer/tuniplayer/b.class' &&
+            method.name == 'w' && method.desc == '()Z') {
+            LabelNode keepOriginalPolicy = new LabelNode()
+            InsnList policy = new InsnList()
+            policy.add(new MethodInsnNode(
+                INVOKESTATIC,
+                bridge,
+                'shouldApplySxkPlaybackPatch',
+                '()Z',
+                false
+            ))
+            policy.add(new JumpInsnNode(IFEQ, keepOriginalPolicy))
+            policy.add(new InsnNode(ICONST_0))
+            policy.add(new InsnNode(IRETURN))
+            policy.add(keepOriginalPolicy)
+            method.instructions.insert(policy)
+            return true
+        }
+        return false
     }
 
     private static boolean patchHq008VastViewSizeChecker(String entryName, MethodNode method) {

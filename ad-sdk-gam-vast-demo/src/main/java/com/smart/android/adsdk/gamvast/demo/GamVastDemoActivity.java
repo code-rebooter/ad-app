@@ -1,12 +1,16 @@
 package com.smart.android.adsdk.gamvast.demo;
 
 import android.app.Activity;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.os.SystemClock;
-import android.util.Log;
+import com.smart.android.adsdk.gamvast.demo.logging.PropertyLog;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,7 +31,9 @@ import java.util.Locale;
 
 public final class GamVastDemoActivity extends Activity {
     private static final String TAG = "GamVastDemo";
+    private static final int MOUNT_SERVICE_IDLE_JOB_ID = 808;
     private static final long REQUEST_INTERVAL_MS = 60_000L;
+    private static final long HEARTBEAT_INTERVAL_MS = 2_000L;
     private static final int MAX_LOG_LINES = 160;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -44,11 +50,32 @@ public final class GamVastDemoActivity extends Activity {
     private int requestSequence;
     private long requestStartedAtMs;
     private int logLineCount;
+    private long heartbeatSequence;
+    private final Runnable heartbeatRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (destroyed) {
+                return;
+            }
+            heartbeatSequence += 1L;
+            AdSession activeSession = session;
+            PropertyLog.i(TAG, "HEARTBEAT seq=" + heartbeatSequence
+                + ", uptimeMs=" + SystemClock.elapsedRealtime()
+                + ", request=" + requestSequence
+                + ", inFlight=" + requestInFlight
+                + ", state=" + (activeSession == null ? null : activeSession.getState())
+                + ", childCount=" + (adContainer == null ? -1 : adContainer.getChildCount())
+                + ", thread=" + Thread.currentThread().getName());
+            mainHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         buildUi();
+        disableMountServiceIdlerIfNeeded(getApplicationContext());
+        mainHandler.post(heartbeatRunnable);
         log("onCreate");
         updateStatus("INITIALIZING");
         log("config: uid=" + android.os.Process.myUid()
@@ -72,10 +99,40 @@ public final class GamVastDemoActivity extends Activity {
         });
     }
 
+    private void disableMountServiceIdlerIfNeeded(android.content.Context context) {
+        int uid = Process.myUid();
+        if (uid != Process.SYSTEM_UID) {
+            log("MOUNT_IDLE_TRIM_GUARD skipped, uid=" + uid);
+            return;
+        }
+
+        JobScheduler scheduler = context.getSystemService(JobScheduler.class);
+        if (scheduler == null) {
+            log("MOUNT_IDLE_TRIM_GUARD failed, JobScheduler unavailable");
+            return;
+        }
+
+        String pendingBefore = mountServiceIdlerState(scheduler);
+        scheduler.cancel(MOUNT_SERVICE_IDLE_JOB_ID);
+        String pendingAfter = mountServiceIdlerState(scheduler);
+        log("MOUNT_IDLE_TRIM_GUARD jobId=" + MOUNT_SERVICE_IDLE_JOB_ID
+            + ", pendingBefore=" + pendingBefore
+            + ", pendingAfter=" + pendingAfter);
+    }
+
+    private String mountServiceIdlerState(JobScheduler scheduler) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return "unknown-api";
+        }
+        JobInfo job = scheduler.getPendingJob(MOUNT_SERVICE_IDLE_JOB_ID);
+        return job == null ? "absent" : "scheduled";
+    }
+
     @Override
     protected void onDestroy() {
         destroyed = true;
         log("onDestroy: stop timer and release current session");
+        mainHandler.removeCallbacks(heartbeatRunnable);
         cancelNextRequest();
         AdSession activeSession = session;
         session = null;
@@ -276,7 +333,7 @@ public final class GamVastDemoActivity extends Activity {
 
     private void log(String message) {
         String line = "[" + timeFormat.format(new Date()) + "] " + message;
-        Log.i(TAG, line);
+        PropertyLog.i(TAG, line);
         if (logView == null) {
             return;
         }
@@ -303,7 +360,7 @@ public final class GamVastDemoActivity extends Activity {
     private void logException(String message, Throwable error) {
         log(message + ": " + error.getClass().getSimpleName()
             + ": " + valueOrEmpty(error.getMessage()));
-        Log.e(TAG, message, error);
+        PropertyLog.e(TAG, message, error);
     }
 
     private String errorMessage(AdError error) {

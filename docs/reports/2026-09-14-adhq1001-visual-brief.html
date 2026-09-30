@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>客户广告数据核查 · 一页说明</title>
+  <style>
+    :root { --ink:#182c37; --muted:#657680; --teal:#126f70; --teal-soft:#eef7f5; --red:#ad503a; --red-soft:#fcf1eb; --line:#dce5e6; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:40px; background:#e9eef0; color:var(--ink); font-family:"PingFang SC","Microsoft YaHei",sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .sheet { width:900px; height:1272px; margin:0 auto; padding:36px 48px 28px; background:#fff; box-shadow:0 16px 48px #233e4714; display:flex; flex-direction:column; overflow:hidden; }
+    .meta { display:flex; justify-content:space-between; align-items:center; font-size:16px; color:var(--muted); letter-spacing:.6px; }
+    .meta strong { color:var(--teal); }
+    h1 { font-size:43px; letter-spacing:-1.5px; line-height:1.25; margin:22px 0 12px; font-weight:750; }
+    .intro { margin:0; font-size:23px; line-height:1.55; color:#435863; }
+    .version { margin:15px 0 0; font-size:15px; color:var(--muted); }
+    .flow { display:grid; grid-template-columns:1fr 32px 1.08fr 32px 1.2fr; align-items:center; margin:22px 0; }
+    .step { height:71px; border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; justify-content:center; padding:0 16px; background:#f8fafb; }
+    .step b { font-size:18px; font-weight:650; }
+    .step span { font-size:14px; color:var(--muted); margin-top:4px; }
+    .step.last { background:var(--teal-soft); border-color:#c9e1dd; }
+    .arrow { text-align:center; color:#8da1a8; font-size:23px; }
+    .section-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:15px; }
+    h2 { margin:0; font-size:24px; font-weight:650; letter-spacing:-.4px; }
+    .tag { border:1px solid #d6e0e2; border-radius:5px; padding:4px 9px; color:var(--muted); font-size:13px; white-space:nowrap; }
+    .compare { border:1px solid var(--line); border-radius:13px; overflow:hidden; }
+    .table-head { display:grid; grid-template-columns:1fr 42px 1.15fr; background:#f3f6f7; padding:10px 22px; color:#536973; font-size:16px; }
+    .ad-row { display:grid; grid-template-columns:1fr 42px 1.15fr; align-items:center; min-height:100px; padding:18px 22px; border-top:1px solid var(--line); }
+    .actual { display:flex; align-items:center; gap:15px; }
+    .tv { width:60px; height:51px; flex:none; color:var(--teal); }
+    .tv rect { fill:var(--teal-soft); stroke:currentColor; stroke-width:2; }
+    .tv path { fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    .actual b { font-size:22px; line-height:1.4; display:block; }
+    .actual span { display:block; font-size:16px; margin-top:4px; color:var(--muted); }
+    .reported { padding-left:10px; }
+    .reported b { display:block; font-size:21px; font-weight:650; }
+    .reported span { display:block; margin-top:6px; font-size:15px; color:var(--muted); }
+    .good { color:var(--teal); }
+    .bad { color:var(--red); }
+    .whale { background:#fffaf7; }
+    .whale .reported span { color:#95634d; }
+    .result { display:flex; align-items:center; justify-content:space-between; gap:15px; border-top:1px solid var(--line); padding:16px 24px; background:#f7fafa; }
+    .result-label { font-size:14px; color:var(--muted); margin-bottom:7px; }
+    .result-value { font-size:25px; font-weight:650; white-space:nowrap; }
+    .result-value strong { font-size:39px; line-height:1; }
+    .result .arrow { font-size:30px; }
+    .plus { color:#8ca0a5; padding:0 11px; font-size:24px; }
+    .footnote { margin:10px 0 0; color:var(--muted); font-size:13px; line-height:1.6; }
+    .takeaways { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px; }
+    .takeaway { border-top:3px solid var(--teal); background:var(--teal-soft); padding:16px 20px 15px; border-radius:0 0 9px 9px; }
+    .takeaway.second { border-color:var(--red); background:var(--red-soft); }
+    .takeaway h3 { margin:0 0 10px; font-size:23px; font-weight:650; }
+    .takeaway p { margin:0; font-size:17px; line-height:1.7; color:#405861; }
+    .takeaway.second p { color:#735448; }
+    .next { margin-top:18px; padding:17px 22px; border:1px solid var(--line); border-radius:10px; }
+    .next-label { font-size:14px; font-weight:650; color:var(--teal); letter-spacing:1px; margin-bottom:9px; }
+    .next p { font-size:19px; line-height:1.65; margin:0; }
+    .next code { font-family:ui-monospace,"SFMono-Regular",monospace; font-size:16px; background:#f1f4f5; padding:2px 5px; border-radius:4px; }
+    .additional { margin-top:14px; font-size:15px; line-height:1.75; color:var(--muted); }
+    .additional b { color:#465d66; font-weight:600; }
+    footer { margin-top:auto; padding-top:15px; border-top:1px solid var(--line); display:flex; gap:22px; justify-content:space-between; color:var(--muted); font-size:13px; line-height:1.6; }
+    footer strong { color:#405861; font-weight:600; }
+    @page { size:A4 portrait; margin:0; }
+    @media print { html,body { background:white; margin:0; padding:0; } .sheet { margin:0; box-shadow:none; zoom:0.88188 !important; break-inside:avoid; } }
+    @media screen and (max-width:979px) { body { padding:0; } .sheet { transform-origin:top left; } }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <header>
+      <div class="meta"><strong>客户广告数据核查 · 一页说明</strong><span>2026.09.14</span></div>
+      <h1>广告数据为什么对不上？</h1>
+      <p class="intro">客户轮流播放两家的广告，<br>但传给我们后台的播放结果不一样。</p>
+      <p class="version">客户应用 2.0.10 &nbsp; / &nbsp; 渠道 ADHQ1001 &nbsp; / &nbsp; 已核对 APK 与关键字节码</p>
+    </header>
+
+    <div class="flow" aria-label="广告处理流程：屏保启动，经我方流控和授权，客户轮流选择 TCL 或 Whale">
+      <div class="step"><b>电视进入屏保</b><span>启动广告流程</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="step"><b>我方流控、授权</b><span>允许本轮尝试播放</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="step last"><b>客户选择广告源</b><span>TCL / Whale 逐轮切换</span></div>
+    </div>
+
+    <section aria-labelledby="example-title">
+      <div class="section-top"><h2 id="example-title">假设两家各正常播完一条广告</h2><span class="tag">示例，非近期统计数据</span></div>
+      <div class="compare">
+        <div class="table-head"><span>电视实际播放</span><span></span><span>客户回传到我方</span></div>
+        <div class="ad-row">
+          <div class="actual">
+            <svg class="tv" viewBox="0 0 64 54" aria-hidden="true"><rect x="3" y="3" width="58" height="37" rx="6"/><path d="M23 49h18M32 40v9M24 20l6 6 11-12"/></svg>
+            <div><b>TCL 广告</b><span>正常播完 1 条</span></div>
+          </div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="reported"><b class="good">开始播放 ＋ 播放完成</b><span>加载、开始、完成均有回传</span></div>
+        </div>
+        <div class="ad-row whale">
+          <div class="actual">
+            <svg class="tv" viewBox="0 0 64 54" aria-hidden="true"><rect x="3" y="3" width="58" height="37" rx="6"/><path d="M23 49h18M32 40v9M24 20l6 6 11-12"/></svg>
+            <div><b>Whale 广告</b><span>正常播完 1 条</span></div>
+          </div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="reported"><b class="bad">未报开始 · 结束报成失败</b><span>结束回调被归入广告错误</span></div>
+        </div>
+        <div class="result">
+          <div><div class="result-label">电视端播放</div><div class="result-value"><strong>2</strong> 条广告</div></div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div><div class="result-label">我方收到的结束状态</div><div class="result-value"><span class="good"><strong>1</strong> 完成</span><span class="plus">＋</span><span class="bad"><strong>1</strong> 失败</span></div></div>
+        </div>
+      </div>
+      <p class="footnote">示例假设两路均正常结束、回调及时且上报成功；实际入库情况需核对后台。</p>
+    </section>
+
+    <section class="takeaways" aria-label="对账时需要区分的两个口径">
+      <article class="takeaway"><h3>授权次数 ≠ 展示次数</h3><p>授权包含 TCL、Whale 两路机会，<br>以及授权后被业务跳过的轮次。<br>不能直接对比 TCL 一家的展示数。</p></article>
+      <article class="takeaway second"><h3>报了失败 ≠ 播放故障</h3><p>Whale 的结束回调也被记为失败。<br>按全部广告看，开始、完成会少记，<br>失败记录中会混入正常结束的广告。</p></article>
+    </section>
+
+    <section class="next" aria-label="建议下一步">
+      <div class="next-label">先核对这件事</div>
+      <p>把异常日期中标记为 <code>OTHER_AD_FINISH</code> 的记录单独统计，<br>再明确双方比较的是 TCL 一家，还是全部广告。</p>
+    </section>
+    <p class="additional"><b>另一个待核对点：</b>客户内置 Flow SDK 2.1.2，日统计与原广告使用不同请求 ID；<br>本地 2.1.3 已修正。是否造成后台漏关联，还需查入库明细。</p>
+
+    <footer><span><strong>已确认：</strong>安装包中的分流与回传逻辑。</span><span><strong>待验证：</strong>这些差异对近期数据的实际影响。</span></footer>
+  </main>
+  <script>
+    const sheet = document.querySelector('.sheet');
+    function fitPage() { sheet.style.zoom = window.innerWidth < 980 ? Math.min(1, window.innerWidth / 900) : 1; }
+    fitPage();
+    window.addEventListener('resize', fitPage);
+  </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+package @PACKAGE@;
+
+import android.util.Log;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Method;
+
+/** Sole local diagnostic switch. Generated under each artifact's own namespace. */
+public final class PropertyLog {
+    private static final String PROPERTY = "persist.sys.ad.log";
+
+    private PropertyLog() {}
+
+    private static final class Reader {
+        static final Method GET = findGetter();
+        private static Method findGetter() {
+            try {
+                return Class.forName("android.os.SystemProperties")
+                        .getMethod("get", String.class, String.class);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
+    public static boolean isEnabled() {
+        try {
+            if (Reader.GET == null) return false;
+            Object value = Reader.GET.invoke(null, PROPERTY, "false");
+            return value instanceof String && "true".equalsIgnoreCase(((String) value).trim());
+        } catch (Throwable ignored) {
+            // Never enable diagnostics on lookup failure or fall back to a debug flag.
+            return false;
+        }
+    }
+
+    public static boolean isLoggable(String tag, int priority) {
+        return isEnabled() && Log.isLoggable(tag, priority);
+    }
+
+    public static String getStackTraceString(Throwable error) {
+        return Log.getStackTraceString(error);
+    }
+
+    public static int v(String tag, String message) {
+        return isEnabled() ? Log.v(tag, message) : 0;
+    }
+    public static int v(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.v(tag, message, error) : 0;
+    }
+    public static int d(String tag, String message) {
+        return isEnabled() ? Log.d(tag, message) : 0;
+    }
+    public static int d(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.d(tag, message, error) : 0;
+    }
+    public static int i(String tag, String message) {
+        return isEnabled() ? Log.i(tag, message) : 0;
+    }
+    public static int i(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.i(tag, message, error) : 0;
+    }
+    public static int w(String tag, String message) {
+        return isEnabled() ? Log.w(tag, message) : 0;
+    }
+    public static int w(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.w(tag, message, error) : 0;
+    }
+    public static int w(String tag, Throwable error) {
+        return isEnabled() ? Log.w(tag, error) : 0;
+    }
+    public static int e(String tag, String message) {
+        return isEnabled() ? Log.e(tag, message) : 0;
+    }
+    public static int e(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.e(tag, message, error) : 0;
+    }
+    public static int wtf(String tag, String message) {
+        return isEnabled() ? Log.wtf(tag, message) : 0;
+    }
+    public static int wtf(String tag, String message, Throwable error) {
+        return isEnabled() ? Log.wtf(tag, message, error) : 0;
+    }
+    public static int wtf(String tag, Throwable error) {
+        return isEnabled() ? Log.wtf(tag, error) : 0;
+    }
+    public static int println(int priority, String tag, String message) {
+        return isEnabled() ? Log.println(priority, tag, message) : 0;
+    }
+
+    private static final class Streams {
+        static final PrintStream OUT = wrap(System.out);
+        static final PrintStream ERR = wrap(System.err);
+    }
+
+    public static PrintStream stdout() { return Streams.OUT; }
+    public static PrintStream stderr() { return Streams.ERR; }
+
+    private static PrintStream wrap(final PrintStream target) {
+        return new PrintStream(new OutputStream() {
+            @Override public void write(int value) {
+                if (isEnabled()) target.write(value);
+            }
+            @Override public void write(byte[] bytes, int offset, int length) {
+                if (isEnabled()) target.write(bytes, offset, length);
+            }
+            @Override public void flush() { target.flush(); }
+        }, true) {
+            @Override public void close() { flush(); }
+        };
+    }
+}

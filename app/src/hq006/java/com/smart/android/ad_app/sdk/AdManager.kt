@@ -3,6 +3,8 @@
 // RtbAdManager.kt —— 绝对终极完美版（2025-11-19 彻底封神）
 package com.smart.android.ad_app.sdk
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
@@ -21,7 +23,7 @@ import java.util.*
 
 object AdManager {
 
-  private const val BID_URL = "https://api.kytira.cc/rtb/bid"
+  private val BID_URL = "${BuildConfig.AD_FLOW_BASE_URL}rtb/bid"
 
      //private const val BID_URL = "http://api.danixd.cc/rtb/bid"
 
@@ -57,7 +59,7 @@ object AdManager {
             "screen_h"    to h           // 14
         )
 
-        if (BuildConfig.DEBUG) {
+        if (PropertyLog.isEnabled()) {
             "【RTB广告】发送竞价请求 → ".adDebugPrintLog()
             adDebugPrintln(gson.toJson(requestBody))
         }
@@ -76,7 +78,7 @@ object AdManager {
             }
 
             onResult(response?.adm, null)
-            if (BuildConfig.DEBUG) {
+            if (PropertyLog.isEnabled()) {
                 "【RTB广告】服务器返回：".adDebugPrintLog()
                 adDebugPrintln(response ?: "null")
             }

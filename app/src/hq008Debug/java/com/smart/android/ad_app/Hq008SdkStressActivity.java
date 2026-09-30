@@ -7,7 +7,7 @@ import android.os.Debug;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
+import com.smart.android.ad_app.logging.PropertyLog;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -104,7 +104,7 @@ public final class Hq008SdkStressActivity extends Activity {
             heartbeatText.setTag(String.valueOf(sequence));
             heartbeatText.setText("主线程心跳 #" + sequence + "  " + System.currentTimeMillis());
             if (sequence % 10 == 0) {
-                Log.i(TAG, "HEARTBEAT seq=" + sequence);
+                PropertyLog.i(TAG, "HEARTBEAT seq=" + sequence);
             }
             heartbeatView.setBackgroundColor(sequence % 2 == 0
                     ? Color.rgb(48, 180, 108) : Color.rgb(54, 125, 220));
@@ -257,7 +257,7 @@ public final class Hq008SdkStressActivity extends Activity {
 
     private void initializeTclSdk() {
         try {
-            Ad.get().setEnableLog(true);
+            Ad.get().setEnableLog(PropertyLog.isEnabled());
             if (!Initialization.isHasInit()) {
                 AdReportSwitchConfig config = new AdReportSwitchConfig();
                 config.setPrivacyAgreed(true);
@@ -275,7 +275,7 @@ public final class Hq008SdkStressActivity extends Activity {
             }
         } catch (Throwable error) {
             appendStatus("TCL SDK 初始化异常: " + safeMessage(error));
-            Log.e(TAG, "initializeTclSdk", error);
+            PropertyLog.e(TAG, "initializeTclSdk", error);
         }
         mainHandler.postDelayed(this::reportSdkReady, 1000L);
     }
@@ -495,12 +495,12 @@ public final class Hq008SdkStressActivity extends Activity {
         try {
             controller.stop(adContainer);
         } catch (Throwable ignored) {
-            Log.w(TAG, "stop stale controller failed: " + reason);
+            PropertyLog.w(TAG, "stop stale controller failed: " + reason);
         }
         try {
             controller.release();
         } catch (Throwable ignored) {
-            Log.w(TAG, "release stale controller failed: " + reason);
+            PropertyLog.w(TAG, "release stale controller failed: " + reason);
         }
     }
 
@@ -548,6 +548,9 @@ public final class Hq008SdkStressActivity extends Activity {
 
     private void openCsv() {
         closeCsv();
+        if (!PropertyLog.isEnabled()) {
+            return;
+        }
         try {
             File file = new File(getFilesDir(), "hq008-stress.csv");
             csvWriter = new PrintWriter(new OutputStreamWriter(
@@ -565,11 +568,11 @@ public final class Hq008SdkStressActivity extends Activity {
         long gap = now - lastHeartbeatElapsed;
         if (gap > STALL_THRESHOLD_MS && now - lastWatchdogReportElapsed > 5000L) {
             lastWatchdogReportElapsed = now;
-            Log.e(TAG, "MAIN_THREAD_STALL gapMs=" + gap);
+            PropertyLog.e(TAG, "MAIN_THREAD_STALL gapMs=" + gap);
             writeThreadDump("main-stall-" + now);
         }
         String sample = resourceSample();
-        Log.i(TAG, "RESOURCE " + sample);
+        PropertyLog.i(TAG, "RESOURCE " + sample);
         runOnUiThread(() -> updateCountersWithResource(sample));
     }
 
@@ -582,6 +585,9 @@ public final class Hq008SdkStressActivity extends Activity {
     }
 
     private void writeThreadDump(String name) {
+        if (!PropertyLog.isEnabled()) {
+            return;
+        }
         try {
             File file = new File(getFilesDir(), "hq008-thread-" + name + ".txt");
             PrintWriter writer = new PrintWriter(new OutputStreamWriter(
@@ -593,13 +599,19 @@ public final class Hq008SdkStressActivity extends Activity {
                 }
             }
             writer.close();
-            Log.e(TAG, "THREAD_DUMP_FILE=" + file.getAbsolutePath());
+            PropertyLog.e(TAG, "THREAD_DUMP_FILE=" + file.getAbsolutePath());
         } catch (Throwable error) {
-            Log.e(TAG, "writeThreadDump failed", error);
+            PropertyLog.e(TAG, "writeThreadDump failed", error);
         }
     }
 
     private void writeCsv(RequestContext context, String reason) {
+        if (!PropertyLog.isEnabled()) {
+            return;
+        }
+        if (csvWriter == null) {
+            openCsv();
+        }
         if (csvWriter == null) {
             return;
         }
@@ -646,7 +658,7 @@ public final class Hq008SdkStressActivity extends Activity {
     }
 
     private void appendStatus(String message) {
-        Log.i(TAG, message);
+        PropertyLog.i(TAG, message);
         if (statusView == null) {
             return;
         }

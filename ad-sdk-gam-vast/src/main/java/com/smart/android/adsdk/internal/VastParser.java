@@ -23,10 +23,19 @@ final class VastParser {
 
         Document document = parseDocument(xml);
         Element root = document.getDocumentElement();
+        if (root == null || !"VAST".equalsIgnoreCase(localName(root.getNodeName()))) {
+            String rootName = root == null ? "missing" : root.getNodeName();
+            throw new VastLoadException(
+                "INVALID_VAST_RESPONSE (VAST 100): expected <VAST> root but received <"
+                    + rootName + ">",
+                100,
+                Collections.emptyList()
+            );
+        }
         List<Element> adElements = directChildren(root, "Ad");
         if (adElements.isEmpty()) {
             throw new VastLoadException(
-                "VAST_NO_ADS_AFTER_WRAPPER (303): VAST response contained no playable ad",
+                "AD_SERVER_NO_AD (VAST 303): response contained no <Ad> element",
                 303,
                 Collections.emptyList()
             );
@@ -111,7 +120,7 @@ final class VastParser {
             );
         }
         throw new VastLoadException(
-            "VAST_NO_ADS_AFTER_WRAPPER (303): VAST response contained no playable ad",
+            "AD_SERVER_NO_PLAYABLE_AD (VAST 303): response contained no supported inline ad or wrapper",
             303,
             accumulatedErrorTrackers
         );

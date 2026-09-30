@@ -142,6 +142,24 @@ object Hq008XhsxAarRuntimeBridge {
     }
 
     @JvmStatic
+    fun shouldRenderSxkVideoFrame(renderer: Any, presentationTimeUs: Long): Boolean {
+        return Hq008VideoFrameThrottle.shouldRender(
+            flavor = BuildConfig.FLAVOR,
+            renderer = renderer,
+            presentationTimeUs = presentationTimeUs
+        )
+    }
+
+    @JvmStatic
+    fun shouldApplySxkPlaybackPatch(): Boolean {
+        return isSxkPlaybackPatchFlavor(BuildConfig.FLAVOR)
+    }
+
+    internal fun isSxkPlaybackPatchFlavor(flavor: String): Boolean {
+        return flavor == "ad_ytx01_sxk"
+    }
+
+    @JvmStatic
     fun normalizeHeaderValue(name: String?, value: String?): String? {
         return if (name.equals("User-Agent", ignoreCase = true)) effectiveUa() else value
     }

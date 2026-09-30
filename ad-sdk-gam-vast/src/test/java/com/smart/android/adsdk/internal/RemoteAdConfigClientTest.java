@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -24,6 +25,32 @@ import org.junit.Test;
 
 public class RemoteAdConfigClientTest {
     private static final String API_BASE_URL = "https://example.test/";
+
+    @Test
+    public void collectsDeviceInfoOnlyOnceAcrossFlowAndRepeatedAdRequests() throws Exception {
+        RecordingInterceptor interceptor = RecordingInterceptor.standardSuccess();
+        Gson gson = new Gson();
+        AtomicInteger collections = new AtomicInteger();
+        RemoteAdConfigClient client = new RemoteAdConfigClient(
+            () -> {
+                collections.incrementAndGet();
+                return fakeDeviceInfo();
+            },
+            new OkHttpClient.Builder().addInterceptor(interceptor).build(),
+            gson,
+            new RemoteAdConfigParser(gson),
+            API_BASE_URL
+        );
+
+        CallbackRecorder first = new CallbackRecorder();
+        client.resolve("CHANNEL_A", null, first);
+        first.awaitResult();
+        CallbackRecorder second = new CallbackRecorder();
+        client.resolve("CHANNEL_A", null, second);
+        second.awaitResult();
+
+        assertEquals(1, collections.get());
+    }
 
     @Test
     public void requestsFlowAuthorizeThenGamConfig() throws Exception {

@@ -18,7 +18,6 @@ object RtbAds {
 
     // ================= Global Configuration (初始化配置) =================
 
-    private var isDebugMode: Boolean = false
     private var isMutedDefault: Boolean = false
 
     // 【新增】持有当前正在展示的广告 View，以便外部可以强制停止
@@ -31,15 +30,12 @@ object RtbAds {
     /**
      * 第一步：全局初始化
      */
-    fun init(context: Context, debugMode: Boolean = false, muted: Boolean = false) {
-        this.isDebugMode = debugMode
+    fun init(context: Context, muted: Boolean = false) {
         this.isMutedDefault = muted
     }
 
     private fun debugLog(message: String) {
-        if (isDebugMode) {
-            adDebugPrintln(message)
-        }
+        adDebugPrintln(message)
     }
 
     // ================= Ad Loading & Showing (加载展示) =================
@@ -90,7 +86,6 @@ object RtbAds {
                 val vastAdView = VastAdPlayerView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
                     requestAdId = adId
-                    enableDebugLogging = isDebugMode
 
                     this.isMuted = isMutedDefault
 

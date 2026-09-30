@@ -18,6 +18,29 @@ import org.junit.Test;
 
 public class VastTrackerTest {
     @Test
+    public void sendsDeviceUserAgentOnTrackingRequests() throws Exception {
+        RecordingInterceptor interceptor = new RecordingInterceptor(1);
+        String previousUserAgent = System.getProperty("http.agent");
+        System.setProperty("http.agent", "Test Android Tracking User Agent");
+        try {
+            VastTracker tracker = new VastTracker(new OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .build());
+
+            tracker.fire(Collections.singletonList("https://track.test/impression"));
+
+            assertTrue(interceptor.await());
+            assertEquals("Test Android Tracking User Agent", interceptor.userAgents.get(0));
+        } finally {
+            if (previousUserAgent == null) {
+                System.clearProperty("http.agent");
+            } else {
+                System.setProperty("http.agent", previousUserAgent);
+            }
+        }
+    }
+
+    @Test
     public void firesTrackingUrlsWithSupportedMacrosExpanded() throws Exception {
         RecordingInterceptor interceptor = new RecordingInterceptor(2);
         VastTracker tracker = new VastTracker(new OkHttpClient.Builder()
@@ -120,6 +143,7 @@ public class VastTrackerTest {
     private static final class RecordingInterceptor implements Interceptor {
         private final CountDownLatch latch;
         private final java.util.List<okhttp3.HttpUrl> urls = new java.util.ArrayList<>();
+        private final java.util.List<String> userAgents = new java.util.ArrayList<>();
         private int count;
 
         RecordingInterceptor(int expectedCount) {
@@ -129,6 +153,7 @@ public class VastTrackerTest {
         @Override
         public Response intercept(Chain chain) throws IOException {
             urls.add(chain.request().url());
+            userAgents.add(chain.request().header("User-Agent"));
             count++;
             latch.countDown();
             return new Response.Builder()

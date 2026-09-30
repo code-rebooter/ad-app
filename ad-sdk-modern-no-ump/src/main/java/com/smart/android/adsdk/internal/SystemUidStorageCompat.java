@@ -3,7 +3,7 @@ package com.smart.android.adsdk.internal;
 import android.content.Context;
 import android.os.Build;
 import android.os.Process;
-import android.util.Log;
+import com.smart.android.adsdk.modern.noump.logging.PropertyLog;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -29,11 +29,11 @@ final class SystemUidStorageCompat {
         try {
             Context credentialContext = createCredentialProtectedStorageContext(context);
             if (credentialContext != null && !credentialContext.isDeviceProtectedStorage()) {
-                Log.i(TAG, "Google SDK switched to credential protected storage context");
+                PropertyLog.i(TAG, "Google SDK switched to credential protected storage context");
                 return credentialContext;
             }
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to create credential protected context for Google SDK", error);
+            PropertyLog.w(TAG, "Unable to create credential protected context for Google SDK", error);
         }
         return context;
     }
@@ -48,7 +48,7 @@ final class SystemUidStorageCompat {
             providerField.setAccessible(true);
             Object provider = providerField.get(null);
             if (provider != null) {
-                Log.i(TAG, "WebViewFactory already initialized for " + source);
+                PropertyLog.i(TAG, "WebViewFactory already initialized for " + source);
                 return;
             }
 
@@ -85,10 +85,10 @@ final class SystemUidStorageCompat {
 
             if (initializedProvider != null) {
                 providerField.set(null, initializedProvider);
-                Log.i(TAG, "WebViewFactory prewarmed for " + source);
+                PropertyLog.i(TAG, "WebViewFactory prewarmed for " + source);
             }
         } catch (Throwable error) {
-            Log.w(TAG, "WebViewFactory prewarm failed for " + source, error);
+            PropertyLog.w(TAG, "WebViewFactory prewarm failed for " + source, error);
         }
     }
 

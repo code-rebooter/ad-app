@@ -1,159 +1,248 @@
 package com.smart.android.adsdk.internal;
 
+import android.content.Context;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import com.google.ads.interactivemedia.v3.api.AdEvent;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.ima.ImaAdsLoader;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.source.SilenceMediaSource;
+import androidx.media3.exoplayer.source.ads.AdsMediaSource;
+import androidx.media3.ui.PlayerView;
 import com.smart.android.adsdk.AdError;
 import com.smart.android.adsdk.AdErrorCode;
 import com.smart.android.adsdk.AdErrorStage;
 
-final class AdPlaybackController implements AdPlayer, AdPlaybackEngine.Listener {
+final class AdPlaybackController implements AdPlayer {
+    private static final long SILENCE_CONTENT_DURATION_US = 60_000_000L;
+
+    private final Context context;
     private final ViewGroup container;
     private final Listener listener;
-    private final AdPlaybackEngine engine;
-    private final boolean ownsEngine;
-    private final TimeoutScheduler timeoutScheduler;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final PlaybackEventGate eventGate = new PlaybackEventGate();
 
+    private FrameLayout adRoot;
+    private PlayerView playerView;
+    private ExoPlayer player;
+    private ImaAdsLoader adsLoader;
+    private Context googleSdkContext;
     private long startupTimeoutMs;
-    private Cancellable startupTimeoutCall;
+    private Runnable startupTimeoutAction;
+    private boolean hiddenMode;
 
-    AdPlaybackController(
-        ViewGroup container,
-        Listener listener,
-        AdPlaybackEngine engine,
-        boolean ownsEngine,
-        TimeoutScheduler timeoutScheduler
-    ) {
+    AdPlaybackController(Context context, ViewGroup container, Listener listener) {
+        this.context = context;
         this.container = container;
         this.listener = listener;
-        this.engine = engine;
-        this.ownsEngine = ownsEngine;
-        this.timeoutScheduler = timeoutScheduler;
     }
 
     @Override
     public void play(AdPlaybackConfig config, boolean soundEnabled) {
+        releasePlayerResources();
         startupTimeoutMs = config.getAdStartupTimeoutMs();
+        hiddenMode = config.isHiddenMode();
+        createPlayer(config.getAdLoadTimeoutMs());
+        attachPlayerView();
         armStartupTimeout();
-        try {
-            engine.play(container, config, soundEnabled, this);
-        } catch (RuntimeException error) {
-            clearStartupTimeout();
-            throw error;
-        }
+
+        player.setVolume(soundEnabled ? 1f : 0f);
+        player.setMediaSource(createAdMediaSource(config.getAdTagUrl()));
+        player.setPlayWhenReady(true);
+        player.prepare();
     }
 
     @Override
     public void pause() {
-        engine.pause(this);
+        if (player != null) {
+            player.pause();
+        }
     }
 
     @Override
     public void resume() {
-        engine.resume(this);
+        if (player != null) {
+            player.play();
+        }
     }
 
     @Override
     public void setSoundEnabled(boolean enabled) {
-        engine.setSoundEnabled(this, enabled);
+        if (player != null) {
+            player.setVolume(enabled ? 1f : 0f);
+        }
     }
 
     @Override
     public void release() {
         eventGate.markTerminal();
-        clearStartupTimeout();
-        engine.detach(this);
-        if (ownsEngine) {
-            engine.release();
-        }
+        releasePlayerResources();
     }
 
-    @Override
-    public void onLoaded() {
-        notifyLoaded();
-        extendStartupTimeout();
-    }
+    private void createPlayer(int adLoadTimeoutMs) {
+        SystemUidStorageCompat.prepareGoogleWebView("IMA");
+        googleSdkContext = SystemUidStorageCompat.resolveGoogleSdkContext(context);
 
-    @Override
-    public void onContentPauseRequested() {
-        extendStartupTimeout();
-    }
+        playerView = new PlayerView(context);
+        playerView.setLayoutParams(new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        playerView.setUseController(false);
+        playerView.setControllerHideDuringAds(true);
+        playerView.setKeepContentOnPlayerReset(false);
+        playerView.setShutterBackgroundColor(Color.BLACK);
 
-    @Override
-    public void onStarted() {
-        notifyLoaded();
-        if (eventGate.markStarted()) {
-            clearStartupTimeout();
-            listener.onStarted();
-        }
-    }
-
-    @Override
-    public void onCompleted() {
-        if (eventGateHasStarted()) {
-            complete();
-        } else {
-            fail(
-                AdErrorCode.AD_LOAD_ERROR,
-                "Ad playback completed before the ad started",
+        adsLoader = new ImaAdsLoader.Builder(googleSdkContext)
+            .setMediaLoadTimeoutMs(adLoadTimeoutMs)
+            .setAdEventListener(this::handleAdEvent)
+            .setAdErrorListener(error -> fail(
+                eventGateHasStarted()
+                    ? AdErrorCode.AD_PLAYBACK_ERROR
+                    : AdErrorCode.AD_LOAD_ERROR,
+                error == null ? "Unknown ad playback error" : error.toString(),
                 null
-            );
-        }
+            ))
+            .build();
+
+        DefaultMediaSourceFactory mediaSourceFactory =
+            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(googleSdkContext))
+                .setAdsLoaderProvider(adsConfiguration -> adsLoader)
+                .setAdViewProvider(playerView);
+
+        player = new ExoPlayer.Builder(googleSdkContext)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build();
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_ENDED && !eventGateHasStarted()) {
+                    fail(
+                        AdErrorCode.AD_LOAD_ERROR,
+                        "Ad playback ended before the ad started",
+                        null
+                    );
+                }
+            }
+
+            @Override
+            public void onRenderedFirstFrame() {
+                eventGate.markFirstFrame();
+                revealWhenReady();
+            }
+
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                fail(
+                    AdErrorCode.PLAYER_ERROR,
+                    error.getMessage() == null ? "Media3 playback failed" : error.getMessage(),
+                    error
+                );
+            }
+        });
+        playerView.setPlayer(player);
+        adsLoader.setPlayer(player);
     }
 
-    @Override
-    public void onSkipped() {
-        if (eventGateHasStarted()) {
-            skip("AD_SKIPPED");
-        } else {
-            fail(
-                AdErrorCode.AD_LOAD_ERROR,
-                "Ad playback skipped before the ad started",
-                null
-            );
-        }
+    private void attachPlayerView() {
+        adRoot = new FrameLayout(context);
+        adRoot.setLayoutParams(new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        adRoot.setBackgroundColor(Color.BLACK);
+        adRoot.setAlpha(0f);
+        adRoot.addView(playerView);
+        container.addView(adRoot);
     }
 
-    @Override
-    public void onContentResumeRequested() {
-        if (!eventGateHasStarted()) {
-            fail(
-                AdErrorCode.AD_LOAD_ERROR,
-                "Ad playback resumed content before the ad started",
-                null
-            );
-        }
-    }
-
-    @Override
-    public void onPlaybackEnded() {
-        if (!eventGateHasStarted()) {
-            fail(
-                AdErrorCode.AD_LOAD_ERROR,
-                "Ad playback ended before the ad started",
-                null
-            );
-        }
-    }
-
-    @Override
-    public void onAdError(String message) {
-        fail(
-            eventGateHasStarted()
-                ? AdErrorCode.AD_PLAYBACK_ERROR
-                : AdErrorCode.AD_LOAD_ERROR,
-            message,
-            null
+    private AdsMediaSource createAdMediaSource(String adTagUrl) {
+        SilenceMediaSource contentSource = new SilenceMediaSource(SILENCE_CONTENT_DURATION_US);
+        DefaultMediaSourceFactory adMediaSourceFactory =
+            new DefaultMediaSourceFactory(new DefaultDataSource.Factory(googleSdkContext));
+        return new AdsMediaSource(
+            contentSource,
+            new DataSpec(Uri.parse(adTagUrl)),
+            "ad_sdk_" + System.currentTimeMillis(),
+            adMediaSourceFactory,
+            adsLoader,
+            playerView
         );
     }
 
-    @Override
-    public void onPlayerError(String message, Throwable cause) {
-        fail(AdErrorCode.PLAYER_ERROR, message, cause);
+    private void handleAdEvent(AdEvent event) {
+        switch (event.getType()) {
+            case LOADED:
+                notifyLoaded();
+                extendStartupTimeout();
+                break;
+            case CONTENT_PAUSE_REQUESTED:
+                extendStartupTimeout();
+                break;
+            case STARTED:
+                notifyLoaded();
+                if (eventGate.markStarted()) {
+                    clearStartupTimeout();
+                    listener.onStarted();
+                }
+                revealWhenReady();
+                break;
+            case COMPLETED:
+            case ALL_ADS_COMPLETED:
+                if (eventGateHasStarted()) {
+                    complete();
+                } else {
+                    fail(
+                        AdErrorCode.AD_LOAD_ERROR,
+                        "Ad playback completed before the ad started",
+                        null
+                    );
+                }
+                break;
+            case SKIPPED:
+                if (eventGateHasStarted()) {
+                    skip("AD_SKIPPED");
+                } else {
+                    fail(
+                        AdErrorCode.AD_LOAD_ERROR,
+                        "Ad playback skipped before the ad started",
+                        null
+                    );
+                }
+                break;
+            case CONTENT_RESUME_REQUESTED:
+                if (!eventGateHasStarted()) {
+                    fail(
+                        AdErrorCode.AD_LOAD_ERROR,
+                        "Ad playback resumed content before the ad started",
+                        null
+                    );
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     private void notifyLoaded() {
         if (eventGate.markLoaded()) {
             listener.onLoaded();
+        }
+    }
+
+    private void revealWhenReady() {
+        if (eventGate.consumeRevealReady() && adRoot != null && !hiddenMode) {
+            adRoot.animate().cancel();
+            adRoot.animate().alpha(1f).setDuration(150L).start();
         }
     }
 
@@ -180,14 +269,12 @@ final class AdPlaybackController implements AdPlayer, AdPlaybackEngine.Listener 
 
     private void armStartupTimeout() {
         clearStartupTimeout();
-        startupTimeoutCall = timeoutScheduler.schedule(
-            () -> fail(
-                AdErrorCode.TIMEOUT,
-                "Ad playback did not start within " + startupTimeoutMs + " ms",
-                null
-            ),
-            startupTimeoutMs
+        startupTimeoutAction = () -> fail(
+            AdErrorCode.TIMEOUT,
+            "Ad playback did not start within " + startupTimeoutMs + " ms",
+            null
         );
+        mainHandler.postDelayed(startupTimeoutAction, startupTimeoutMs);
     }
 
     private void extendStartupTimeout() {
@@ -198,9 +285,9 @@ final class AdPlaybackController implements AdPlayer, AdPlaybackEngine.Listener 
     }
 
     private void clearStartupTimeout() {
-        if (startupTimeoutCall != null) {
-            startupTimeoutCall.cancel();
-            startupTimeoutCall = null;
+        if (startupTimeoutAction != null) {
+            mainHandler.removeCallbacks(startupTimeoutAction);
+            startupTimeoutAction = null;
         }
     }
 
@@ -208,4 +295,29 @@ final class AdPlaybackController implements AdPlayer, AdPlaybackEngine.Listener 
         return eventGate.hasStarted();
     }
 
+    private void releasePlayerResources() {
+        clearStartupTimeout();
+        if (adsLoader != null) {
+            adsLoader.setPlayer(null);
+            adsLoader.release();
+            adsLoader = null;
+        }
+        if (playerView != null) {
+            playerView.setPlayer(null);
+        }
+        if (player != null) {
+            player.stop();
+            player.release();
+            player = null;
+        }
+        if (adRoot != null) {
+            adRoot.animate().cancel();
+            container.removeView(adRoot);
+            adRoot.removeAllViews();
+            adRoot = null;
+        }
+        playerView = null;
+        googleSdkContext = null;
+        hiddenMode = false;
+    }
 }

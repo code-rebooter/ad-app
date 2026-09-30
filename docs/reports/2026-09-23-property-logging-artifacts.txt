@@ -1,0 +1,10 @@
+app/build/outputs/apk/google_ad_tv_desktop_jm/debug/app-google_ad_tv_desktop_jm-debug.apk: classes=19771, Android Log calls=30, property bridge references=1897, bypasses=0
+app/build/outputs/apk/google_ad_tv_desktop_jm/release/app-google_ad_tv_desktop_jm-release-20260923_1521.apk: classes=8270, Android Log calls=15, property bridge references=1553, bypasses=0
+ad-sdk/build/outputs/aar/ad-sdk-release.aar: classes=79, Android Log calls=15, property bridge references=55, bypasses=0
+ad-sdk-modern/build/outputs/aar/ad-sdk-modern-release.aar: classes=102, Android Log calls=15, property bridge references=27, bypasses=0
+ad-sdk-modern-no-ump/build/outputs/aar/ad-sdk-modern-no-ump-release.aar: classes=71, Android Log calls=15, property bridge references=37, bypasses=0
+ad-sdk-gam-vast/build/outputs/aar/ad-sdk-gam-vast-release.aar: classes=95, Android Log calls=15, property bridge references=34, bypasses=0
+ad-sdk-fusion/build/outputs/aar/ad-sdk-fusion-release.aar: classes=2723, Android Log calls=15, property bridge references=445, bypasses=0
+hq008-flow-sdk/build/outputs/aar/hq008-flow-sdk-v2.1.3-20260923_1521-release.aar: classes=28, Android Log calls=15, property bridge references=29, bypasses=0
+ad-sdk-gam-vast-demo/build/outputs/apk/debug/ad-sdk-gam-vast-demo-debug.apk: classes=9868, Android Log calls=30, property bridge references=445, bypasses=0
+hq008-flow-demo/build/outputs/apk/debug/hq008-flow-demo-debug.apk: classes=13109, Android Log calls=30, property bridge references=1516, bypasses=0

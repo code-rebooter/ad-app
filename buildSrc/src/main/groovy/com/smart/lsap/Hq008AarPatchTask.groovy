@@ -89,7 +89,12 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         byte[] patchedClasses = classesOutput.toByteArray()
 
         String metadata = [
-            'patchVersion=hq008-parameter-normalization-1',
+            'patchVersion=hq008-parameter-normalization-11',
+            'audioFocusPolicy=ad_ytx01_sxk-disabled',
+            'renderSurfacePolicy=ad_ytx01_sxk-texture-view-for-surface-view',
+            'videoOutputFrameRatePolicy=ad_ytx01_sxk-12fps',
+            'videoDecoderPolicy=platform-default',
+            'audioTrackPolicy=ad_ytx01_sxk-disabled-in-exoplayer-track-selector',
             "originalAarSha256=${actualHash}",
             "patchedClassesJarSha256=${sha256(patchedClasses)}",
             "targetFlavor=${targetFlavor.get()}",

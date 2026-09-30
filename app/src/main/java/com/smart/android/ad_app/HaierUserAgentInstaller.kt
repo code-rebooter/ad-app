@@ -1,5 +1,7 @@
 package com.smart.android.ad_app
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import android.os.Build
 import com.smart.android.ad_app.AdLocalLog as Log
 
@@ -12,6 +14,8 @@ internal object HaierUserAgentInstaller {
         "hq008XHSX",
         "tcl_aishang",
         "ad_ytx01",
+        "ad_ytx01_sxk",
+        "ad_ytx01_jx",
         "ad_album_101_001",
         "hq008Noneu",
         "hq008Noneuc2",
@@ -82,7 +86,7 @@ internal object HaierUserAgentInstaller {
                 append(result.changed)
                 append("，reason=")
                 append(result.reason)
-                if (BuildConfig.DEBUG) {
+                if (PropertyLog.isEnabled()) {
                     append("，original=")
                     append(result.originalUa)
                     append("，effective=")

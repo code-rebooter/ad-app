@@ -22,6 +22,14 @@ if (tclDemoNoneuSigningPropertiesFile.exists()) {
         tclDemoNoneuSigningProperties.load(stream)
     }
 }
+def googlePlayAppsProjectDir = rootProject.file("../GooglePlayApps")
+def localVideoPlayerSigningPropertiesFile = new File(googlePlayAppsProjectDir, "keystore-local-video-player.properties")
+def localVideoPlayerSigningProperties = new Properties()
+if (localVideoPlayerSigningPropertiesFile.exists()) {
+    localVideoPlayerSigningPropertiesFile.withInputStream { stream ->
+        localVideoPlayerSigningProperties.load(stream)
+    }
+}
 
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
@@ -84,6 +92,18 @@ android {
         }
 
         ad_ytx01 {
+            java.srcDirs = ['src/hq008/java']
+            res.srcDirs = ['src/hq008/res']
+        }
+
+        ad_ytx01_sxk {
+            manifest.srcFile 'src/ad_ytx01/AndroidManifest.xml'
+            java.srcDirs = ['src/hq008/java']
+            res.srcDirs = ['src/hq008/res']
+        }
+
+        ad_ytx01_jx {
+            manifest.srcFile 'src/ad_ytx01_jx/AndroidManifest.xml'
             java.srcDirs = ['src/hq008/java']
             res.srcDirs = ['src/hq008/res']
         }
@@ -239,7 +259,61 @@ android {
             java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
+        google_ad_tv_desktop_v260904_1 {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
+        google_ad_tv_desktop_tpmaotai1935 {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
         google_ad_tv_lockscreen {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
+            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
+        }
+
+        google_ad_tv_lockscreen_hq002 {
             manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
             java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
             res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
@@ -400,6 +474,16 @@ android {
             storeType "PKCS12"
         }
 
+        localVideoPlayerRelease {
+            if (localVideoPlayerSigningPropertiesFile.exists()) {
+                storeFile new File(googlePlayAppsProjectDir, localVideoPlayerSigningProperties.getProperty("storeFile"))
+                storePassword localVideoPlayerSigningProperties.getProperty("storePassword")
+                keyAlias localVideoPlayerSigningProperties.getProperty("keyAlias")
+                keyPassword localVideoPlayerSigningProperties.getProperty("keyPassword")
+                storeType localVideoPlayerSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
     }
 
     buildTypes {
@@ -451,6 +535,14 @@ android {
         ]
 
         def applyCommonFlavorConfig = { flavor, Map overrides ->
+            def adFlowBaseUrl = overrides.adFlowBaseUrl
+            if (!(adFlowBaseUrl instanceof String) ||
+                    !adFlowBaseUrl.startsWith("https://") ||
+                    !adFlowBaseUrl.endsWith("/")) {
+                throw new GradleException(
+                        "Flavor '${flavor.name}' must explicitly define adFlowBaseUrl as an HTTPS URL ending with '/'"
+                )
+            }
             def merged = commonFlavorConfig + overrides
 
             flavor.applicationId merged.applicationId
@@ -466,6 +558,7 @@ android {
             flavor.signingConfig merged.signingConfig
             flavor.manifestPlaceholders = merged.manifestPlaceholders
             flavor.buildConfigField "String", "BASE_URL", "\"${merged.baseUrl}\""
+            flavor.buildConfigField "String", "AD_FLOW_BASE_URL", "\"${adFlowBaseUrl}\""
             flavor.buildConfigField "String", "APP_ID", "\"${merged.appId}\""
             flavor.buildConfigField "String", "CHANNEL", "\"${merged.channel}\""
             flavor.buildConfigField "String", "C_TYPE", "\"${merged.cType}\""
@@ -482,14 +575,16 @@ android {
 
         hq001 {
             applyCommonFlavorConfig(delegate, [
-                    applicationId: "com.hqota.launcher.hq",
-                    signingConfig: signingConfigs.hikeen
+                    applicationId  : "com.hqota.launcher.hq",
+                    adFlowBaseUrl  : "https://api.kytira.cc/",
+                    signingConfig  : signingConfigs.hikeen
             ])
         }
 
         hq002 {
             applyCommonFlavorConfig(delegate, [
                     applicationId         : "com.hqota.launcher.slfhq",
+                    adFlowBaseUrl         : "https://api.kytira.cc/",
                     signingConfig         : signingConfigs.h713,
                     handlerInitialDelayMs : 2500L,
                     handlerScheduleSeconds: 20L
@@ -499,6 +594,7 @@ android {
         hq003 {
             applyCommonFlavorConfig(delegate, [
                     applicationId         : "com.hqota.launcher.liuhq",
+                    adFlowBaseUrl         : "https://api.kytira.cc/",
                     signingConfig         : signingConfigs.hikeen,
                     handlerInitialDelayMs : 4500L,
                     handlerScheduleSeconds: 60L
@@ -507,22 +603,25 @@ android {
 
         hq004 {
             applyCommonFlavorConfig(delegate, [
-                    applicationId: "com.hqota.launcher.aduhq",
-                    signingConfig: signingConfigs.h713
+                    applicationId  : "com.hqota.launcher.aduhq",
+                    adFlowBaseUrl  : "https://api.kytira.cc/",
+                    signingConfig  : signingConfigs.h713
             ])
         }
 
         hq005 {
             //这个yxt签名文件跟com.chihim.launcher.x98m是对应的，不能随意该任何一个，不然无法展示广告
             applyCommonFlavorConfig(delegate, [
-                    applicationId: "com.chihim.launcher.x98m",
-                    signingConfig: signingConfigs.yxt
+                    applicationId  : "com.chihim.launcher.x98m",
+                    adFlowBaseUrl  : "https://api.kytira.cc/",
+                    signingConfig  : signingConfigs.yxt
             ])
         }
 
         hq006 {
             applyCommonFlavorConfig(delegate, [
                     applicationId         : "com.google.android.dyrtb",
+                    adFlowBaseUrl         : "https://api.kytira.cc/",
                     versionCode           : 3,
                     versionName           : "1.0.3",
                     signingConfig         : signingConfigs.h713,
@@ -538,6 +637,7 @@ android {
         hq007 {
             applyCommonFlavorConfig(delegate, [
                     applicationId: "com.yt.launcher.ad",
+                    adFlowBaseUrl: "https://api.kytira.cc/",
                     minSdk       : 23,
                     signingConfig: signingConfigs.h713,
                     channel      : "HQTV_yt",
@@ -549,6 +649,7 @@ android {
         hq008 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adffa",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 19,
                     versionName         : "1.0.18",
                     signingConfig       : signingConfigs.tclDemoRelease,
@@ -570,6 +671,7 @@ android {
         hq008XHSX {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adxhsx",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 4,
                     versionName         : "1.0.4",
                     signingConfig       : signingConfigs.hq008XhsxRelease,
@@ -591,6 +693,7 @@ android {
         tcl_aishang {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adais",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 3,
                     versionName         : "1.0.3", // Updated: 2026-08-31 17:45 CST
                     signingConfig       : signingConfigs.tclAishangRelease,
@@ -612,8 +715,9 @@ android {
         ad_ytx01 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adytx01",
-                    versionCode         : 2,
-                    versionName         : "1.0.2",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 4,
+                    versionName         : "1.0.4",
                     signingConfig       : signingConfigs.ytx01Release,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "AD_YTX01",
@@ -630,9 +734,54 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        ad_ytx01_sxk {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.adytx01",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.ytx01Release,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "AD_YTX01_SXK",
+                    cType               : "AD_YTX01_SXK",
+                    model               : "AD_YTX01_SXK",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : "",
+                            tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4o0kvuTSirRJz/gWBkDXnEQaoK4V3uqXV3ReHRrBbXgK8nJSx3CPuMpLXAM3IRFEcuQ==",
+                            partner_name: "chhkj",
+                            project_id  : "224"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
+        ad_ytx01_jx {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.google.android.adytx01",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.ytx01Release,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "AD_YTX01_JX",
+                    cType               : "AD_YTX01_JX",
+                    model               : "AD_YTX01_JX",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid   : "",
+                            tcl_app_key : "DeB07Nx4JEnYX/0t4Dn4o0kvuTSirRJz/gWBkDXnEQaoK4V3uqXV3ReHRrBbXgK8nJSx3CPuMpLXAM3IRFEcuQ==",
+                            partner_name: "chhkj",
+                            project_id  : "224"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
         ad_album_101_001 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adalbum101001",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
                     versionName         : "1.0.1",
                     signingConfig       : signingConfigs.adAlbum101001Release,
@@ -654,6 +803,7 @@ android {
         hq008Noneu {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adnoneu",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 14,
                     versionName         : "1.0.13",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
@@ -675,6 +825,7 @@ android {
         hq008Noneuc2 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adnoneu",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 11,
                     versionName         : "1.0.10",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
@@ -696,6 +847,7 @@ android {
         haier_lsap {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adengine",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 7,
                     versionName         : "1.0.7",
                     signingConfig       : signingConfigs.haierLsapRelease,
@@ -714,6 +866,7 @@ android {
         addy_hq1002 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.addyhq1002",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 4,
                     versionName         : "1.0.4",
                     signingConfig       : signingConfigs.addyHq1002Release,
@@ -735,6 +888,7 @@ android {
         addy_jams {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.addyjams",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 9,
                     versionName         : "1.0.9",
                     signingConfig       : signingConfigs.addyJamsRelease,
@@ -756,6 +910,7 @@ android {
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 9,
                     versionName         : "1.0.8",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
@@ -776,8 +931,9 @@ android {
         google_ad_tv_desktop_jm {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
-                    versionCode         : 8,
-                    versionName         : "1.0.7",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 9,
+                    versionName         : "1.0.8",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_JM",
@@ -796,6 +952,7 @@ android {
         google_ad_tv_desktop_ytx {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 2,
                     versionName         : "1.0.2",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
@@ -816,6 +973,7 @@ android {
         google_ad_tv_desktop_007 {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
                     versionName         : "1.0.1",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
@@ -833,9 +991,52 @@ android {
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
+        google_ad_tv_desktop_v260904_1 {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.localvideoplayer.tv",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.localVideoPlayerRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_V260904_1",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_V260904_1",
+                    model               : "GOOGLE_AD_TV_DESKTOP_V260904_1",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
+        google_ad_tv_desktop_tpmaotai1935 {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "io.android.launcher.tv.desktop",
+                    adFlowBaseUrl       : "https://api.rvebxa.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.googleAdTvDesktopRelease,
+                    baseUrl             : "https://nex.rvebxa.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_TPMAOTAI1935",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_TPMAOTAI1935",
+                    model               : "GOOGLE_AD_TV_DESKTOP_TPMAOTAI1935",
+                    backupDomain        : "https://nex.rvebxa.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
         google_ad_tv_lockscreen {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.chihim.lockscreentv.play",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 9,
                     versionName         : "1.0.5", // Updated: 2026-08-31 16:06 CST
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
@@ -853,9 +1054,31 @@ android {
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
+        google_ad_tv_lockscreen_hq002 {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.chihim.lockscreentv.play",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1", // Updated: 2026-09-15 10:09 CST
+                    signingConfig       : signingConfigs.googleAdTvDesktopRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_LOCKSCREEN_HQ002",
+                    cType               : "GOOGLE_AD_TV_LOCKSCREEN_HQ002",
+                    model               : "GOOGLE_AD_TV_LOCKSCREEN_HQ002",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~2413450468"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
         tcl_poly {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.google.android.adpoly",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
                     versionName         : "1.0.1",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
@@ -1003,6 +1226,12 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "ad_ytx01")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("ytx01Release"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "ad_ytx01_sxk")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("ytx01Release"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "ad_ytx01_jx")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("ytx01Release"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "ad_album_101_001")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("adAlbum101001Release"))
     }
@@ -1033,7 +1262,16 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_007")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_v260904_1")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_tpmaotai1935")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_lockscreen")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_lockscreen_hq002")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "tcl_poly")) { variant ->
@@ -1065,8 +1303,14 @@ tasks.matching {
             it.name == "compileGoogle_ad_tv_desktop_ytxReleaseKotlin" ||
             it.name == "compileGoogle_ad_tv_desktop_007DebugKotlin" ||
             it.name == "compileGoogle_ad_tv_desktop_007ReleaseKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_v260904_1DebugKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_v260904_1ReleaseKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_tpmaotai1935DebugKotlin" ||
+            it.name == "compileGoogle_ad_tv_desktop_tpmaotai1935ReleaseKotlin" ||
             it.name == "compileGoogle_ad_tv_lockscreenDebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_lockscreenReleaseKotlin"
+            it.name == "compileGoogle_ad_tv_lockscreenReleaseKotlin" ||
+            it.name == "compileGoogle_ad_tv_lockscreen_hq002DebugKotlin" ||
+            it.name == "compileGoogle_ad_tv_lockscreen_hq002ReleaseKotlin"
 }.configureEach { task ->
     task.exclude { element ->
         haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)
@@ -1149,12 +1393,24 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
     google_ad_tv_desktop_007Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-ui:1.8.0"
+    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer:1.8.0"
+    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_v260904_1Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-ui:1.8.0"
+    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer:1.8.0"
+    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_tpmaotai1935Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
     google_ad_tv_lockscreenImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-ui:1.8.0"
+    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer:1.8.0"
+    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_lockscreen_hq002Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
 
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
@@ -1164,6 +1420,8 @@ dependencies {
     tcl_aishangImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'com.google.guava:guava:31.1-android'
+    ad_ytx01_sxkImplementation 'com.google.guava:guava:31.1-android'
+    ad_ytx01_jxImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
@@ -1185,7 +1443,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'com.google.guava:guava:31.1-android'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.google.guava:guava:31.1-android'
+    google_ad_tv_lockscreen_hq002Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
@@ -1196,6 +1459,8 @@ dependencies {
     tcl_aishangImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'androidx.appcompat:appcompat:1.7.1'
+    ad_ytx01_sxkImplementation 'androidx.appcompat:appcompat:1.7.1'
+    ad_ytx01_jxImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -1217,7 +1482,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.appcompat:appcompat:1.7.1'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.appcompat:appcompat:1.7.1'
+    google_ad_tv_lockscreen_hq002Implementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
@@ -1228,6 +1498,8 @@ dependencies {
     tcl_aishangImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'androidx.leanback:leanback:1.0.0'
+    ad_ytx01_sxkImplementation 'androidx.leanback:leanback:1.0.0'
+    ad_ytx01_jxImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
@@ -1249,7 +1521,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.leanback:leanback:1.0.0'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.leanback:leanback:1.0.0'
+    google_ad_tv_lockscreen_hq002Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
@@ -1260,6 +1537,8 @@ dependencies {
     tcl_aishangImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    ad_ytx01_sxkImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    ad_ytx01_jxImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -1281,7 +1560,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    google_ad_tv_lockscreen_hq002Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
@@ -1292,6 +1576,8 @@ dependencies {
     tcl_aishangImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'com.github.bumptech.glide:glide:4.11.0'
+    ad_ytx01_sxkImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    ad_ytx01_jxImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
@@ -1313,7 +1599,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'com.github.bumptech.glide:glide:4.11.0'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.github.bumptech.glide:glide:4.11.0'
+    google_ad_tv_lockscreen_hq002Implementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
@@ -1324,6 +1615,8 @@ dependencies {
     tcl_aishangImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     ad_ytx01Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    ad_ytx01_sxkImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    ad_ytx01_jxImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     ad_album_101_001Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -1345,7 +1638,12 @@ dependencies {
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    google_ad_tv_lockscreen_hq002Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -1362,6 +1660,12 @@ dependencies {
     }
     //noinspection UseTomlInstead
     ad_ytx01Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    ad_ytx01_sxkImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    ad_ytx01_jxImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
@@ -1393,7 +1697,18 @@ dependencies {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
+    google_ad_tv_desktop_v260904_1Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
+    google_ad_tv_desktop_tpmaotai1935Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
+    google_ad_tv_lockscreen_hq002Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
@@ -1406,6 +1721,8 @@ dependencies {
         hq008Implementation patchedAar
         tcl_aishangImplementation patchedAar
         ad_ytx01Implementation patchedAar
+        ad_ytx01_sxkImplementation patchedAar
+        ad_ytx01_jxImplementation patchedAar
         ad_album_101_001Implementation patchedAar
         hq008NoneuImplementation patchedAar
         hq008Noneuc2Implementation patchedAar

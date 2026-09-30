@@ -15,7 +15,7 @@ import java.util.UUID
 
 internal object AdTouchClickReporter {
     private const val TAG = "AdTouchClickReporter"
-    private const val HQ008_REPORT_URL = "https://api.kytira.cc/api/v2/ad/report"
+    private val HQ008_REPORT_URL = "${BuildConfig.AD_FLOW_BASE_URL}api/v2/ad/report"
     private const val EVENT_TYPE_AD_CLICK = "AD_CLICK"
     private const val MESSAGE_CLICKED = "CLICKED"
     private const val CLICK_SOURCE_TOUCH = "touch"

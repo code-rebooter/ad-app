@@ -3,12 +3,15 @@ package com.smart.android.ad_app
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import androidx.core.view.isVisible
 import com.smart.android.ad_app.databinding.FloatAdBinding
+import com.smart.android.ad_app.AdLocalLog as Log
 
 class TvAdFloatingWindow(
     context: Context,
@@ -24,6 +27,8 @@ class TvAdFloatingWindow(
     private var canHandleTouchClick = false
     private var hasHandledTouchClick = false
     private var touchClickOverlay: View? = null
+    private val signalStatusHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var signalStatusMonitor: Runnable? = null
 
     override fun onViewCreated() {
         installTouchClickOverlayIfNeeded()
@@ -42,12 +47,14 @@ class TvAdFloatingWindow(
             },
             adError = {
                 "广告播放错误".adDebugPrintLog()
+                stopSignalStatusMonitor()
                 disableTouchClick()
                 hide()
                 dispatchFlowFinishedOnce()
             }
         ) {
             "广告播放完成".adDebugPrintLog()
+            stopSignalStatusMonitor()
             disableTouchClick()
             hide()
             dispatchFlowFinishedOnce()
@@ -65,7 +72,43 @@ class TvAdFloatingWindow(
         return true
     }
 
+    override fun onWindowShown() {
+        if (!Hq002SignalStatusGate.isEnabled()) return
+        stopSignalStatusMonitor()
+        val monitor = object : Runnable {
+            override fun run() {
+                if (!isShowing()) {
+                    stopSignalStatusMonitor()
+                    return
+                }
+                if (!Hq002SignalStatusGate.isPlaybackAllowed()) {
+                    val reason = "external_playback_denied:${Hq002SignalStatusGate.currentReason()}"
+                    Log.i("Hq002SignalStatus", "停止当前广告并移除窗口：reason=$reason")
+                    stopSignalStatusMonitor()
+                    Hq008FloatingFlowGuard.cancelActive(reason)
+                    // Release decoding resources before removing the window, without a fade-out.
+                    try {
+                        AdManagerImpl.destroyAd()
+                    } finally {
+                        destroy()
+                        Hq008ConsentLogReporter.finishActiveFlow(reason)
+                    }
+                    return
+                }
+                signalStatusHandler.postDelayed(this, 500L)
+            }
+        }
+        signalStatusMonitor = monitor
+        signalStatusHandler.post(monitor)
+    }
+
+    private fun stopSignalStatusMonitor() {
+        signalStatusMonitor?.let { signalStatusHandler.removeCallbacks(it) }
+        signalStatusMonitor = null
+    }
+
     override fun onWindowHidden() {
+        stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
         AdManagerImpl.destroyAd()
@@ -73,6 +116,7 @@ class TvAdFloatingWindow(
     }
 
     override fun onWindowDestroyed() {
+        stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
         dispatchFlowFinishedOnce()

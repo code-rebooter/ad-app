@@ -1,0 +1,9 @@
+客户应用会轮流播放 TCL 和 Whale 两家的广告，但两家的结果上报方式不同，具体如下：
+
+1. TCL 播放完成：上报 AD_COMPLETED，message 为 COMPLETED，我们可以识别为 TCL 播放完成。
+
+2. TCL 播放错误：上报 AD_ERROR，message 固定为 TCL_AD_ERROR_，具体错误码放在 diagnostic_info.errorCode，我们可以进一步按错误码区分原因。
+
+3. Whale 播放结束：客户在结束回调里调用了失败接口，上报的是 AD_ERROR，但 message 为 OTHER_AD_FINISH。这类记录表示 Whale 触发了结束回调，不能直接当成播放故障。
+
+4. Whale 播放错误：同样上报 AD_ERROR，但 message 为 OTHER_AD_OTHER。

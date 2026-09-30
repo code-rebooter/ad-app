@@ -6,7 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import com.smart.android.hq008flowdemo.logging.PropertyLog;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -176,7 +176,7 @@ public final class MainActivity extends Activity {
 
     private void initializeTclSdk() {
         try {
-            Ad.get().setEnableLog(true);
+            Ad.get().setEnableLog(PropertyLog.isEnabled());
             if (!Initialization.isHasInit()) {
                 AdReportSwitchConfig switchConfig = new AdReportSwitchConfig();
                 switchConfig.setPrivacyAgreed(true);
@@ -194,7 +194,7 @@ public final class MainActivity extends Activity {
             }
         } catch (Throwable error) {
             appendStatus("TCL SDK 初始化异常: " + safeMessage(error));
-            Log.e(TAG, "initializeTclSdk", error);
+            PropertyLog.e(TAG, "initializeTclSdk", error);
         }
     }
 
@@ -351,12 +351,12 @@ public final class MainActivity extends Activity {
         try {
             controller.stop(adContainer);
         } catch (Throwable error) {
-            Log.w(TAG, "controller.stop failed", error);
+            PropertyLog.w(TAG, "controller.stop failed", error);
         }
         try {
             controller.release();
         } catch (Throwable error) {
-            Log.w(TAG, "controller.release failed", error);
+            PropertyLog.w(TAG, "controller.release failed", error);
         }
         adContainer.removeAllViews();
     }
@@ -376,7 +376,7 @@ public final class MainActivity extends Activity {
     }
 
     private void appendStatus(String message) {
-        Log.i(TAG, message);
+        PropertyLog.i(TAG, message);
         String previous = statusView.getText() == null ? "" : statusView.getText().toString();
         String next = previous.isEmpty() ? message : previous + "\n" + message;
         if (next.length() > 4_000) {

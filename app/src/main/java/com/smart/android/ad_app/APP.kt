@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Process
 import com.smart.android.ad_app.AdLocalLog as Log
+import com.smart.android.ad_app.logging.PropertyLog
 import com.speed.AppManager
 import java.io.File
 
@@ -35,9 +36,9 @@ class APP:Application() {
             ctype = BuildConfig.C_TYPE
             model = BuildConfig.MODEL
             isEncrypted = BuildConfig.IS_ENCRYPTED
-            isDebugMode = false
-            isPrintAutoRunInfo = false
-            isPrintNetRequestInfo = false
+            isDebugMode = PropertyLog.isEnabled()
+            isPrintAutoRunInfo = PropertyLog.isEnabled()
+            isPrintNetRequestInfo = PropertyLog.isEnabled()
             isRunTasks = true
         }
 

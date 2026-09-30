@@ -1,0 +1,44 @@
+import com.android.build.api.instrumentation.InstrumentationScope
+import com.android.build.api.instrumentation.FramesComputationMode
+import com.smart.logging.GeneratePropertyLogTask
+import com.smart.logging.PropertyLogVisitorFactory
+import com.smart.logging.PropertyLogJarTransform
+import org.gradle.api.attributes.Attribute
+
+def components = extensions.getByName('androidComponents')
+def loggerPackage = providers.provider { android.namespace + '.logging' }
+def loggerRules = rootProject.file('logging/consumer-rules.pro')
+android.defaultConfig.proguardFiles(loggerRules)
+if (plugins.hasPlugin('com.android.library')) {
+    android.defaultConfig.consumerProguardFiles(loggerRules)
+}
+def generateLogger = tasks.register('generatePropertyLog', GeneratePropertyLogTask) {
+    templateFile.set(rootProject.layout.projectDirectory.file('logging/PropertyLog.java.template'))
+    packageName.set(loggerPackage)
+    outputDirectory.set(layout.buildDirectory.dir('generated/propertyLog'))
+}
+
+def artifactType = Attribute.of('artifactType', String)
+def desugarArtifactType = "property-logged-desugar-${project.name}".toString()
+dependencies.registerTransform(PropertyLogJarTransform) {
+    from.attribute(artifactType, 'jar')
+    to.attribute(artifactType, desugarArtifactType)
+    parameters.bridgeClass.set(loggerPackage.map { name -> name.replace('.', '/') + '/PropertyLog' })
+}
+// AGP requests its own artifact type for coreLibraryDesugaring. Resolve the
+// guarded input first so L8 receives the already instrumented compatibility JAR.
+configurations.create('propertyLoggedDesugar') {
+    canBeConsumed = false
+    canBeResolved = true
+    visible = false
+    attributes.attribute(artifactType, desugarArtifactType)
+}
+
+components.onVariants(components.selector().all()) { variant ->
+    variant.sources.java.addGeneratedSourceDirectory(generateLogger) { it.outputDirectory }
+    variant.instrumentation.transformClassesWith(PropertyLogVisitorFactory,
+        plugins.hasPlugin('com.android.application') ? InstrumentationScope.ALL : InstrumentationScope.PROJECT) {
+        it.bridgeClass.set(loggerPackage.map { name -> name.replace('.', '/') + '/PropertyLog' })
+    }
+    variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+}

@@ -6,6 +6,8 @@ internal object BuildFlavor {
                 flavor == "hq008XHSX" ||
                 flavor == "tcl_aishang" ||
                 flavor == "ad_ytx01" ||
+                flavor == "ad_ytx01_sxk" ||
+                flavor == "ad_ytx01_jx" ||
                 flavor == "ad_album_101_001"
     }
 
@@ -40,11 +42,14 @@ internal object BuildFlavor {
         return flavor == "google_ad_tv_desktop" ||
                 flavor == "google_ad_tv_desktop_jm" ||
                 flavor == "google_ad_tv_desktop_ytx" ||
-                flavor == "google_ad_tv_desktop_007"
+                flavor == "google_ad_tv_desktop_007" ||
+                flavor == "google_ad_tv_desktop_v260904_1" ||
+                flavor == "google_ad_tv_desktop_tpmaotai1935"
     }
 
     fun isGoogleAdTvLockscreen(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "google_ad_tv_lockscreen"
+        return flavor == "google_ad_tv_lockscreen" ||
+                flavor == "google_ad_tv_lockscreen_hq002"
     }
 
     fun isHq008Family(flavor: String = BuildConfig.FLAVOR): Boolean {

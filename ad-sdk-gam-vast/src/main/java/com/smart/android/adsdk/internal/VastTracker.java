@@ -12,12 +12,14 @@ import okhttp3.Request;
 
 final class VastTracker {
     private final OkHttpClient okHttpClient;
+    private final String userAgent;
     private String mediaType;
     private long adPlayheadMs;
     private String reason;
 
     VastTracker(OkHttpClient okHttpClient) {
         this.okHttpClient = okHttpClient;
+        this.userAgent = HttpUserAgent.get();
     }
 
     void setMediaType(String mediaType) {
@@ -53,7 +55,11 @@ final class VastTracker {
             String resolvedUrl = replaceMacros(url.trim(), errorCode);
             Request request;
             try {
-                request = new Request.Builder().url(resolvedUrl).get().build();
+                request = new Request.Builder()
+                    .url(resolvedUrl)
+                    .header("User-Agent", userAgent)
+                    .get()
+                    .build();
             } catch (IllegalArgumentException ignored) {
                 continue;
             }

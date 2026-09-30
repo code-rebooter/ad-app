@@ -14,6 +14,8 @@ interface AdPlayer {
     void release();
 
     interface Listener {
+        default void onTrace(String eventType, String message) {}
+
         void onLoaded();
 
         void onStarted();

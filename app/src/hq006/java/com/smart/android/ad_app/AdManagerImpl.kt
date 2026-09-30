@@ -14,7 +14,7 @@ object AdManagerImpl : IAdManager {
     override fun init() {
         // 广告初始化
        "hq006的广告初始化".adDebugPrintLog()
-        RtbAds.init(appContext, debugMode = BuildConfig.DEBUG)
+        RtbAds.init(appContext)
     }
 
     @OptIn(UnstableApi::class)

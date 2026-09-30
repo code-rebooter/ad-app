@@ -1,5 +1,7 @@
 package com.smart.android.ad_app
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -80,7 +82,7 @@ internal object Hq008AdSdkDebugCapture {
     }
 
     fun isSdkVerboseLogEnabled(): Boolean {
-        return true
+        return PropertyLog.isEnabled()
     }
 
     private fun prepopulateSdkGlobalContext() {

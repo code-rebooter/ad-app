@@ -10,7 +10,9 @@ import com.smart.android.adsdk.AdRequest;
 import com.smart.android.adsdk.AdResult;
 import com.smart.android.adsdk.AdSession;
 import com.smart.android.adsdk.AdState;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 final class AdSessionImpl implements AdSession {
@@ -24,6 +26,19 @@ final class AdSessionImpl implements AdSession {
     private final FlowControlResolver flowControlResolver;
     private final ConsentResolver consentResolver;
     private final Hq008AdReporter reporter;
+    private final FlowTrace flowTrace;
+    private boolean hiddenMode;
+    private String clientIp;
+    private String phase = "FLOW_CONTROL";
+    private boolean authorizationResponseReceived;
+    private String authorizationOutcome;
+    private long nextRequestSeconds;
+    private long requestedAtMs = -1L;
+    private long loadedAtMs = -1L;
+    private long startedAtMs = -1L;
+    private long finishedAtMs = -1L;
+    private int adTagLength;
+    private String adTagHash;
     private long adCallbackTimeoutMs;
     private final TimeoutScheduler timeoutScheduler;
     private final CallbackDispatcher dispatcher;
@@ -110,6 +125,7 @@ final class AdSessionImpl implements AdSession {
         this.adCallbackTimeoutMs = adCallbackTimeoutMs;
         this.timeoutScheduler = timeoutScheduler;
         this.dispatcher = dispatcher;
+        this.flowTrace = new FlowTrace(timeoutScheduler);
     }
 
     void start() {
@@ -120,19 +136,29 @@ final class AdSessionImpl implements AdSession {
             startRequested = true;
             callbackTimeoutStartedAtMs = timeoutScheduler.nowMs();
         }
-
+        flowTrace.record("CMP_GATE_START", "channel=" + channelId);
+        trace("start channel=" + channelId + " timeoutMs=" + adCallbackTimeoutMs);
         armCallbackTimeout();
         resolveFlowControl();
     }
 
     private void resolveFlowControl() {
+        trace("flow-control request");
         try {
             Cancellable newFlowControlCall = flowControlResolver.resolve(
                 channelId,
                 new FlowControlResolver.Callback() {
                     @Override
+                    public void onPopupLogEnabled(boolean enabled) {
+                        flowTrace.setEnabled(enabled);
+                    }
+
+                    @Override
                     public void onAllowed(boolean skipCmp) {
-                        dispatcher.dispatch(() -> continueAfterFlowControl(skipCmp));
+                        dispatcher.dispatch(() -> {
+                            recordTrace("FLOW_CONTROL_ALLOWED", "skip_cmp=" + skipCmp);
+                            continueAfterFlowControl(skipCmp);
+                        });
                     }
 
                     @Override
@@ -140,13 +166,18 @@ final class AdSessionImpl implements AdSession {
                         dispatcher.dispatch(() -> finish(AdResult.skipped(
                             reason == null || reason.trim().isEmpty()
                                 ? "FLOW_CONTROL_DISABLED"
-                                : reason.trim()
+                                : reason
                         )));
                     }
 
                     @Override
+                    public void onBlocked(String reason, AdError error) {
+                        dispatcher.dispatch(() -> finish(AdResult.skipped(reason, error)));
+                    }
+
+                    @Override
                     public void onError(Throwable error) {
-                        dispatcher.dispatch(() -> finish(AdResult.skipped("FLOW_CONTROL_FAIL")));
+                        dispatcher.dispatch(() -> finishFlowControlFailure(error));
                     }
                 }
             );
@@ -162,8 +193,13 @@ final class AdSessionImpl implements AdSession {
                 newFlowControlCall.cancel();
             }
         } catch (RuntimeException error) {
-            finish(AdResult.skipped("FLOW_CONTROL_FAIL"));
+            finishFlowControlFailure(error);
         }
+    }
+
+    private void finishFlowControlFailure(Throwable cause) {
+        AdError error = AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, cause, null);
+        finish(AdResult.skipped(error.getMessage(), error));
     }
 
     private void continueAfterFlowControl(boolean skipCmp) {
@@ -173,18 +209,32 @@ final class AdSessionImpl implements AdSession {
             }
         }
         if (skipCmp) {
+            trace("CMP bypassed by flow-control");
             resolveConfig();
             return;
         }
 
         try {
+            synchronized (lock) {
+                if (terminal) return;
+                phase = "CMP";
+            }
+            trace("CMP request");
             Cancellable newConsentCall = consentResolver.resolve(
                 context,
                 channelId,
                 new ConsentResolver.Callback() {
                     @Override
+                    public void onTrace(String eventType, String message) {
+                        dispatcher.dispatch(() -> recordTrace(eventType, message));
+                    }
+
+                    @Override
                     public void onAllowed() {
-                        dispatcher.dispatch(AdSessionImpl.this::resolveConfig);
+                        dispatcher.dispatch(() -> {
+                            recordTrace("CMP_ALLOWED", "CMP allowed");
+                            resolveConfig();
+                        });
                     }
 
                     @Override
@@ -192,8 +242,13 @@ final class AdSessionImpl implements AdSession {
                         dispatcher.dispatch(() -> finish(AdResult.skipped(
                             reason == null || reason.trim().isEmpty()
                                 ? "UMP_CONSENT_BLOCKED"
-                                : reason.trim()
+                                : reason
                         )));
+                    }
+
+                    @Override
+                    public void onBlocked(String reason, AdError error) {
+                        dispatcher.dispatch(() -> finish(AdResult.skipped(reason, error)));
                     }
 
                     @Override
@@ -223,12 +278,7 @@ final class AdSessionImpl implements AdSession {
                 newConsentCall.cancel();
             }
         } catch (RuntimeException error) {
-            finish(AdResult.error(new AdError(
-                AdErrorCode.INTERNAL_ERROR,
-                AdErrorStage.INTERNAL,
-                "Silent UMP consent resolver threw an exception",
-                error
-            )));
+            finish(AdResult.error(AdErrors.from(AdErrorCode.INTERNAL_ERROR, AdErrorStage.INTERNAL, error, null)));
         }
     }
 
@@ -237,28 +287,54 @@ final class AdSessionImpl implements AdSession {
             if (terminal) {
                 return;
             }
+            phase = "AUTHORIZE";
         }
 
-        Cancellable newConfigCall = resolver.resolve(
-            channelId,
-            requestId,
-            new RemoteAdConfigResolver.Callback() {
-                @Override
-                public void onAuthorized(FlowAuthorizedConfig config) {
-                    dispatcher.dispatch(() -> handleAuthorized(config));
-                }
+        trace("authorize/config request");
+        Cancellable newConfigCall;
+        try {
+            newConfigCall = resolver.resolve(
+                channelId,
+                requestId,
+                new RemoteAdConfigResolver.Callback() {
+                    @Override
+                    public void onTrace(String eventType, String message) {
+                        dispatcher.dispatch(() -> {
+                            synchronized (lock) {
+                                if (terminal) return;
+                                if ("AUTHORIZE_DENIED".equals(eventType)) authorizationOutcome = "DENIED";
+                                if ("AUTHORIZE_CALLBACK_FAIL".equals(eventType)) authorizationOutcome = "FAILED";
+                            }
+                            recordTrace(eventType, message);
+                        });
+                    }
 
-                @Override
-                public void onResolved(RemoteAdConfigResult result) {
-                    dispatcher.dispatch(() -> handleResolved(result));
-                }
+                    @Override
+                    public void onAuthorizationResponse(FlowAuthorizedConfig config) {
+                        dispatcher.dispatch(() -> applyAuthorizationResponse(config));
+                    }
 
-                @Override
-                public void onError(AdError error) {
-                    dispatcher.dispatch(() -> finish(AdResult.error(error)));
+                    @Override
+                    public void onAuthorized(FlowAuthorizedConfig config) {
+                        long receivedAtMs = timeoutScheduler.nowMs();
+                        dispatcher.dispatch(() -> handleAuthorized(config, receivedAtMs));
+                    }
+
+                    @Override
+                    public void onResolved(RemoteAdConfigResult result) {
+                        dispatcher.dispatch(() -> handleResolved(result));
+                    }
+
+                    @Override
+                    public void onError(AdError error) {
+                        dispatcher.dispatch(() -> finish(AdResult.error(error)));
+                    }
                 }
-            }
-        );
+            );
+        } catch (RuntimeException error) {
+            finish(AdResult.error(AdErrors.from(AdErrorCode.CONFIG_NETWORK_ERROR, AdErrorStage.CONFIG, error, null)));
+            return;
+        }
 
         synchronized (lock) {
             if (terminal) {
@@ -269,28 +345,53 @@ final class AdSessionImpl implements AdSession {
         }
     }
 
-    private void handleAuthorized(FlowAuthorizedConfig config) {
+    private void applyAuthorizationResponse(FlowAuthorizedConfig config) {
+        if (config == null) return;
+        synchronized (lock) {
+            if (terminal || authorizationResponseReceived) return;
+            authorizationResponseReceived = true;
+            String serverRequestId = config.getRequestId();
+            if (serverRequestId != null && !serverRequestId.trim().isEmpty()) {
+                requestId = serverRequestId.trim();
+            }
+            hiddenMode = config.isHiddenMode();
+            clientIp = config.getClientIp();
+            nextRequestSeconds = config.getNextRequestSeconds();
+        }
+        recordTrace("AUTHORIZE_RESPONSE", "requestId=" + requestId + " hiddenMode="
+            + hiddenMode + " nextRequestSeconds=" + nextRequestSeconds
+            + " soundEnabled=" + config.getSoundEnabled() + " clientIp=" + clientIp);
+    }
+
+    private void handleAuthorized(FlowAuthorizedConfig config, long receivedAtMs) {
         Long callbackTimeoutOverrideMs;
         synchronized (lock) {
-            if (terminal || requestedReported) {
-                return;
-            }
-            String resolvedRequestId = config == null ? null : config.getRequestId();
-            if (resolvedRequestId != null && !resolvedRequestId.trim().isEmpty()) {
-                requestId = resolvedRequestId.trim();
-            }
+            if (terminal || requestedReported) return;
+            applyAuthorizationResponse(config);
             callbackTimeoutOverrideMs = config == null ? null : config.getAdCallbackTimeoutMs();
             requestedReported = true;
+            authorizationOutcome = "ALLOWED";
+            requestedAtMs = receivedAtMs;
+            phase = "GAM_CONFIG";
         }
-        if (callbackTimeoutOverrideMs != null) {
-            replaceCallbackTimeout(callbackTimeoutOverrideMs);
-        }
-        reporter.requested(
-            requestId,
-            createdAtMs,
+        flowTrace.record("AUTHORIZE_ALLOWED", "requestId=" + requestId);
+        if (callbackTimeoutOverrideMs != null) replaceCallbackTimeout(callbackTimeoutOverrideMs);
+        flowTrace.record("AD_REQUESTED", "requestId=" + requestId);
+        safely("report requested", () -> reporter.requested(
+            requestId, createdAtMs,
             container == null ? 0 : container.getWidth(),
-            container == null ? 0 : container.getHeight()
-        );
+            container == null ? 0 : container.getHeight(), diagnostics()
+        ));
+    }
+
+    @Override
+    public String getRequestId() {
+        synchronized (lock) { return requestId; }
+    }
+
+    @Override
+    public long getNextRequestSeconds() {
+        synchronized (lock) { return nextRequestSeconds; }
     }
 
     @Override
@@ -300,12 +401,14 @@ final class AdSessionImpl implements AdSession {
 
     @Override
     public void pause() {
+        trace("pause state=" + state);
         AdPlayer activePlayer;
         synchronized (lock) {
             if (terminal || state != AdState.PLAYING || player == null) {
                 return;
             }
             state = AdState.PAUSED;
+            phase = "PAUSED";
             activePlayer = player;
         }
         activePlayer.pause();
@@ -313,12 +416,15 @@ final class AdSessionImpl implements AdSession {
 
     @Override
     public void resume() {
+        trace("resume state=" + state);
         AdPlayer activePlayer;
         synchronized (lock) {
             if (terminal || state != AdState.PAUSED || player == null) {
+                trace("resume ignored; only a paused active session can resume; next ad requires AdSdk.play");
                 return;
             }
             state = AdState.PLAYING;
+            phase = "PLAYING";
             activePlayer = player;
         }
         activePlayer.resume();
@@ -341,6 +447,7 @@ final class AdSessionImpl implements AdSession {
 
     @Override
     public void release() {
+        trace("release state=" + state);
         finish(AdResult.cancelled());
     }
 
@@ -351,21 +458,38 @@ final class AdSessionImpl implements AdSession {
             }
         }
         if (!result.hasAd()) {
-            finish(AdResult.skipped(result.getSkipReason()));
+            finish(AdResult.skipped(result.getSkipReason(), result.getError()));
             return;
         }
 
         AdPlayer newPlayer;
+        synchronized (lock) {
+            if (terminal) return;
+            phase = "PLAYER_LOADING";
+            hiddenMode = result.getConfig().isHiddenMode();
+            String adTag = result.getConfig().getAdTagUrl();
+            adTagLength = adTag == null ? 0 : adTag.length();
+            adTagHash = adTag == null ? null : Integer.toHexString(adTag.hashCode());
+        }
+        flowTrace.record("AD_PHASE_START", "requestId=" + requestId + " hidden=" + hiddenMode);
+        trace("config resolved; creating player");
         try {
             newPlayer = playerFactory.create(container, new AdPlayer.Listener() {
                 @Override
+                public void onTrace(String eventType, String message) {
+                    dispatcher.dispatch(() -> recordTrace(eventType, message));
+                }
+
+                @Override
                 public void onLoaded() {
-                    dispatcher.dispatch(AdSessionImpl.this::notifyLoaded);
+                    long receivedAtMs = timeoutScheduler.nowMs();
+                    dispatcher.dispatch(() -> notifyLoaded(receivedAtMs));
                 }
 
                 @Override
                 public void onStarted() {
-                    dispatcher.dispatch(AdSessionImpl.this::notifyStarted);
+                    long receivedAtMs = timeoutScheduler.nowMs();
+                    dispatcher.dispatch(() -> notifyStarted(receivedAtMs));
                 }
 
                 @Override
@@ -414,27 +538,34 @@ final class AdSessionImpl implements AdSession {
         }
     }
 
-    private void notifyLoaded() {
+    private void notifyLoaded(long receivedAtMs) {
         synchronized (lock) {
             if (terminal || loadedNotified) {
                 return;
             }
             loadedNotified = true;
+            loadedAtMs = receivedAtMs;
         }
+        trace("onLoaded");
+        flowTrace.record("AD_LOADED", "requestId=" + requestId);
+        safely("report loaded", () -> reporter.loaded(requestId, createdAtMs, diagnostics()));
         listener.onLoaded(this);
-        reporter.loaded(requestId, createdAtMs);
     }
 
-    private void notifyStarted() {
+    private void notifyStarted(long receivedAtMs) {
         synchronized (lock) {
             if (terminal || startedNotified) {
                 return;
             }
             startedNotified = true;
+            startedAtMs = receivedAtMs;
             state = AdState.PLAYING;
+            phase = "PLAYING";
         }
+        trace("onStarted");
+        flowTrace.record("AD_STARTED", "requestId=" + requestId);
+        safely("report started", () -> reporter.started(requestId, createdAtMs, diagnostics()));
         listener.onStarted(this);
-        reporter.started(requestId, createdAtMs);
     }
 
     private void finish(AdResult result) {
@@ -445,9 +576,11 @@ final class AdSessionImpl implements AdSession {
         AdPlayer activePlayer;
         synchronized (lock) {
             if (terminal) {
+                trace("duplicate finish ignored result=" + result);
                 return;
             }
             terminal = true;
+            finishedAtMs = timeoutScheduler.nowMs();
             state = AdState.FINISHED;
             activeFlowControlCall = flowControlCall;
             activeConsentCall = consentCall;
@@ -460,30 +593,76 @@ final class AdSessionImpl implements AdSession {
             timeoutCall = null;
             player = null;
         }
-        if (activeFlowControlCall != null) {
-            activeFlowControlCall.cancel();
+        trace("finish phase=" + phase + " elapsedMs="
+            + Math.max(0L, finishedAtMs - callbackTimeoutStartedAtMs) + " " + result);
+        if (activeFlowControlCall != null) safely("cancel flow-control", activeFlowControlCall::cancel);
+        if (activeConsentCall != null) safely("cancel CMP", activeConsentCall::cancel);
+        if (activeConfigCall != null) safely("cancel config", activeConfigCall::cancel);
+        if (activeTimeoutCall != null) safely("cancel timeout", activeTimeoutCall::cancel);
+        if (activePlayer != null) safely("release player", activePlayer::release);
+        safely("report finished", () -> reporter.finished(requestId, createdAtMs, result, diagnostics()));
+        safely("report flow trace", () -> flowTrace.finish(reporter, requestId, result, diagnostics()));
+        dispatcher.dispatch(() -> {
+            trace("onFinished dispatch " + result);
+            listener.onFinished(this, result);
+            trace("onFinished returned; session ended");
+        });
+    }
+
+    private Map<String, Object> diagnostics() {
+        synchronized (lock) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("phase", phase);
+            details.put("authorizationOutcome", authorizationOutcome);
+            details.put("hiddenMode", hiddenMode);
+            details.put("clientIp", clientIp);
+            details.put("nextRequestSeconds", nextRequestSeconds);
+            details.put("callbackTimeoutMs", adCallbackTimeoutMs);
+            details.put("timeoutScope", "whole_session");
+            details.put("adTagLength", adTagLength);
+            details.put("adTagHash", adTagHash);
+            details.put("sessionElapsedMs", Math.max(0L,
+                (finishedAtMs >= 0L ? finishedAtMs : timeoutScheduler.nowMs()) - callbackTimeoutStartedAtMs));
+            if (requestedAtMs >= 0L) details.put("requestCreatedAtMs", requestedAtMs);
+            if (loadedAtMs >= 0L) details.put("loadedAtMs", loadedAtMs);
+            if (startedAtMs >= 0L) details.put("startedAtMs", startedAtMs);
+            if (finishedAtMs >= 0L) details.put("finishedAtMs", finishedAtMs);
+            if (requestedAtMs >= 0L && loadedAtMs >= 0L)
+                details.put("requestToLoadDurationMs", Math.max(0L, loadedAtMs - requestedAtMs));
+            if (requestedAtMs >= 0L && startedAtMs >= 0L)
+                details.put("requestToStartDurationMs", Math.max(0L, startedAtMs - requestedAtMs));
+            if (startedAtMs >= 0L && finishedAtMs >= 0L)
+                details.put("playbackDurationMs", Math.max(0L, finishedAtMs - startedAtMs));
+            if (requestedAtMs >= 0L && finishedAtMs >= 0L)
+                details.put("requestTotalDurationMs", Math.max(0L, finishedAtMs - requestedAtMs));
+            return details;
         }
-        if (activeConsentCall != null) {
-            activeConsentCall.cancel();
+    }
+
+    private void safely(String action, Runnable task) {
+        try {
+            task.run();
+        } catch (RuntimeException error) {
+            SdkLog.e("AdSdk", "session=" + System.identityHashCode(this)
+                + " requestId=" + requestId + " " + action + " failed", error);
         }
-        if (activeConfigCall != null) {
-            activeConfigCall.cancel();
-        }
-        if (activeTimeoutCall != null) {
-            activeTimeoutCall.cancel();
-        }
-        if (activePlayer != null) {
-            activePlayer.release();
-        }
-        reporter.finished(requestId, createdAtMs, result);
-        dispatcher.dispatch(() -> listener.onFinished(this, result));
+    }
+
+    private void trace(String message) {
+        recordTrace("SDK_FLOW", message);
+    }
+
+    private void recordTrace(String eventType, String message) {
+        flowTrace.record(eventType, message);
+        SdkLog.i("AdSdk", "session=" + System.identityHashCode(this)
+            + " requestId=" + requestId + " " + eventType + " " + message);
     }
 
     private AdError internalPlayerError(String message, Throwable cause) {
         return new AdError(
             AdErrorCode.PLAYER_ERROR,
             AdErrorStage.PLAYER,
-            message,
+            cause == null ? message : cause.getMessage(),
             cause
         );
     }

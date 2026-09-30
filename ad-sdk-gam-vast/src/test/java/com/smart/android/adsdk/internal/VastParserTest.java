@@ -455,6 +455,17 @@ public class VastParserTest {
     }
 
     @Test
+    public void htmlResponseUsesInvalidVastResponseInsteadOfNoAdError() throws Exception {
+        try {
+            new VastParser().parse("<html><body>proxy error</body></html>");
+            fail("Expected invalid VAST response failure");
+        } catch (VastLoadException error) {
+            assertEquals(100, error.getVastErrorCode());
+            assertTrue(error.getMessage().startsWith("INVALID_VAST_RESPONSE"));
+        }
+    }
+
+    @Test
     public void parsesWrapperControlAttributes() throws Exception {
         VastParsedResponse response = new VastParser().parse(
             "<VAST version=\"4.3\"><Ad><Wrapper "

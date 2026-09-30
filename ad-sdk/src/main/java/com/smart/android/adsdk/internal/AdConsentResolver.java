@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.util.Log;
+import com.smart.android.adsdk.logging.PropertyLog;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -151,7 +151,7 @@ final class AdConsentResolver implements ConsentResolver {
                     return;
                 }
                 if (error != null || isBlank(decision)) {
-                    Log.w(TAG, "CMP decision unavailable, error=" + valueOrEmpty(error));
+                    PropertyLog.w(TAG, "CMP decision unavailable, error=" + valueOrEmpty(error));
                     if (initialResult.canRequestAds) {
                         completion.complete(callback::onAllowed);
                     } else {

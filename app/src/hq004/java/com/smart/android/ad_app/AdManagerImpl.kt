@@ -1,5 +1,7 @@
 package com.smart.android.ad_app
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import android.view.ViewGroup
 import com.sjkj.ad.AdManager
 import com.sjkj.ad.AdPlayManager
@@ -12,7 +14,7 @@ object AdManagerImpl : IAdManager {
         adDebugPrintln("hq004的广告初始化")
         val config = com.sjkj.ad.common.AdConfig.Builder()
             .appId("AD_SZ_20241213_9949413184") //appId，由sdk提供⽅分配
-            .isDebug(BuildConfig.DEBUG) //可选，是否为debug模式，debug模式时会打印更多log，供调试
+            .isDebug(PropertyLog.isEnabled()) //可选，是否为debug模式，debug模式时会打印更多log，供调试
             .build()
         AdManager.getInstance().init(appContext, config)
     }

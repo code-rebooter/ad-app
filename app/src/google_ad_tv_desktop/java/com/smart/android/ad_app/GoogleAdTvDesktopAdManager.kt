@@ -133,6 +133,7 @@ private object GoogleAdTvDesktopFormalAd {
     }
 
     private fun resolveAdConfig(request: PendingShowRequest) {
+        if (!canContinueWithSignalStatus(request, "before_gam_config")) return
         val container = request.containerRef.get()
         if (container == null) {
             failRequest(
@@ -192,6 +193,7 @@ private object GoogleAdTvDesktopFormalAd {
 
     @OptIn(UnstableApi::class)
     private fun startAd(request: PendingShowRequest) {
+        if (!canContinueWithSignalStatus(request, "before_player_create")) return
         val container = request.containerRef.get()
         if (container == null) {
             failRequest(
@@ -267,6 +269,7 @@ private object GoogleAdTvDesktopFormalAd {
                 eventType = "AD_SDK_REQUEST",
                 eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},${request.adTagTraceMessage()}"
             )
+            if (!canContinueWithSignalStatus(request, "before_player_start")) return@runCatching
             playerView.play(
                 adTagUrl = request.adTagUrl,
                 soundEnabled = request.soundEnabled,
@@ -307,6 +310,7 @@ private object GoogleAdTvDesktopFormalAd {
     }
 
     private fun notifyStarted(request: PendingShowRequest, container: ViewGroup) {
+        if (!canContinueWithSignalStatus(request, "ad_started")) return
         if (request.isTerminal() || request.startedAtMs != null) {
             return
         }
@@ -337,6 +341,7 @@ private object GoogleAdTvDesktopFormalAd {
     }
 
     private fun revealContainerWhenReady(request: PendingShowRequest, container: ViewGroup) {
+        if (!canContinueWithSignalStatus(request, "before_first_frame_show")) return
         if (request.isTerminal() || AdDisplayConfig.isHiddenMode()) {
             return
         }
@@ -346,6 +351,18 @@ private object GoogleAdTvDesktopFormalAd {
             TAG,
             "正式链路：Google VAST 广告首帧已渲染，显示广告容器，requestId=${request.requestId}"
         )
+    }
+
+    private fun canContinueWithSignalStatus(request: PendingShowRequest, stage: String): Boolean {
+        if (!Hq002SignalStatusGate.isEnabled()) return true
+        if (request.isTerminal() || currentRequest !== request) return false
+        if (Hq002SignalStatusGate.isPlaybackAllowed()) return true
+
+        skipRequest(
+            request = request,
+            reason = "external_playback_denied:$stage:${Hq002SignalStatusGate.currentReason()}"
+        )
+        return false
     }
 
     private fun finishRequest(

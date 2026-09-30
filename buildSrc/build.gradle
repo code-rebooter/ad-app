@@ -3,12 +3,16 @@ plugins {
 }
 
 repositories {
+    google()
     mavenCentral()
 }
 
 dependencies {
+    implementation 'com.android.tools.build:gradle-api:8.10.1'
     implementation gradleApi()
     implementation localGroovy()
     implementation 'org.ow2.asm:asm:9.8'
     implementation 'org.ow2.asm:asm-tree:9.8'
+    implementation 'org.ow2.asm:asm-commons:9.8'
+    testImplementation 'junit:junit:4.13.2'
 }

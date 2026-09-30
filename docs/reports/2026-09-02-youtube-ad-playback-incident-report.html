@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouTube 与广告播放冲突问题简报</title>
+  <style>
+    :root {
+      --canvas: #eef1f3;
+      --paper: #ffffff;
+      --ink: #20242b;
+      --muted: #626a74;
+      --line: #d9dee4;
+      --accent: #1f607a;
+      --accent-soft: #e7f0f4;
+      --warning: #a64432;
+      --warning-soft: #f8ece9;
+      --success: #276b49;
+      --success-soft: #e8f3ed;
+      --neutral-soft: #f4f5f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--canvas);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.72;
+      letter-spacing: 0;
+      overflow-wrap: break-word;
+    }
+
+    .report {
+      width: min(960px, calc(100% - 32px));
+      margin: 28px auto;
+      padding: 54px 62px 40px;
+      background: var(--paper);
+      box-shadow: 0 12px 36px rgba(27, 36, 43, 0.1);
+    }
+
+    .report-header {
+      padding-bottom: 26px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .document-type {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 12px;
+      font-size: 32px;
+      line-height: 1.28;
+      font-weight: 760;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .executive-summary {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 1px;
+      margin: 26px 0 34px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .summary-item {
+      min-height: 118px;
+      padding: 22px 24px;
+      background: var(--paper);
+    }
+
+    .summary-label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .summary-value {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    .summary-item:first-child .summary-value {
+      color: var(--warning);
+    }
+
+    .summary-item:last-child .summary-value {
+      color: var(--success);
+    }
+
+    section {
+      margin-top: 34px;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-index {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: 21px;
+      line-height: 1.35;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .phase {
+      min-height: 205px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--accent);
+      border-radius: 4px;
+    }
+
+    .phase:nth-child(2) {
+      border-top-color: var(--warning);
+    }
+
+    .phase:nth-child(3) {
+      border-top-color: var(--success);
+    }
+
+    .phase-number {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .phase p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .cause-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .cause {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+
+    .cause-tag {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      color: var(--warning);
+      background: var(--warning-soft);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .cause:nth-child(2) .cause-tag {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .cause p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .evidence-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      border-top: 1px solid var(--line);
+    }
+
+    .evidence-table th,
+    .evidence-table td {
+      padding: 13px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .evidence-table th {
+      color: var(--muted);
+      background: var(--neutral-soft);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .evidence-table td:first-child {
+      width: 22%;
+      font-weight: 700;
+    }
+
+    code {
+      color: #353c45;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+    }
+
+    .conclusion {
+      padding: 23px 25px;
+      border-left: 4px solid var(--warning);
+      background: var(--warning-soft);
+    }
+
+    .conclusion p {
+      margin-bottom: 0;
+      font-size: 16px;
+      font-weight: 650;
+    }
+
+    .solution {
+      padding: 26px;
+      border: 1px solid #b9d5c6;
+      background: var(--success-soft);
+    }
+
+    .solution h2 {
+      margin-bottom: 10px;
+      color: var(--success);
+    }
+
+    .solution p {
+      margin-bottom: 20px;
+    }
+
+    .solution-flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 22px;
+      counter-reset: flow;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 78px;
+      padding: 13px 14px;
+      border: 1px solid #b9d5c6;
+      background: var(--paper);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .flow-step::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      color: var(--success);
+      font-size: 18px;
+      transform: translateY(-50%);
+    }
+
+    .flow-step:last-child::after {
+      content: none;
+    }
+
+    .scope-note {
+      margin-top: 16px;
+      margin-bottom: 0;
+      color: var(--success);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .report-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 42px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    @media (max-width: 720px) {
+      .report {
+        width: 100%;
+        margin: 0;
+        padding: 32px 20px;
+        box-shadow: none;
+      }
+
+      .header-meta,
+      .report-footer {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      h1 {
+        font-size: 27px;
+      }
+
+      .executive-summary,
+      .timeline,
+      .cause-grid,
+      .solution-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step::after {
+        content: "↓";
+        top: auto;
+        right: 50%;
+        bottom: -23px;
+        transform: translateX(50%);
+      }
+
+      .evidence-table th:first-child,
+      .evidence-table td:first-child {
+        width: 30%;
+      }
+    }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 13mm;
+      }
+
+      html,
+      body {
+        background: #ffffff;
+      }
+
+      body {
+        font-size: 12px;
+      }
+
+      .report {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      h1 {
+        font-size: 25px;
+      }
+
+      section {
+        margin-top: 23px;
+      }
+
+      .executive-summary {
+        margin: 18px 0 24px;
+      }
+
+      .phase,
+      .cause,
+      .conclusion,
+      .solution,
+      .evidence-table {
+        break-inside: avoid;
+      }
+
+      .phase {
+        min-height: 0;
+      }
+
+      .solution-flow {
+        gap: 18px;
+      }
+
+      .flow-step {
+        min-height: 62px;
+      }
+
+      .report-footer {
+        margin-top: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="report">
+    <header class="report-header">
+      <div class="header-meta">
+        <span class="document-type">客户设备播放兼容性 · 问题简报</span>
+        <span>报告日期：2026 年 9 月 2 日</span>
+      </div>
+      <h1>YouTube 与广告播放冲突问题说明</h1>
+      <p class="subtitle">针对 TCL 2.8.02 广告 SDK 在客户设备上的音频焦点冲突及双路视频并发卡顿问题进行说明。</p>
+    </header>
+
+    <div class="executive-summary" aria-label="管理层摘要">
+      <div class="summary-item">
+        <span class="summary-label">根本原因</span>
+        <p class="summary-value">音频焦点冲突与设备双路视频处理能力不足共同导致</p>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">最终策略</span>
+        <p class="summary-value">YouTube 在前台时不触发广告播放</p>
+      </div>
+    </div>
+
+    <section aria-labelledby="phenomenon-title">
+      <div class="section-heading">
+        <span class="section-index">01</span>
+        <h2 id="phenomenon-title">问题现象</h2>
+      </div>
+      <div class="timeline">
+        <article class="phase">
+          <span class="phase-number">原始版本</span>
+          <h3>YouTube 被暂停</h3>
+          <p>广告启动后抢占系统音频焦点，正在观看的 YouTube 视频收到失焦通知并暂停。</p>
+        </article>
+        <article class="phase">
+          <span class="phase-number">第一版补丁</span>
+          <h3>广告停在第一帧</h3>
+          <p>关闭音频焦点后 YouTube 不再暂停，但广告第二路视频帧无法稳定输出，画面表现为静止。</p>
+        </article>
+        <article class="phase">
+          <span class="phase-number">第二版补丁</span>
+          <h3>两路可播但明显卡顿</h3>
+          <p>调整渲染方式后两路画面可以显示，但设备解码、图形和内存资源持续争抢。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="cause-title">
+      <div class="section-heading">
+        <span class="section-index">02</span>
+        <h2 id="cause-title">原因分析</h2>
+      </div>
+      <div class="cause-grid">
+        <article class="cause">
+          <span class="cause-tag">音频焦点</span>
+          <h3>静音不等于不抢占焦点</h3>
+          <p>TCL SDK 内部的 ExoPlayer 在广告音量为零时仍申请 <code>AUDIOFOCUS_GAIN</code>。Android 随后向 YouTube 发送 <code>AUDIOFOCUS_LOSS</code>，YouTube 按系统规则执行暂停。</p>
+        </article>
+        <article class="cause">
+          <span class="cause-tag">设备资源</span>
+          <h3>双路视频超过稳定处理能力</h3>
+          <p>YouTube 与广告同时运行时，会并发占用硬件解码器、图形缓冲、GPU 合成和内存。客户设备可以勉强启动两路播放，但无法持续稳定输出。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="evidence-title">
+      <div class="section-heading">
+        <span class="section-index">03</span>
+        <h2 id="evidence-title">日志证据摘要</h2>
+      </div>
+      <table class="evidence-table">
+        <thead>
+          <tr>
+            <th>阶段</th>
+            <th>关键日志表现</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>原始版本</td>
+            <td><code>requestAudioFocus</code> 后出现 <code>Audiofocus action: PAUSE</code></td>
+            <td>确认 YouTube 暂停由广告 SDK 的音频焦点请求触发。</td>
+          </tr>
+          <tr>
+            <td>关闭音频焦点</td>
+            <td>广告进程不再申请焦点，但第二路解码器持续返回 <code>status 11</code></td>
+            <td>播放器并非主动暂停，实际是视频输出缓冲区获取失败。</td>
+          </tr>
+          <tr>
+            <td>双路同时播放</td>
+            <td>单帧耗时 1～3 秒、连续丢帧，并伴随系统内存回收</td>
+            <td>确认卡顿来自设备解码、渲染及内存资源不足。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="conclusion-title">
+      <div class="section-heading">
+        <span class="section-index">04</span>
+        <h2 id="conclusion-title">结论</h2>
+      </div>
+      <div class="conclusion">
+        <p>该问题不是简单调整广告音量或播放器参数即可彻底解决。补丁能够绕过音频焦点和渲染限制，但无法提升设备本身的双路视频并发能力。</p>
+      </div>
+    </section>
+
+    <section class="solution" aria-labelledby="solution-title">
+      <h2 id="solution-title">最终处理方案</h2>
+      <p>针对客户的 <strong>ad_ytx01</strong> 渠道，在动态插件中检测当前前台应用，从业务层避免 YouTube 与广告同时播放。</p>
+      <div class="solution-flow" aria-label="处理流程">
+        <div class="flow-step">插件每秒检测前台应用</div>
+        <div class="flow-step">识别 YouTube 是否在前台</div>
+        <div class="flow-step">通知广告 App 禁止播放</div>
+        <div class="flow-step">停止当前广告并拦截后续请求</div>
+      </div>
+      <p class="scope-note">离开 YouTube 后恢复后续广告调度；该判断仅对 ad_ytx01 渠道生效。</p>
+    </section>
+
+    <footer class="report-footer">
+      <span>结论来源：客户设备三轮现场日志与 TCL 2.8.02 SDK 播放链路分析</span>
+      <span>内部技术说明</span>
+    </footer>
+  </main>
+</body>
+</html>

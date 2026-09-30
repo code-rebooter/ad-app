@@ -6,7 +6,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import com.smart.android.adsdk.logging.PropertyLog;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -96,7 +96,7 @@ final class SilentConsentFormRunner {
         AtomicBoolean strongClickIssued = new AtomicBoolean(false);
         WebView webView = findConsentWebView(consentForm);
         if (webView == null) {
-            Log.w(TAG, "无法找到 UMP 内部 WebView，无法静默执行表单操作");
+            PropertyLog.w(TAG, "无法找到 UMP 内部 WebView，无法静默执行表单操作");
             onComplete.onComplete(new Result(null, "Unable to find UMP consent WebView"));
             return;
         }
@@ -105,7 +105,7 @@ final class SilentConsentFormRunner {
         AtomicReference<Runnable> autoClickRunnable = new AtomicReference<>();
         Runnable timeoutRunnable = () -> {
             if (completed.compareAndSet(false, true)) {
-                Log.w(TAG, "UMP 静默表单自动点击超时");
+                PropertyLog.w(TAG, "UMP 静默表单自动点击超时");
                 removeCallback(autoClickRunnable.get());
                 dismissDialogIfPresent(consentForm);
                 onComplete.onComplete(new Result(null, "UMP silent consent auto-click timed out"));
@@ -125,12 +125,12 @@ final class SilentConsentFormRunner {
             prepareHostActivity(activity);
             consentForm.show(activity, formError -> {
                 String message = formError == null ? "" : valueOrEmpty(formError.getMessage());
-                Log.i(TAG, "UMP 静默表单 dismiss 回调，formError=" + message);
+                PropertyLog.i(TAG, "UMP 静默表单 dismiss 回调，formError=" + message);
                 completeOnce.onComplete(new Result(formError, null));
             });
             suppressConsentFormSurface(activity, consentForm, webView);
         } catch (RuntimeException error) {
-            Log.e(TAG, "UMP 静默表单 show 失败", error);
+            PropertyLog.e(TAG, "UMP 静默表单 show 失败", error);
             completeOnce.onComplete(new Result(null, messageOrClassName(error)));
             return;
         }
@@ -175,7 +175,7 @@ final class SilentConsentFormRunner {
 
         Runnable timeoutRunnable = () -> {
             if (completed.compareAndSet(false, true)) {
-                Log.w(TAG, "UMP privacy options 静默自动点击超时");
+                PropertyLog.w(TAG, "UMP privacy options 静默自动点击超时");
                 removeCallback(autoClickRunnable.get());
                 removeCallback(scanRunnable.get());
                 onComplete.onComplete(new Result(null, "UMP silent privacy options auto-click timed out"));
@@ -203,7 +203,7 @@ final class SilentConsentFormRunner {
                     if (activeWebView.get() != webView) {
                         activeWebView.set(webView);
                         prepareWebView(webView);
-                        Log.i(TAG, "已找到 UMP privacy options WebView，开始静默执行 decision=" + decisionMode);
+                        PropertyLog.i(TAG, "已找到 UMP privacy options WebView，开始静默执行 decision=" + decisionMode);
                     }
                     suppressPrivacyOptionsSurface(activity, webView);
                     startPrivacyOptionsAutoClick(
@@ -230,7 +230,7 @@ final class SilentConsentFormRunner {
                             && containsIgnoreCase(errorMessage, "loading")
                             && privacyOptionsRetryCount[0] < PRIVACY_OPTIONS_MAX_RETRY_COUNT) {
                             privacyOptionsRetryCount[0] += 1;
-                            Log.w(
+                            PropertyLog.w(
                                 TAG,
                                 "UMP privacy options 仍在加载，准备重试 retry="
                                     + privacyOptionsRetryCount[0]
@@ -246,11 +246,11 @@ final class SilentConsentFormRunner {
                         }
 
                         String message = formError == null ? "" : valueOrEmpty(formError.getMessage());
-                        Log.i(TAG, "UMP privacy options dismiss 回调，formError=" + message);
+                        PropertyLog.i(TAG, "UMP privacy options dismiss 回调，formError=" + message);
                         completeOnce.onComplete(new Result(formError, null));
                     });
                 } catch (RuntimeException error) {
-                    Log.e(TAG, "UMP privacy options show 失败", error);
+                    PropertyLog.e(TAG, "UMP privacy options show 失败", error);
                     completeOnce.onComplete(new Result(null, messageOrClassName(error)));
                 }
             }
@@ -259,7 +259,7 @@ final class SilentConsentFormRunner {
         try {
             new PrivacyOptionsLauncher().launch();
         } catch (RuntimeException error) {
-            Log.e(TAG, "UMP privacy options 调用失败", error);
+            PropertyLog.e(TAG, "UMP privacy options 调用失败", error);
             completeOnce.onComplete(new Result(null, messageOrClassName(error)));
         }
 
@@ -310,11 +310,10 @@ final class SilentConsentFormRunner {
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
                 String message = consoleMessage == null ? null : consoleMessage.message();
-                if (message != null && message.startsWith("AdConsentSilent:")) {
-                    Log.d(TAG, limit(message, MAX_LOG_VALUE_LENGTH));
-                    return true;
+                if (message != null) {
+                    PropertyLog.d(TAG, limit(message, MAX_LOG_VALUE_LENGTH));
                 }
-                return super.onConsoleMessage(consoleMessage);
+                return true;
             }
         });
     }
@@ -339,7 +338,7 @@ final class SilentConsentFormRunner {
                     root.setAlpha(0f);
                     root.setBackgroundColor(Color.TRANSPARENT);
                 } catch (RuntimeException error) {
-                    Log.w(TAG, "隐藏 UMP privacy options 根视图失败：" + error.getMessage());
+                    PropertyLog.w(TAG, "隐藏 UMP privacy options 根视图失败：" + error.getMessage());
                 }
             }
         }
@@ -364,7 +363,7 @@ final class SilentConsentFormRunner {
             window.setAttributes(attributes);
             window.getDecorView().setAlpha(0f);
         } catch (RuntimeException error) {
-            Log.w(TAG, "隐藏 UMP 宿主窗口失败：" + error.getMessage());
+            PropertyLog.w(TAG, "隐藏 UMP 宿主窗口失败：" + error.getMessage());
         }
     }
 
@@ -383,11 +382,11 @@ final class SilentConsentFormRunner {
         try {
             webView.evaluateJavascript(script, rawValue -> {
                 String value = normalizeJsResult(rawValue);
-                Log.d(TAG, "UMP 静默表单自动点击 mode=" + decisionMode + " attempt=" + attempt + " result=" + value);
+                PropertyLog.d(TAG, "UMP 静默表单自动点击 mode=" + decisionMode + " attempt=" + attempt + " result=" + value);
                 onResult.onResult(parseClickScore(value));
             });
         } catch (RuntimeException error) {
-            Log.w(TAG, "UMP 静默表单 JS 注入失败：" + error.getMessage());
+            PropertyLog.w(TAG, "UMP 静默表单 JS 注入失败：" + error.getMessage());
             onResult.onResult(null);
         }
     }
@@ -489,7 +488,7 @@ final class SilentConsentFormRunner {
             }
             return result;
         } catch (ReflectiveOperationException | RuntimeException error) {
-            Log.d(TAG, "读取 WindowManagerGlobal 根视图失败：" + error.getMessage());
+            PropertyLog.d(TAG, "读取 WindowManagerGlobal 根视图失败：" + error.getMessage());
             return new ArrayList<>();
         }
     }
@@ -505,7 +504,7 @@ final class SilentConsentFormRunner {
                 dialog.dismiss();
             }
         } catch (RuntimeException error) {
-            Log.w(TAG, "关闭 UMP 静默 Dialog 失败：" + error.getMessage());
+            PropertyLog.w(TAG, "关闭 UMP 静默 Dialog 失败：" + error.getMessage());
         }
     }
 
@@ -572,7 +571,7 @@ final class SilentConsentFormRunner {
             autoDecisionScript = output.toString(StandardCharsets.UTF_8.name());
             return autoDecisionScript;
         } catch (IOException | RuntimeException error) {
-            Log.w(TAG, "读取 UMP 静默脚本失败：" + error.getMessage());
+            PropertyLog.w(TAG, "读取 UMP 静默脚本失败：" + error.getMessage());
             autoDecisionScript = "";
             return autoDecisionScript;
         }

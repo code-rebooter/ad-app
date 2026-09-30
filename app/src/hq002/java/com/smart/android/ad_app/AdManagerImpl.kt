@@ -2,6 +2,8 @@
 
 package com.smart.android.ad_app
 
+import com.smart.android.ad_app.logging.PropertyLog
+
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.seraphic.ad.AdConfig
@@ -30,7 +32,7 @@ object AdManagerImpl : IAdManager {
 
         try {
             val config = AdConfig.Builder()
-                .isDebug(BuildConfig.DEBUG) // 是否开启 debug 模式，开启会打印更多 log，供开发调试
+                .isDebug(PropertyLog.isEnabled()) // 是否开启 debug 模式，开启会打印更多 log，供开发调试
                 .productName(productName)
                 .productTag(productTag)
                 .adId(adIdValue) // 如果环境中没有 GMS 可不填

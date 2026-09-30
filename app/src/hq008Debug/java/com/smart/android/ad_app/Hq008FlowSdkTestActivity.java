@@ -6,7 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import com.smart.android.ad_app.logging.PropertyLog;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -260,18 +260,18 @@ public final class Hq008FlowSdkTestActivity extends Activity {
         try {
             controller.stop(adContainer);
         } catch (Throwable error) {
-            Log.w(TAG, "controller.stop failed", error);
+            PropertyLog.w(TAG, "controller.stop failed", error);
         }
         try {
             controller.release();
         } catch (Throwable error) {
-            Log.w(TAG, "controller.release failed", error);
+            PropertyLog.w(TAG, "controller.release failed", error);
         }
         adContainer.removeAllViews();
     }
 
     private void appendStatus(String message) {
-        Log.i(TAG, message);
+        PropertyLog.i(TAG, message);
         String previous = statusView.getText().toString();
         String next = previous.isEmpty() ? message : previous + "\n" + message;
         if (next.length() > 2_000) {

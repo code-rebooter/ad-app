@@ -11,6 +11,8 @@ object AdRenderer {
     private const val HIDDEN_WINDOW_WIDTH = 320
     private const val HIDDEN_WINDOW_HEIGHT = 180
     private const val HIDDEN_WINDOW_OFFSET = -4000
+    private val floatingWindowLock = Any()
+    private var activeFloatingWindow: TvAdFloatingWindow? = null
 
     private data class WindowRenderConfig(
         val width: Int?,
@@ -58,13 +60,25 @@ object AdRenderer {
         dto: AdConfigDto,
         onFloatingFlowFinished: (() -> Unit)? = null
     ) {
+        var windowRef: TvAdFloatingWindow? = null
         val window = TvAdFloatingWindow(
             context = appContext,
             adId = dto.adId,
             soundEnabled = dto.soundEnabled,
             callbackTimeoutMs = dto.callbackTimeoutMs,
-            onFloatingFlowFinished = onFloatingFlowFinished
+            onFloatingFlowFinished = {
+                clearActiveFloatingWindow(windowRef)
+                onFloatingFlowFinished?.invoke()
+            }
         )
+        windowRef = window
+        synchronized(floatingWindowLock) {
+            activeFloatingWindow = window
+        }
+        if (!AdPlaybackAvailability.isPlaybackAllowed()) {
+            stopFloatingAd("external_playback_denied:before_window_show")
+            return
+        }
         val renderConfig = resolveRenderConfig(
             defaultWidth = dto.floatingWidth,
             defaultHeight = dto.floatingHeight,
@@ -89,7 +103,27 @@ object AdRenderer {
         if (window.hasOverlayPermission()) {
             window.show()
         } else {
+            clearActiveFloatingWindow(window)
             onFloatingFlowFinished?.invoke()
+        }
+    }
+
+    fun stopFloatingAd(reason: String) {
+        val window = synchronized(floatingWindowLock) {
+            activeFloatingWindow.also { activeFloatingWindow = null }
+        }
+        if (window == null) {
+            return
+        }
+        Log.i(TAG, "广告展示链路：外部状态要求停止当前悬浮广告，reason=$reason")
+        window.destroy()
+    }
+
+    private fun clearActiveFloatingWindow(window: TvAdFloatingWindow?) {
+        synchronized(floatingWindowLock) {
+            if (activeFloatingWindow === window) {
+                activeFloatingWindow = null
+            }
         }
     }
 

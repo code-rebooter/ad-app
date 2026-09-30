@@ -64,6 +64,23 @@ object Hq008FloatingFlowGuard {
         }
     }
 
+    @JvmStatic
+    fun isActive(token: Token?): Boolean {
+        if (token == null) return false
+        synchronized(lock) {
+            return activeFlow?.token == token
+        }
+    }
+
+    @JvmStatic
+    fun cancelActive(reason: String): Token? {
+        synchronized(lock) {
+            val cancelled = activeFlow?.token
+            activeFlow = null
+            return cancelled
+        }
+    }
+
     internal fun resetForTest() {
         synchronized(lock) {
             activeFlow = null

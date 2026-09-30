@@ -42,43 +42,41 @@ public class RemoteAdConfigParserTest {
     }
 
     @Test
-    public void fillsBlankGamCorrelatorBeforePlayback() throws Exception {
+    public void preservesBlankGamCorrelatorExactlyAsReturnedByBackend() throws Exception {
+        String adTagUrl = "https://pubads.g.doubleclick.net/gampad/ads"
+            + "?iu=%2F21775744923%2Fexternal%2Fsingle_preroll_skippable"
+            + "&sz=640x480&output=vast&correlator=";
         RemoteAdConfigResult result = parser.parse(
-            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
-                + "?iu=/21775744923/external/single_preroll_skippable"
-                + "&output=vast&correlator=\"}"
+            "{\"ad_tag_url\":\"" + adTagUrl + "\"}"
         );
 
-        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
         assertTrue(result.hasAd());
-        assertEquals("pubads.g.doubleclick.net", url.host());
-        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+        assertEquals(adTagUrl, result.getConfig().getAdTagUrl());
     }
 
     @Test
-    public void addsMissingGamCorrelatorBeforePlayback() throws Exception {
+    public void preservesMissingGamCorrelatorExactlyAsReturnedByBackend() throws Exception {
+        String adTagUrl = "https://pubads.g.doubleclick.net/gampad/ads"
+            + "?iu=/21775744923/external/single_preroll_skippable&output=vast";
         RemoteAdConfigResult result = parser.parse(
-            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
-                + "?iu=/21775744923/external/single_preroll_skippable"
-                + "&output=vast\"}"
+            "{\"ad_tag_url\":\"" + adTagUrl + "\"}"
         );
 
-        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
         assertTrue(result.hasAd());
-        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+        assertEquals(adTagUrl, result.getConfig().getAdTagUrl());
     }
 
     @Test
-    public void replacesGamCorrelatorMacroBeforePlayback() throws Exception {
+    public void preservesGamCorrelatorMacroExactlyAsReturnedByBackend() throws Exception {
+        String adTagUrl = "https://pubads.g.doubleclick.net/gampad/ads"
+            + "?iu=/21775744923/external/single_preroll_skippable"
+            + "&output=vast&correlator=[correlator]";
         RemoteAdConfigResult result = parser.parse(
-            "{\"ad_tag_url\":\"https://pubads.g.doubleclick.net/gampad/ads"
-                + "?iu=/21775744923/external/single_preroll_skippable"
-                + "&output=vast&correlator=[correlator]\"}"
+            "{\"ad_tag_url\":\"" + adTagUrl + "\"}"
         );
 
-        okhttp3.HttpUrl url = okhttp3.HttpUrl.parse(result.getConfig().getAdTagUrl());
         assertTrue(result.hasAd());
-        assertTrue(url.queryParameter("correlator").matches("\\d{13,}"));
+        assertEquals(adTagUrl, result.getConfig().getAdTagUrl());
     }
 
     @Test

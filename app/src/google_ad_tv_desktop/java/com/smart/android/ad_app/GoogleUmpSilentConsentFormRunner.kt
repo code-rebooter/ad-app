@@ -268,11 +268,8 @@ internal object GoogleUmpSilentConsentFormRunner {
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                 val message = consoleMessage.message()
-                if (message.startsWith("CodexUmpSilent:")) {
-                    Log.d(TAG, message.take(MAX_LOG_VALUE_LENGTH))
-                    return true
-                }
-                return super.onConsoleMessage(consoleMessage)
+                Log.d(TAG, message.take(MAX_LOG_VALUE_LENGTH))
+                return true
             }
         }
     }

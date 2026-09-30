@@ -1,10 +1,10 @@
 package com.smart.android.ad_app
 
-import android.util.Log
+import com.smart.android.ad_app.logging.PropertyLog as Log
 
 internal object AdLocalLog {
     private val enabled: Boolean
-        get() = BuildConfig.DEBUG
+        get() = Log.isEnabled()
 
     fun d(tag: String, message: String): Int {
         return if (enabled) Log.d(tag, message) else 0

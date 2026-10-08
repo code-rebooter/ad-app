@@ -116,7 +116,7 @@ class HaierUserAgentReportCollectorTest {
         var reportCollected = false
 
         val fields = HaierUserAgentAuthorizeFields.build(
-            flavor = "hq008",
+            flavor = "unsupported_flavor",
             fallbackEffectiveUa = "existing-ua"
         ) {
             reportCollected = true

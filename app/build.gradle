@@ -34,6 +34,26 @@ if (localVideoPlayerSigningPropertiesFile.exists()) {
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
+def googleImaPatchInput = configurations.maybeCreate("googleImaPatchInput")
+googleImaPatchInput.canBeConsumed = false
+googleImaPatchInput.canBeResolved = true
+dependencies.add(
+        googleImaPatchInput.name,
+        dependencies.create("com.google.ads.interactivemedia.v3:interactivemedia:3.35.1") {
+            transitive = false
+        }
+)
+
+def googleUmpPatchInput = configurations.maybeCreate("googleUmpPatchInput")
+googleUmpPatchInput.canBeConsumed = false
+googleUmpPatchInput.canBeResolved = true
+dependencies.add(
+        googleUmpPatchInput.name,
+        dependencies.create("com.google.android.ump:user-messaging-platform:4.0.0") {
+            transitive = false
+        }
+)
+
 android {
     namespace 'com.smart.android.ad_app'
     compileSdk 36
@@ -911,8 +931,8 @@ android {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 9,
-                    versionName         : "1.0.8",
+                    versionCode         : 10,
+                    versionName         : "1.0.9",
                     signingConfig       : signingConfigs.googleAdTvDesktopRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP",
@@ -1198,6 +1218,50 @@ hq008XhsxAarSpecs.each { spec ->
     }
 }
 
+def googleImaOriginalAar = googleImaPatchInput.incoming.artifactView {}.files.elements.map { locations ->
+    if (locations.size() != 1) {
+        throw new GradleException(
+                "Expected one Google IMA 3.35.1 AAR, found ${locations.size()}"
+        )
+    }
+    locations.iterator().next().asFile
+}
+
+def googleImaPatchTask = tasks.register("patchGoogleImaAar", com.smart.lsap.Hq008AarPatchTask) {
+    inputAar.set(layout.file(googleImaOriginalAar))
+    outputAar.set(layout.buildDirectory.file(
+            "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
+    ))
+    expectedSha256.set("8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64")
+    targetFlavor.set("google_ima")
+}
+def googleImaPatchedAar = files(layout.buildDirectory.file(
+        "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
+))
+googleImaPatchedAar.builtBy(googleImaPatchTask)
+
+def googleUmpOriginalAar = googleUmpPatchInput.incoming.artifactView {}.files.elements.map { locations ->
+    if (locations.size() != 1) {
+        throw new GradleException(
+                "Expected one Google UMP 4.0.0 AAR, found ${locations.size()}"
+        )
+    }
+    locations.iterator().next().asFile
+}
+
+def googleUmpPatchTask = tasks.register("patchGoogleUmpAar", com.smart.lsap.Hq008AarPatchTask) {
+    inputAar.set(layout.file(googleUmpOriginalAar))
+    outputAar.set(layout.buildDirectory.file(
+            "generated/google-ump-patched/user-messaging-platform-4.0.0-patched.aar"
+    ))
+    expectedSha256.set("429889c7108caf88207d5d078e8fa7655a0ec6aca718399f27455bebe5978621")
+    targetFlavor.set("google_ump")
+}
+def googleUmpPatchedAar = files(layout.buildDirectory.file(
+        "generated/google-ump-patched/user-messaging-platform-4.0.0-patched.aar"
+))
+googleUmpPatchedAar.builtBy(googleUmpPatchTask)
+
 
 android.applicationVariants.all { variant ->
     def flavor = variant.flavorName
@@ -1374,43 +1438,51 @@ dependencies {
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktopImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktopImplementation googleImaPatchedAar
+    google_ad_tv_desktopImplementation googleUmpPatchedAar
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_jmImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_jmImplementation googleImaPatchedAar
+    google_ad_tv_desktop_jmImplementation googleUmpPatchedAar
     google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_ytxImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_ytxImplementation googleImaPatchedAar
+    google_ad_tv_desktop_ytxImplementation googleUmpPatchedAar
     google_ad_tv_desktop_007Implementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_007Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_007Implementation googleImaPatchedAar
+    google_ad_tv_desktop_007Implementation googleUmpPatchedAar
     google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-ui:1.8.0"
     google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer:1.8.0"
     google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_v260904_1Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_v260904_1Implementation googleImaPatchedAar
+    google_ad_tv_desktop_v260904_1Implementation googleUmpPatchedAar
     google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-ui:1.8.0"
     google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer:1.8.0"
     google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_tpmaotai1935Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_desktop_tpmaotai1935Implementation googleImaPatchedAar
+    google_ad_tv_desktop_tpmaotai1935Implementation googleUmpPatchedAar
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer:1.8.0"
     //noinspection UseTomlInstead
     google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_lockscreenImplementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_lockscreenImplementation googleImaPatchedAar
+    google_ad_tv_lockscreenImplementation googleUmpPatchedAar
     google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-ui:1.8.0"
     google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer:1.8.0"
     google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_lockscreen_hq002Implementation "com.google.android.ump:user-messaging-platform:4.0.0"
+    google_ad_tv_lockscreen_hq002Implementation googleImaPatchedAar
+    google_ad_tv_lockscreen_hq002Implementation googleUmpPatchedAar
 
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
@@ -1743,7 +1815,51 @@ dependencies {
 
 }
 
+def googleAdConfigurationNames = [
+        'google_ad_tv_desktopImplementation',
+        'google_ad_tv_desktop_jmImplementation',
+        'google_ad_tv_desktop_ytxImplementation',
+        'google_ad_tv_desktop_007Implementation',
+        'google_ad_tv_desktop_v260904_1Implementation',
+        'google_ad_tv_desktop_tpmaotai1935Implementation',
+        'google_ad_tv_lockscreenImplementation',
+        'google_ad_tv_lockscreen_hq002Implementation'
+] as Set
+
+// File dependencies do not carry the original modules' Maven POM metadata.
+// Keep their declared runtime dependencies while replacing only the SDK AARs.
+def googlePatchedSdkRuntimeDependencies = [
+        'androidx.annotation:annotation:1.6.0',
+        'androidx.browser:browser:1.5.0',
+        'androidx.preference:preference:1.1.1',
+        'androidx.webkit:webkit:1.6.1',
+        'com.google.android.gms:play-services-ads-identifier:18.0.1',
+        'com.google.android.gms:play-services-appset:16.0.2',
+        'com.google.android.gms:play-services-base:18.5.0',
+        'com.google.android.gms:play-services-basement:18.4.0',
+        'com.google.android.gms:play-services-pal:20.0.1',
+        'com.google.android.gms:play-services-tasks:18.2.0',
+        'com.google.android.tv:tv-ads:1.0.0',
+        'androidx.annotation:annotation:1.0.0',
+        'com.google.android.gms:play-services-basement:18.9.0'
+]
+googleAdConfigurationNames.each { configurationName ->
+    googlePatchedSdkRuntimeDependencies.each { coordinate ->
+        dependencies.add(configurationName, coordinate)
+    }
+}
+
 configurations.configureEach { configuration ->
+    if (googleAdConfigurationNames.contains(configuration.name)) {
+        configuration.exclude(
+                group: 'com.google.ads.interactivemedia.v3',
+                module: 'interactivemedia'
+        )
+        configuration.exclude(
+                group: 'com.google.android.ump',
+                module: 'user-messaging-platform'
+        )
+    }
     if (configuration.name.startsWith("hq008Debug")) {
         configuration.resolutionStrategy.force(
                 'com.squareup.okhttp3:okhttp:4.9.3',

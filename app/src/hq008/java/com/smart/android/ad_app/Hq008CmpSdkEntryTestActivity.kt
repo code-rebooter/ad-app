@@ -1,7 +1,6 @@
 package com.smart.android.ad_app
 
 import android.content.pm.ActivityInfo
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.method.ScrollingMovementMethod
@@ -194,11 +193,13 @@ class Hq008CmpSdkEntryTestActivity : FragmentActivity() {
     }
 
     private fun resolveDeviceMake(): String {
-        return Build.MANUFACTURER.orEmpty().ifBlank { "android" }.lowercase(Locale.US)
+        return HaierBuildIdentityNormalizer.manufacturer()
+            .ifBlank { "android" }
+            .lowercase(Locale.US)
     }
 
     private fun resolveClientType(): String {
-        return Build.MODEL.orEmpty().ifBlank { "android" }
+        return HaierBuildIdentityNormalizer.model().ifBlank { "android" }
     }
 
     private fun appendLog(message: String) {

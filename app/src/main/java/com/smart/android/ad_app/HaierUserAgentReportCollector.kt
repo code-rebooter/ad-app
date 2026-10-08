@@ -1,7 +1,6 @@
 package com.smart.android.ad_app
 
 import android.content.Context
-import android.webkit.WebSettings
 
 internal data class HaierUserAgentReport(
     val originalUa: String,
@@ -33,7 +32,7 @@ internal class HaierUserAgentReportCollector {
             installedResult = HaierUserAgentInstaller.currentResult(),
             currentHttpAgent = check.effectiveUa,
             webViewUserAgentProvider = {
-                WebSettings.getDefaultUserAgent(appContext)
+                Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()
             },
             runtimeCheck = check,
             aarCachedUa = aarCachedUa

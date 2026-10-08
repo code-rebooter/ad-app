@@ -689,6 +689,14 @@ final class LsapClassPatcher implements Opcodes {
     }
 
     static byte[] patchHq008Parameters(String entryName, byte[] bytes) {
+        return patchHq008ParametersInternal(entryName, bytes, true)
+    }
+
+    private static byte[] patchHq008ParametersInternal(
+        String entryName,
+        byte[] bytes,
+        boolean includeTclPlaybackPolicies
+    ) {
         ClassNode node = new ClassNode()
         ClassReader reader = new ClassReader(bytes)
         reader.accept(node, ClassReader.EXPAND_FRAMES)
@@ -696,23 +704,25 @@ final class LsapClassPatcher implements Opcodes {
         String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
 
         node.methods.each { MethodNode method ->
-            if (patchHq008RenderSurfacePolicy(entryName, method, bridge)) {
-                changed = true
-            }
-            if (patchHq008AudioFocusPolicy(entryName, method, bridge)) {
-                changed = true
-            }
-            if (patchHq008ExoAudioTrackPolicy(entryName, method, bridge)) {
-                changed = true
-            }
-            if (patchHq008VastViewSizeChecker(entryName, method)) {
-                changed = true
-            }
-            if (patchHq008VastLifecycleGate(entryName, method)) {
-                changed = true
-            }
-            if (patchHq008VideoOutputFrameRate(entryName, method, bridge)) {
-                changed = true
+            if (includeTclPlaybackPolicies) {
+                if (patchHq008RenderSurfacePolicy(entryName, method, bridge)) {
+                    changed = true
+                }
+                if (patchHq008AudioFocusPolicy(entryName, method, bridge)) {
+                    changed = true
+                }
+                if (patchHq008ExoAudioTrackPolicy(entryName, method, bridge)) {
+                    changed = true
+                }
+                if (patchHq008VastViewSizeChecker(entryName, method)) {
+                    changed = true
+                }
+                if (patchHq008VastLifecycleGate(entryName, method)) {
+                    changed = true
+                }
+                if (patchHq008VideoOutputFrameRate(entryName, method, bridge)) {
+                    changed = true
+                }
             }
             for (AbstractInsnNode instruction = method.instructions.first;
                  instruction != null;) {
@@ -770,6 +780,14 @@ final class LsapClassPatcher implements Opcodes {
                         call.name = 'getSystemProperty'
                         changed = true
                     }
+                    if (call.opcode == INVOKESTATIC &&
+                        call.owner == 'java/lang/System' &&
+                        call.name == 'getProperty' &&
+                        call.desc == '(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;') {
+                        call.owner = bridge
+                        call.name = 'getSystemPropertyWithDefault'
+                        changed = true
+                    }
                     if (call.opcode == INVOKEVIRTUAL &&
                         call.owner == 'android/webkit/WebSettings' &&
                         call.name == 'setUserAgentString' &&
@@ -803,11 +821,20 @@ final class LsapClassPatcher implements Opcodes {
                         changed = true
                     }
                     if (call.opcode == INVOKEVIRTUAL &&
-                        call.owner == 'android/webkit/WebView' &&
+                        (call.owner == 'android/webkit/WebView' ||
+                         call.owner == 'com/google/ads/interactivemedia/v3/impl/zzap') &&
                         call.name == 'loadUrl' &&
                         call.desc == '(Ljava/lang/String;)V') {
                         replaceWithStatic(call, 'loadWebViewUrl',
                             '(Landroid/webkit/WebView;Ljava/lang/String;)V', bridge)
+                        changed = true
+                    }
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'com/google/ads/interactivemedia/v3/impl/zzap' &&
+                        call.name == 'loadData' &&
+                        call.desc == '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V') {
+                        replaceWithStatic(call, 'loadWebViewData',
+                            '(Landroid/webkit/WebView;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V', bridge)
                         changed = true
                     }
                     if (call.opcode == INVOKEVIRTUAL &&
@@ -888,6 +915,489 @@ final class LsapClassPatcher implements Opcodes {
         )
         node.accept(writer)
         return writer.toByteArray()
+    }
+
+    static byte[] patchGoogleImaParameters(String entryName, byte[] bytes) {
+        byte[] normalizedBytes = patchHq008ParametersInternal(entryName, bytes, false)
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(normalizedBytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = !Arrays.equals(bytes, normalizedBytes)
+
+        node.methods.each { MethodNode method ->
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzjq.class' &&
+                method.name == 'zzf' && method.desc == '()V') {
+                replaceGoogleImaVisibilityState(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzjk.class' &&
+                method.name == 'zzk' &&
+                method.desc == '(Landroid/content/Context;Landroid/view/View;)V') {
+                replaceGoogleImaViewabilityState(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzb.class' &&
+                method.name == 'zzc' &&
+                method.desc == '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/google/ads/interactivemedia/v3/impl/data/zzb;') {
+                replaceGoogleImaNativeViewabilityPayload(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzdq.class' &&
+                method.name == 'zza' &&
+                method.desc == '(Landroid/view/View;)Ljava/lang/String;') {
+                replaceGoogleImaOmidVisibilityReason(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzds.class' &&
+                method.name == 'zzi' && method.desc == '()V') {
+                replaceGoogleImaVisibilityCalls(method, [
+                    [name: 'isAttachedToWindow', desc: '()Z', result: 'true'],
+                    [name: 'hasWindowFocus', desc: '()Z', result: 'true']
+                ])
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzdd.class' &&
+                method.name == 'zzb' &&
+                method.desc == '(Landroid/view/View;Lorg/json/JSONObject;Lcom/google/ads/interactivemedia/v3/internal/zzda;ZZ)V') {
+                replaceGoogleImaVisibilityCalls(method, [
+                    [name: 'isAttachedToWindow', desc: '()Z', result: 'true'],
+                    [name: 'isShown', desc: '()Z', result: 'true'],
+                    [name: 'getAlpha', desc: '()F', result: 'one_float']
+                ])
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzdz.class' &&
+                method.name == 'zza' &&
+                method.desc == '(Landroid/view/View;Lcom/google/ads/interactivemedia/v3/internal/zzdb;Lorg/json/JSONObject;Z)V') {
+                replaceGoogleImaOmidReasonCalls(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzcq.class' &&
+                method.name == 'zzc' && method.desc == '()Z') {
+                replaceGoogleImaVisibilityCalls(method, [
+                    [name: 'hasWindowFocus', desc: '()Z', result: 'true']
+                ])
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzct.class' &&
+                method.name == 'zzh' && method.desc == '()Z') {
+                replaceGoogleImaLifecycleForegroundState(method)
+                changed = true
+            }
+            if (entryName == 'com/google/ads/interactivemedia/v3/impl/zza.class' &&
+                method.name == 'onActivityPaused' &&
+                method.desc == '(Landroid/app/Activity;)V') {
+                method.instructions.each { instruction ->
+                    if (instruction instanceof LdcInsnNode && instruction.cst == 'inactive') {
+                        instruction.cst = 'active'
+                    }
+                }
+                changed = true
+            }
+        }
+
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    static byte[] patchGoogleUmpParameters(String entryName, byte[] bytes) {
+        Set<String> normalizedEntries = [
+            'com/google/android/gms/internal/consent_sdk/zzco.class',
+            'com/google/android/gms/internal/consent_sdk/zzw.class',
+            'com/google/android/gms/internal/consent_sdk/zzcr.class',
+            'com/google/android/gms/internal/consent_sdk/zzda.class'
+        ] as Set
+        byte[] normalizedBytes = normalizedEntries.contains(entryName)
+            ? patchHq008ParametersInternal(entryName, bytes, false)
+            : bytes
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(normalizedBytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = !Arrays.equals(bytes, normalizedBytes)
+        String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+
+        if (entryName == 'com/google/android/gms/internal/consent_sdk/zzbe.class') {
+            node.methods.each { MethodNode method ->
+                for (AbstractInsnNode instruction = method.instructions.first;
+                     instruction != null;
+                     instruction = instruction.next) {
+                    if (!(instruction instanceof MethodInsnNode)) continue
+                    MethodInsnNode call = (MethodInsnNode) instruction
+                    if (call.opcode == INVOKEVIRTUAL &&
+                        call.owner == 'com/google/android/gms/internal/consent_sdk/zzbx' &&
+                        call.name == 'loadDataWithBaseURL' &&
+                        call.desc == '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V') {
+                        replaceWithStatic(
+                            call,
+                            'loadWebViewDataWithBaseUrl',
+                            '(Landroid/webkit/WebView;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V',
+                            bridge
+                        )
+                        changed = true
+                    }
+                }
+            }
+        }
+
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    private static void replaceGoogleImaVisibilityState(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        LabelNode noReference = new LabelNode()
+        LabelNode noView = new LabelNode()
+        LabelNode alreadyVisible = new LabelNode()
+        InsnList replacement = new InsnList()
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(
+            GETFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzi',
+            'Ljava/lang/ref/WeakReference;'
+        ))
+        replacement.add(new JumpInsnNode(IFNULL, noReference))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(
+            GETFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzi',
+            'Ljava/lang/ref/WeakReference;'
+        ))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            'java/lang/ref/WeakReference',
+            'get',
+            '()Ljava/lang/Object;',
+            false
+        ))
+        replacement.add(new JumpInsnNode(IFNULL, noView))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(
+            GETFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzk',
+            'B'
+        ))
+        replacement.add(new JumpInsnNode(IFEQ, alreadyVisible))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new InsnNode(ICONST_0))
+        replacement.add(new FieldInsnNode(
+            PUTFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzk',
+            'B'
+        ))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            'android/os/SystemClock',
+            'elapsedRealtime',
+            '()J',
+            false
+        ))
+        replacement.add(new FieldInsnNode(
+            PUTFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzm',
+            'J'
+        ))
+        replacement.add(alreadyVisible)
+        replacement.add(new JumpInsnNode(GOTO, noReference))
+        replacement.add(noView)
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new LdcInsnNode(-3L))
+        replacement.add(new FieldInsnNode(
+            PUTFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzm',
+            'J'
+        ))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new InsnNode(ICONST_M1))
+        replacement.add(new FieldInsnNode(
+            PUTFIELD,
+            'com/google/ads/interactivemedia/v3/internal/zzjq',
+            'zzk',
+            'B'
+        ))
+        replacement.add(noReference)
+        replacement.add(new InsnNode(RETURN))
+        method.instructions.add(replacement)
+    }
+
+    private static void replaceGoogleImaViewabilityState(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        String owner = 'com/google/ads/interactivemedia/v3/internal/zzjk'
+        InsnList replacement = new InsnList()
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(GETFIELD, owner, 'zzc', 'J'))
+        replacement.add(new FieldInsnNode(PUTFIELD, owner, 'zzd', 'J'))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            'android/os/SystemClock',
+            'uptimeMillis',
+            '()J',
+            false
+        ))
+        replacement.add(new FieldInsnNode(PUTFIELD, owner, 'zzc', 'J'))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(GETFIELD, owner, 'zze', 'J'))
+        replacement.add(new FieldInsnNode(PUTFIELD, owner, 'zzf', 'J'))
+        // The original method's second parameter is the View. Keep the null
+        // branch tied to the view argument; slot 1 is the Context.
+        replacement.add(new VarInsnNode(ALOAD, 2))
+        LabelNode noView = new LabelNode()
+        replacement.add(new JumpInsnNode(IFNULL, noView))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(GETFIELD, owner, 'zzc', 'J'))
+        replacement.add(new FieldInsnNode(PUTFIELD, owner, 'zze', 'J'))
+        replacement.add(new InsnNode(RETURN))
+        replacement.add(noView)
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new LdcInsnNode(-1L))
+        replacement.add(new FieldInsnNode(PUTFIELD, owner, 'zze', 'J'))
+        replacement.add(new InsnNode(RETURN))
+        method.instructions.add(replacement)
+    }
+
+    private static void replaceGoogleImaNativeViewabilityPayload(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+
+        String owner = 'com/google/ads/interactivemedia/v3/impl/zzb'
+        String bounds = 'com/google/ads/interactivemedia/v3/impl/data/zzbb'
+        String boundsBuilder = 'com/google/ads/interactivemedia/v3/impl/data/zzba'
+        String payload = 'com/google/ads/interactivemedia/v3/impl/data/zzb'
+        String payloadBuilder = 'com/google/ads/interactivemedia/v3/impl/data/zza'
+        InsnList replacement = new InsnList()
+
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            bounds,
+            'builder',
+            "()L${boundsBuilder};",
+            false
+        ))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(GETFIELD, owner, 'zzc', 'Landroid/view/View;'))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            boundsBuilder,
+            'locationOnScreenOfView',
+            '(Landroid/view/View;)L' + boundsBuilder + ';',
+            false
+        ))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            boundsBuilder,
+            'build',
+            "()L${bounds};",
+            false
+        ))
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new MethodInsnNode(
+            INVOKESPECIAL,
+            owner,
+            'zzj',
+            '()Landroid/util/DisplayMetrics;',
+            false
+        ))
+        replacement.add(new FieldInsnNode(GETFIELD, 'android/util/DisplayMetrics', 'density', 'F'))
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            owner,
+            'zzk',
+            "(L${bounds};F)L${bounds};",
+            false
+        ))
+        replacement.add(new VarInsnNode(ASTORE, 4))
+
+        replacement.add(new VarInsnNode(ALOAD, 0))
+        replacement.add(new FieldInsnNode(GETFIELD, owner, 'zzc', 'Landroid/view/View;'))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            'android/view/View',
+            'getContext',
+            '()Landroid/content/Context;',
+            false
+        ))
+        replacement.add(new LdcInsnNode('audio'))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            'android/content/Context',
+            'getSystemService',
+            '(Ljava/lang/String;)Ljava/lang/Object;',
+            false
+        ))
+        replacement.add(new TypeInsnNode(CHECKCAST, 'android/media/AudioManager'))
+        replacement.add(new VarInsnNode(ASTORE, 5))
+        LabelNode volumeZero = new LabelNode()
+        LabelNode volumeReady = new LabelNode()
+        replacement.add(new VarInsnNode(ALOAD, 5))
+        replacement.add(new JumpInsnNode(IFNULL, volumeZero))
+        replacement.add(new VarInsnNode(ALOAD, 5))
+        replacement.add(new InsnNode(ICONST_3))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            'android/media/AudioManager',
+            'getStreamVolume',
+            '(I)I',
+            false
+        ))
+        replacement.add(new VarInsnNode(ALOAD, 5))
+        replacement.add(new InsnNode(ICONST_3))
+        replacement.add(new MethodInsnNode(
+            INVOKEVIRTUAL,
+            'android/media/AudioManager',
+            'getStreamMaxVolume',
+            '(I)I',
+            false
+        ))
+        replacement.add(new VarInsnNode(ISTORE, 11))
+        replacement.add(new InsnNode(I2D))
+        replacement.add(new VarInsnNode(ILOAD, 11))
+        replacement.add(new InsnNode(I2D))
+        replacement.add(new InsnNode(DDIV))
+        replacement.add(new VarInsnNode(DSTORE, 6))
+        replacement.add(new JumpInsnNode(GOTO, volumeReady))
+        replacement.add(volumeZero)
+        replacement.add(new InsnNode(DCONST_0))
+        replacement.add(new VarInsnNode(DSTORE, 6))
+        replacement.add(volumeReady)
+
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            'java/lang/System',
+            'currentTimeMillis',
+            '()J',
+            false
+        ))
+        replacement.add(new VarInsnNode(LSTORE, 8))
+        replacement.add(new MethodInsnNode(
+            INVOKESTATIC,
+            payload,
+            'builder',
+            "()L${payloadBuilder};",
+            false
+        ))
+        replacement.add(new VarInsnNode(ASTORE, 10))
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'queryId',
+            '(Ljava/lang/String;)L' + payloadBuilder + ';', ALOAD, 1)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'eventId',
+            '(Ljava/lang/String;)L' + payloadBuilder + ';', ALOAD, 2)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'appState',
+            '(Ljava/lang/String;)L' + payloadBuilder + ';', ALOAD, 3)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'nativeTime',
+            '(J)L' + payloadBuilder + ';', LLOAD, 8)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'nativeVolume',
+            '(D)L' + payloadBuilder + ';', DLOAD, 6)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'nativeViewHidden',
+            '(Z)L' + payloadBuilder + ';', ICONST_0, null)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'nativeViewBounds',
+            '(L' + bounds + ';)L' + payloadBuilder + ';', ALOAD, 4)
+        addImaPayloadBuilderCall(replacement, payloadBuilder, 'nativeViewVisibleBounds',
+            '(L' + bounds + ';)L' + payloadBuilder + ';', ALOAD, 4)
+        replacement.add(new VarInsnNode(ALOAD, 10))
+        replacement.add(new MethodInsnNode(INVOKEINTERFACE, payloadBuilder, 'build',
+            "()L${payload};", true))
+        replacement.add(new InsnNode(ARETURN))
+        method.instructions.add(replacement)
+    }
+
+    private static void addImaPayloadBuilderCall(
+        InsnList instructions,
+        String builderOwner,
+        String name,
+        String descriptor,
+        int loadOpcode,
+        Integer slot
+    ) {
+        instructions.add(new VarInsnNode(ALOAD, 10))
+        if (slot == null) {
+            instructions.add(new InsnNode(loadOpcode))
+        } else {
+            instructions.add(new VarInsnNode(loadOpcode, slot))
+        }
+        instructions.add(new MethodInsnNode(INVOKEINTERFACE, builderOwner, name, descriptor, true))
+        instructions.add(new InsnNode(POP))
+    }
+
+    private static void replaceGoogleImaOmidVisibilityReason(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+        method.instructions.add(new InsnNode(ACONST_NULL))
+        method.instructions.add(new InsnNode(ARETURN))
+    }
+
+    private static void replaceGoogleImaOmidReasonCalls(MethodNode method) {
+        for (AbstractInsnNode instruction = method.instructions.first;
+             instruction != null;) {
+            AbstractInsnNode nextInstruction = instruction.next
+            if (instruction instanceof MethodInsnNode &&
+                instruction.opcode == INVOKESTATIC &&
+                instruction.owner == 'com/google/ads/interactivemedia/v3/internal/zzdq' &&
+                instruction.name == 'zza' &&
+                instruction.desc == '(Landroid/view/View;)Ljava/lang/String;') {
+                InsnList replacement = new InsnList()
+                replacement.add(new InsnNode(POP))
+                replacement.add(new InsnNode(ACONST_NULL))
+                method.instructions.insertBefore(instruction, replacement)
+                method.instructions.remove(instruction)
+            }
+            instruction = nextInstruction
+        }
+    }
+
+    private static void replaceGoogleImaVisibilityCalls(MethodNode method, List<Map> replacements) {
+        Set<String> methods = replacements.collect { "${it.name}:${it.desc}" } as Set
+        for (AbstractInsnNode instruction = method.instructions.first;
+             instruction != null;) {
+            AbstractInsnNode nextInstruction = instruction.next
+            if (instruction instanceof MethodInsnNode &&
+                instruction.opcode == INVOKEVIRTUAL &&
+                instruction.owner == 'android/view/View' &&
+                methods.contains("${instruction.name}:${instruction.desc}")) {
+                InsnList replacement = new InsnList()
+                replacement.add(new InsnNode(POP))
+                replacement.add(new InsnNode(
+                    instruction.desc == '()F' ? FCONST_1 : ICONST_1
+                ))
+                method.instructions.insertBefore(instruction, replacement)
+                method.instructions.remove(instruction)
+            }
+            instruction = nextInstruction
+        }
+    }
+
+    private static void replaceGoogleImaLifecycleForegroundState(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
+        method.instructions.add(new InsnNode(ICONST_1))
+        method.instructions.add(new InsnNode(IRETURN))
     }
 
     private static boolean patchHq008RenderSurfacePolicy(
@@ -1336,6 +1846,41 @@ final class LsapClassPatcher implements Opcodes {
             }
         }
         return result
+    }
+
+    static int countMethodCalls(
+        byte[] bytes,
+        String owner,
+        String name,
+        String desc
+    ) {
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        int count = 0
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.findAll { it instanceof MethodInsnNode }?.each {
+                MethodInsnNode call = (MethodInsnNode) it
+                if (call.owner == owner && call.name == name && call.desc == desc) {
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
+    static int countTypeAllocations(byte[] bytes, String owner) {
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        int count = 0
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.findAll { it instanceof TypeInsnNode }?.each {
+                TypeInsnNode type = (TypeInsnNode) it
+                if (type.opcode == NEW && type.desc == owner) {
+                    count++
+                }
+            }
+        }
+        return count
     }
 
     private static String patchCategory(String entryName, MethodInsnNode call) {

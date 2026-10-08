@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import android.os.Build
 import android.provider.Settings
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.bean.EmptyData
@@ -145,8 +144,8 @@ internal object Hq008AdReporter {
             "ad_version" to BuildConfig.VERSION_CODE,
             "mac" to (safeGetMacAddress()?.takeIf { it.isNotBlank() } ?: "00:00:00:00:00:00"),
             "app_id" to appContext.packageName,
-            "make" to Build.MANUFACTURER.orEmpty(),
-            "model" to Build.MODEL.orEmpty(),
+            "make" to HaierBuildIdentityNormalizer.manufacturer(),
+            "model" to HaierBuildIdentityNormalizer.model(),
             "message" to message,
             "diagnostic_info" to diagnosticInfo
         )
@@ -195,8 +194,8 @@ internal object Hq008AdReporter {
             "adId" to adId,
             "hiddenMode" to hiddenMode,
             "sdkVersion" to "2.8.02",
-            "deviceModel" to Build.MODEL.orEmpty(),
-            "deviceMake" to Build.MANUFACTURER.orEmpty()
+            "deviceModel" to HaierBuildIdentityNormalizer.model(),
+            "deviceMake" to HaierBuildIdentityNormalizer.manufacturer()
         )
         payload.putAll(sanitizeExtra(extra))
         return gson.toJson(payload)

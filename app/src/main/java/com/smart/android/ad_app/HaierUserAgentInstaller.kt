@@ -22,7 +22,15 @@ internal object HaierUserAgentInstaller {
         "tcl_poly",
         "haier_lsap",
         "addy_hq1002",
-        "addy_jams"
+        "addy_jams",
+        "google_ad_tv_desktop",
+        "google_ad_tv_desktop_jm",
+        "google_ad_tv_desktop_ytx",
+        "google_ad_tv_desktop_007",
+        "google_ad_tv_desktop_v260904_1",
+        "google_ad_tv_desktop_tpmaotai1935",
+        "google_ad_tv_lockscreen",
+        "google_ad_tv_lockscreen_hq002"
     )
     @Volatile
     private var latestResult: HaierUaNormalizationResult? = null

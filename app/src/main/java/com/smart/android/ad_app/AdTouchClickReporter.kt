@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import com.google.gson.Gson
@@ -37,8 +36,8 @@ internal object AdTouchClickReporter {
                 "clickSource" to CLICK_SOURCE_TOUCH,
                 "clickElapsedMs" to SystemClock.elapsedRealtime(),
                 "sdkVersion" to SDK_VERSION,
-                "deviceModel" to Build.MODEL.orEmpty(),
-                "deviceMake" to Build.MANUFACTURER.orEmpty()
+                "deviceModel" to HaierBuildIdentityNormalizer.model(),
+                "deviceMake" to HaierBuildIdentityNormalizer.manufacturer()
             )
         )
         val params = linkedMapOf<String, Any>(
@@ -49,8 +48,8 @@ internal object AdTouchClickReporter {
             "ad_version" to BuildConfig.VERSION_CODE,
             "mac" to (safeGetMacAddress()?.takeIf { it.isNotBlank() } ?: "00:00:00:00:00:00"),
             "app_id" to appContext.packageName,
-            "make" to Build.MANUFACTURER.orEmpty(),
-            "model" to Build.MODEL.orEmpty(),
+            "make" to HaierBuildIdentityNormalizer.manufacturer(),
+            "model" to HaierBuildIdentityNormalizer.model(),
             "message" to MESSAGE_CLICKED,
             "diagnostic_info" to diagnosticInfo
         )

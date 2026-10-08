@@ -261,6 +261,7 @@ internal object GoogleUmpSilentConsentFormRunner {
     }
 
     private fun prepareWebView(webView: WebView) {
+        webView.settings.userAgentString = Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()
         webView.alpha = 0f
         webView.setBackgroundColor(Color.TRANSPARENT)
         webView.isFocusable = false

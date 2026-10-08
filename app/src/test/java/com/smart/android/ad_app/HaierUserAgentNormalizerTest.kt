@@ -109,6 +109,18 @@ class HaierUserAgentNormalizerTest {
     }
 
     @Test
+    fun `x88 android 13 user agent remains unchanged when version and build match`() {
+        val original =
+            "Dalvik/2.1.0 (Linux; U; Android 13; X88Pro13.8800.F1010_1.0.0 Build/TQ3C.230805.001.B2)"
+
+        val result = HaierUserAgentNormalizer.normalize(original, 33)
+
+        assertFalse(result.changed)
+        assertEquals(HaierUaNormalizationReason.UNCHANGED_VALID, result.reason)
+        assertEquals(original, result.effectiveUa)
+    }
+
+    @Test
     fun `blank malformed and unsafe values are replaced`() {
         val blank = HaierUserAgentNormalizer.normalize("", 30)
         val malformed = HaierUserAgentNormalizer.normalize("Mozilla/5.0", 30)

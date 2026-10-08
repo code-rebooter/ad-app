@@ -23,6 +23,13 @@ object Hq008XhsxAarRuntimeBridge {
         return HaierUserAgentInstaller.ensureEffectiveForCurrentProcess().effectiveUa
     }
 
+    private fun applyEffectiveWebViewUa(webView: WebView): String {
+        return effectiveUa().also { webView.settings.userAgentString = it }
+    }
+
+    @JvmStatic
+    fun getEffectiveUserAgent(): String = effectiveUa()
+
     @JvmStatic
     fun getAndroidVersionRelease(): String = HaierBuildIdentityNormalizer.androidVersion()
 
@@ -30,7 +37,7 @@ object Hq008XhsxAarRuntimeBridge {
     fun getAndroidSdkInt(): Int = HaierBuildIdentityNormalizer.sdkInt()
 
     @JvmStatic
-    fun getAndroidDeviceModel(): String = HaierDeviceModelNormalizer.FIXED_MODEL
+    fun getAndroidDeviceModel(): String = HaierBuildIdentityNormalizer.model()
 
     @JvmStatic
     fun getAndroidBuildId(): String = HaierBuildIdentityNormalizer.buildId()
@@ -53,6 +60,15 @@ object Hq008XhsxAarRuntimeBridge {
     }
 
     @JvmStatic
+    fun getSystemPropertyWithDefault(name: String?, defaultValue: String?): String? {
+        return when {
+            name == null -> defaultValue
+            name == HTTP_AGENT -> effectiveUa()
+            else -> System.getProperty(name, defaultValue)
+        }
+    }
+
+    @JvmStatic
     fun setWebViewUserAgent(settings: WebSettings, requestedUa: String?) {
         settings.userAgentString = effectiveUa()
     }
@@ -70,6 +86,7 @@ object Hq008XhsxAarRuntimeBridge {
 
     @JvmStatic
     fun loadWebViewUrl(webView: WebView, url: String?) {
+        applyEffectiveWebViewUa(webView)
         webView.loadUrl(url.orEmpty())
     }
 
@@ -79,15 +96,45 @@ object Hq008XhsxAarRuntimeBridge {
         url: String?,
         headers: Map<String, String>?
     ) {
-        val finalHeaders = LinkedHashMap(headers.orEmpty())
-        finalHeaders["User-Agent"] = effectiveUa()
+        val effectiveUa = applyEffectiveWebViewUa(webView)
+        val finalHeaders = LinkedHashMap<String, String>()
+        headers.orEmpty().forEach { (name, value) ->
+            if (!name.equals("User-Agent", ignoreCase = true)) {
+                finalHeaders[name] = value
+            }
+        }
+        finalHeaders["User-Agent"] = effectiveUa
         webView.loadUrl(url.orEmpty(), finalHeaders)
     }
 
     @JvmStatic
     fun postWebViewUrl(webView: WebView, url: String?, body: ByteArray?) {
-        webView.settings.userAgentString = effectiveUa()
+        applyEffectiveWebViewUa(webView)
         webView.postUrl(url.orEmpty(), body ?: ByteArray(0))
+    }
+
+    @JvmStatic
+    fun loadWebViewData(
+        webView: WebView,
+        data: String?,
+        mimeType: String?,
+        encoding: String?
+    ) {
+        applyEffectiveWebViewUa(webView)
+        webView.loadData(data.orEmpty(), mimeType, encoding)
+    }
+
+    @JvmStatic
+    fun loadWebViewDataWithBaseUrl(
+        webView: WebView,
+        baseUrl: String?,
+        data: String?,
+        mimeType: String?,
+        encoding: String?,
+        historyUrl: String?
+    ) {
+        applyEffectiveWebViewUa(webView)
+        webView.loadDataWithBaseURL(baseUrl, data.orEmpty(), mimeType, encoding, historyUrl)
     }
 
     @JvmStatic

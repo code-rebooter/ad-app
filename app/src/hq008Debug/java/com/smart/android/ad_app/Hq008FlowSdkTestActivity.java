@@ -2,7 +2,6 @@ package com.smart.android.ad_app;
 
 import android.app.Activity;
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -239,8 +238,8 @@ public final class Hq008FlowSdkTestActivity extends Activity {
                 .setContentTitle("HQ008 Flow SDK Test")
                 .setDevice("android")
                 .setDeviceLanguage(Locale.getDefault().toLanguageTag())
-                .setDeviceMake(Build.MANUFACTURER == null ? "" : Build.MANUFACTURER)
-                .setDeviceModel(Build.MODEL == null ? "" : Build.MODEL)
+                .setDeviceMake(HaierBuildIdentityNormalizer.INSTANCE.manufacturer())
+                .setDeviceModel(HaierBuildIdentityNormalizer.INSTANCE.model())
                 .build();
     }
 

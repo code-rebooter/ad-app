@@ -11,6 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.ima.ImaAdsLoader
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -19,6 +20,7 @@ import androidx.media3.exoplayer.source.ads.AdsMediaSource
 import androidx.media3.ui.PlayerView
 import com.google.ads.interactivemedia.v3.api.AdEvent
 import com.smart.android.ad_app.AdPrivacySanitizer
+import com.smart.android.ad_app.Hq008XhsxAarRuntimeBridge
 
 @UnstableApi
 class GoogleAdVastPlayerView @JvmOverloads constructor(
@@ -139,7 +141,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
             }
             .build()
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(context))
+        val mediaSourceFactory = DefaultMediaSourceFactory(createNetworkDataSourceFactory())
             .setLocalAdInsertionComponents(
                 { adsLoader ?: error("AdsLoader unavailable") },
                 playerView
@@ -192,7 +194,7 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
 
     private fun createAdMediaSource(playbackSpec: GoogleAdVastPlaybackSpec): AdsMediaSource {
         val contentSource = SilenceMediaSource(GoogleAdTvDesktopVastConfig.SILENCE_CONTENT_DURATION_US)
-        val adMediaSourceFactory = DefaultMediaSourceFactory(DefaultDataSource.Factory(context))
+        val adMediaSourceFactory = DefaultMediaSourceFactory(createNetworkDataSourceFactory())
         return AdsMediaSource(
             contentSource,
             DataSpec(playbackSpec.adTagUrl.toUri()),
@@ -212,6 +214,12 @@ class GoogleAdVastPlayerView @JvmOverloads constructor(
         playbackPlayer?.stop()
         playbackPlayer?.release()
         playbackPlayer = null
+    }
+
+    private fun createNetworkDataSourceFactory(): DefaultDataSource.Factory {
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent())
+        return DefaultDataSource.Factory(context, httpFactory)
     }
 
     private fun finishOnce(terminalEvent: String) {

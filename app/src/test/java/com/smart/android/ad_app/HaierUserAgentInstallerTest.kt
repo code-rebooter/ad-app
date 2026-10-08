@@ -12,7 +12,7 @@ import java.io.File
 class HaierUserAgentInstallerTest {
 
     @Test
-    fun `installer supports lsap and tcl aar channels`() {
+    fun `installer supports patched aar channels`() {
         assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008XHSX"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_aishang"))
@@ -26,8 +26,16 @@ class HaierUserAgentInstallerTest {
         assertTrue(HaierUserAgentInstaller.supportsFlavor("haier_lsap"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_hq1002"))
         assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_jams"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_jm"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_ytx"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_007"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_v260904_1"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_tpmaotai1935"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_lockscreen"))
+        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_lockscreen_hq002"))
 
-        assertFalse(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop"))
+        assertFalse(HaierUserAgentInstaller.supportsFlavor("unsupported_flavor"))
     }
 
     @Test
@@ -80,7 +88,7 @@ class HaierUserAgentInstallerTest {
             System.setProperty("http.agent", original)
 
             val result = HaierUserAgentInstaller.installForProcess(
-                flavor = "google_ad_tv_desktop",
+                flavor = "unsupported_flavor",
                 sdkInt = 30,
                 logger = {}
             )

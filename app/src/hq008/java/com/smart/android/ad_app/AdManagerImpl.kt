@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -506,8 +505,8 @@ private object Hq008TclVideoAd {
             .setContentTitle(SDK_CONTENT_TITLE)
             .setDevice("android")
             .setDeviceLanguage(Locale.getDefault().toLanguageTag())
-            .setDeviceMake(Build.MANUFACTURER.orEmpty())
-            .setDeviceModel(Build.MODEL.orEmpty())
+            .setDeviceMake(HaierBuildIdentityNormalizer.manufacturer())
+            .setDeviceModel(HaierBuildIdentityNormalizer.model())
 
         resolveSdkArea()?.let { area ->
             builder.setArea(area)
@@ -526,7 +525,7 @@ private object Hq008TclVideoAd {
         return builder.build().also {
             Log.i(
                 TAG,
-                "播放链路：已构建广告请求参数，appDomain=${appContext.packageName}，area=${resolveSdkArea().orEmpty()}，channelName=$channelName，appCat=$SDK_APP_CATEGORY，contentTitle=$SDK_CONTENT_TITLE，deviceMake=${Build.MANUFACTURER.orEmpty()}，deviceModel=${Build.MODEL.orEmpty()}，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                "播放链路：已构建广告请求参数，appDomain=${appContext.packageName}，area=${resolveSdkArea().orEmpty()}，channelName=$channelName，appCat=$SDK_APP_CATEGORY，contentTitle=$SDK_CONTENT_TITLE，deviceMake=${HaierBuildIdentityNormalizer.manufacturer()}，deviceModel=${HaierBuildIdentityNormalizer.model()}，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
             )
         }
     }

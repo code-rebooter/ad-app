@@ -959,8 +959,10 @@ object Hq008CmpManager {
 
     private fun buildCmpConfig(context: Context, forcePopup: Boolean): CmpConfigParams {
         val deviceId = resolveCmpDeviceId(context)
-        val deviceMake = Build.MANUFACTURER.orEmpty().ifBlank { "android" }.lowercase(Locale.US)
-        val clientType = Build.MODEL.orEmpty().ifBlank { "android" }
+        val deviceMake = HaierBuildIdentityNormalizer.manufacturer()
+            .ifBlank { "android" }
+            .lowercase(Locale.US)
+        val clientType = HaierBuildIdentityNormalizer.model().ifBlank { "android" }
 
         return CmpConfigParams.Builder()
             .setDeviceMake(deviceMake)

@@ -2,7 +2,6 @@ package com.smart.android.ad_app
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
 import android.provider.Settings
 import android.util.DisplayMetrics
 import com.smart.android.ad_app.AdLocalLog as Log
@@ -85,7 +84,7 @@ internal object Hq008SdkAuthorizeClient {
         val mac = getMacAddress().orEmpty()
         val userAgentFields = HaierUserAgentAuthorizeFields.build(
             flavor = BuildConfig.FLAVOR,
-            fallbackEffectiveUa = System.getProperty("http.agent")
+            fallbackEffectiveUa = Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()
         ) {
             userAgentReportCollector.collect(context)
         }
@@ -100,10 +99,10 @@ internal object Hq008SdkAuthorizeClient {
         ).apply {
             putAll(userAgentFields)
             put("ifa", getAndroidIdAsUuid(context))
-            put("make", Build.MANUFACTURER.orEmpty())
-            put("model", Build.MODEL.orEmpty())
+            put("make", HaierBuildIdentityNormalizer.manufacturer())
+            put("model", HaierBuildIdentityNormalizer.model())
             put("os", "Android")
-            put("osv", Build.VERSION.RELEASE.orEmpty())
+            put("osv", HaierBuildIdentityNormalizer.androidVersion())
             put("language", Locale.getDefault().toString().replace("_", "-"))
             put("video_w", context.resources.displayMetrics.widthPixels)
             put("video_h", context.resources.displayMetrics.heightPixels)

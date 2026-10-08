@@ -14,24 +14,55 @@ internal object HaierBuildIdentityNormalizer {
     private var systemPropertyGetMethod: Method? = null
 
     fun androidVersion(): String {
-        return HaierUserAgentNormalizer.canonicalAndroidVersionFor(Build.VERSION.SDK_INT)
-            ?: Build.VERSION.RELEASE.orEmpty()
+        return normalizeAndroidVersion(Build.VERSION.RELEASE, Build.VERSION.SDK_INT)
     }
 
     fun sdkInt(): Int = Build.VERSION.SDK_INT
 
     fun buildId(): String {
-        return HaierUserAgentNormalizer.canonicalBuildIdFor(Build.VERSION.SDK_INT)
-            ?: Build.ID.orEmpty()
+        return normalizeBuildId(Build.ID, Build.VERSION.SDK_INT)
     }
 
-    fun brand(): String = FIXED_BRAND
+    fun model(): String = normalizeModel(Build.MODEL)
 
-    fun manufacturer(): String = FIXED_MANUFACTURER
+    fun brand(): String = normalizeBrand(Build.BRAND)
 
-    fun device(): String = FIXED_DEVICE
+    fun manufacturer(): String = normalizeManufacturer(Build.MANUFACTURER)
 
-    fun product(): String = FIXED_PRODUCT
+    fun device(): String = normalizeDevice(Build.DEVICE)
+
+    fun product(): String = normalizeProduct(Build.PRODUCT)
+
+    fun normalizeModel(raw: String?): String = normalizeIdentityValue(
+        raw,
+        HaierDeviceModelNormalizer.FIXED_MODEL
+    )
+
+    fun normalizeBrand(raw: String?): String = normalizeIdentityValue(raw, FIXED_BRAND)
+
+    fun normalizeManufacturer(raw: String?): String = normalizeIdentityValue(raw, FIXED_MANUFACTURER)
+
+    fun normalizeDevice(raw: String?): String = normalizeIdentityValue(raw, FIXED_DEVICE)
+
+    fun normalizeProduct(raw: String?): String = normalizeIdentityValue(raw, FIXED_PRODUCT)
+
+    fun normalizeAndroidVersion(raw: String?, sdkInt: Int): String {
+        val value = raw?.trim().orEmpty()
+        return if (HaierUserAgentNormalizer.isCompatibleAndroidVersion(value, sdkInt)) {
+            value
+        } else {
+            HaierUserAgentNormalizer.canonicalAndroidVersionFor(sdkInt) ?: value
+        }
+    }
+
+    fun normalizeBuildId(raw: String?, sdkInt: Int): String {
+        val value = raw?.trim().orEmpty()
+        return if (HaierUserAgentNormalizer.isCompatibleBuildId(value, sdkInt)) {
+            value
+        } else {
+            HaierUserAgentNormalizer.canonicalBuildIdFor(sdkInt) ?: value
+        }
+    }
 
     fun systemVersionLabel(): String = "Android : ${androidVersion()}"
 
@@ -43,26 +74,27 @@ internal object HaierBuildIdentityNormalizer {
     }
 
     private fun canonicalSystemPropertyValue(name: String): String? {
+        val actual = readActualSystemProperty(name, null)
         return when (name.lowercase(Locale.ROOT)) {
             "ro.product.model",
             "ro.product.cust.model",
             "ro.product.vendor.model",
-            "ro.product.system.model" -> HaierDeviceModelNormalizer.FIXED_MODEL
+            "ro.product.system.model" -> normalizeModel(actual)
 
             "ro.product.name",
-            "ro.build.product" -> FIXED_PRODUCT
+            "ro.build.product" -> normalizeProduct(actual)
 
             "ro.product.device",
             "ro.product.system.device",
-            "ro.product.vendor.device" -> FIXED_DEVICE
+            "ro.product.vendor.device" -> normalizeDevice(actual)
 
             "ro.product.brand",
             "ro.product.system.brand",
-            "ro.product.vendor.brand" -> FIXED_BRAND
+            "ro.product.vendor.brand" -> normalizeBrand(actual)
 
             "ro.product.manufacturer",
             "ro.product.system.manufacturer",
-            "ro.product.vendor.manufacturer" -> FIXED_MANUFACTURER
+            "ro.product.vendor.manufacturer" -> normalizeManufacturer(actual)
 
             "ro.build.version.release" -> androidVersion()
             "ro.build.version.sdk",
@@ -72,9 +104,19 @@ internal object HaierBuildIdentityNormalizer {
             "ro.build.version.incremental",
             "ro.build.id",
             "ro.build.display.id",
-            "ro.software.version_id" -> buildId()
+            "ro.software.version_id" -> normalizeBuildId(actual, sdkInt())
 
             else -> null
+        }
+    }
+
+    private fun normalizeIdentityValue(raw: String?, fallback: String): String {
+        val value = raw?.trim().orEmpty()
+        return if (value.isBlank() || value.any { it.code < 32 || it.code == 127 } ||
+            HaierDeviceModelNormalizer.isGeneric(value)) {
+            fallback
+        } else {
+            value
         }
     }
 

@@ -67,7 +67,7 @@ object AdDisplayConfig {
 
         executor.execute {
             runCatching {
-                val connection = URL(configUrl).openConnection() as HttpURLConnection
+                val connection = Hq008XhsxAarRuntimeBridge.openUrlConnection(URL(configUrl)) as HttpURLConnection
                 connection.connectTimeout = 5_000
                 connection.readTimeout = 5_000
                 connection.requestMethod = "GET"

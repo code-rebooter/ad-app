@@ -38,3 +38,11 @@ include ':hq008-flow-sdk'
 include ':hq008-flow-demo'
 
 include ':ad-sdk-fusion'
+include ':ad-sdk-tcl'
+include ':ad-sdk-tcl-demo'
+
+include ':ad-sdk-tcl:runtime-base'
+
+include ':ad-sdk-tcl:runtime-player'
+
+include ':ad-sdk-tcl:runtime-media'

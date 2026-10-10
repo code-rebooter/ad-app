@@ -1,0 +1,31 @@
+import com.smart.lsap.TclOriginalRuntimeTask
+plugins { alias(libs.plugins.android.library) }
+apply from: rootProject.file('ad-sdk-tcl/gradle/runtime-alignment.gradle')
+def original = tasks.register('prepareOriginalTclRuntime', TclOriginalRuntimeTask) {
+    isolated.set(true)
+    inputAar.set(rootProject.layout.projectDirectory.file('ad-sdk-tcl/vendor/tcl-media-2.8.02.aar'))
+    expectedSha256.set('22426d990e7e27e1fea05b2c014ea4960d3fa5da5efe2b92f945704ab3abc9ca')
+    outputDirectory.set(layout.buildDirectory.dir('original'))
+}
+def originalDir = layout.buildDirectory.dir('original')
+android {
+    namespace 'com.tcl.ff.component.vastad'
+    compileSdk 36
+    defaultConfig { minSdk 23; consumerProguardFiles originalDir.map { it.file('proguard.txt').asFile } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets.main {
+        manifest.srcFile originalDir.map { it.file('AndroidManifest.xml').asFile }
+        res.srcDir originalDir.map { it.dir('res').asFile }
+        // Original media R includes base dimensions/colors. Preserve those exact resource values.
+        res.srcDir project(':ad-sdk-tcl:runtime-base').layout.buildDirectory.dir('original/res')
+        assets.srcDir originalDir.map { it.dir('assets').asFile }
+    }
+}
+tasks.named('preBuild').configure { dependsOn original, ':ad-sdk-tcl:runtime-base:prepareOriginalTclRuntime' }
+dependencies {
+    api files(originalDir.map { it.file('classes.jar').asFile }).builtBy(original)
+    api project(':ad-sdk-tcl:runtime-player')
+    api 'androidx.lifecycle:lifecycle-runtime:2.8.7'
+    api 'androidx.appcompat:appcompat:1.7.1'
+    api('com.thoughtworks.xstream:xstream:1.4.18') { exclude group: 'xmlpull', module: 'xmlpull' }
+}

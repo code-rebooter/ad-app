@@ -14,3 +14,7 @@ local.properties
 /artifacts/
 /x88_*.txt
 /x88_*.err
+
+# Python verification tool caches
+__pycache__/
+*.py[cod]

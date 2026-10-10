@@ -1,0 +1,56 @@
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.UnresolvedDependencyResult
+
+// Baseline: the TCL_AISHANG debug runtime used for the captured X88 run.
+def baseline = new JsonSlurper().parse(rootProject.file('ad-sdk-tcl/gradle/reference-versions.json'))
+configurations.configureEach { configuration ->
+    // Build tools and desugaring have their own classpaths, independent of the ad runtime.
+    if (configuration.name.toLowerCase().contains('classpath')) {
+        configuration.resolutionStrategy.eachDependency { details ->
+            String expected = baseline["${details.requested.group}:${details.requested.name}".toString()]
+            if (expected != null) {
+                details.useVersion(expected)
+                details.because('Match the captured TCL runtime, including transitive dependencies')
+            }
+        }
+    }
+}
+dependencies {
+    constraints {
+        baseline.each { coordinate, expected ->
+            implementation(coordinate) { version { strictly(expected) }; because('TCL captured runtime baseline') }
+        }
+    }
+}
+tasks.register('verifyTclRuntimeDependencies') {
+    def output = layout.buildDirectory.file('reports/tcl-runtime-dependencies.json')
+    outputs.file(output)
+    outputs.upToDateWhen { false }
+    doLast {
+        def selected = new TreeMap<String, String>()
+        configurations.findAll { it.canBeResolved && it.name.endsWith('RuntimeClasspath') && !it.name.contains('Test') }.each { configuration ->
+            configuration.incoming.resolutionResult.allDependencies.each { dependency ->
+                if (dependency instanceof UnresolvedDependencyResult)
+                    throw new GradleException("Cannot verify TCL dependencies: ${dependency.attempted}", dependency.failure)
+            }
+            configuration.incoming.resolutionResult.allComponents.each { component ->
+                if (!(component.id instanceof ModuleComponentIdentifier)) return
+                def id = component.moduleVersion
+                if (id.group.startsWith('androidx.media3') || id.group == 'com.google.android.exoplayer')
+                    throw new GradleException("Unexpected replacement player in ${configuration.name}: ${id}")
+                String coordinate = "${id.group}:${id.name}"
+                if (baseline[coordinate] == null) throw new GradleException("Unverified runtime dependency in ${configuration.name}: ${id}")
+                if (baseline[coordinate] != id.version) throw new GradleException("TCL version mismatch: ${id}, expected ${baseline[coordinate]}")
+                selected[coordinate] = id.version
+            }
+        }
+        def file = output.get().asFile
+        file.parentFile.mkdirs()
+        file.text = JsonOutput.prettyPrint(JsonOutput.toJson(selected)) + '\n'
+        logger.lifecycle("Verified ${selected.size()} external dependencies against the captured TCL runtime")
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn 'verifyTclRuntimeDependencies' }

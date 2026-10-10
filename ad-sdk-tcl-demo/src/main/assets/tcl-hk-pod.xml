@@ -1,0 +1,248 @@
+<VAST version="3.0">
+  <Ad id="local-ad-1" sequence="1">
+    <InLine>
+      <AdSystem>Local TCL structure fixture</AdSystem>
+      <AdTitle>Generated local test video 1</AdTitle>
+      <Impression id="SpringServe_Impression_1">http://127.0.0.1:18888/track?ad=1&amp;event=impression&amp;slot=0</Impression>
+      <Creatives>
+        <Creative id="local-creative-1">
+          <Linear>
+            <Duration>00:00:20</Duration>
+            <TrackingEvents>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=1&amp;event=start&amp;slot=0</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=firstQuartile&amp;slot=1</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=1&amp;event=midpoint&amp;slot=2</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=thirdQuartile&amp;slot=3</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=1&amp;event=complete&amp;slot=4</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=1&amp;event=start&amp;slot=5</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=1&amp;event=midpoint&amp;slot=6</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=firstQuartile&amp;slot=7</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=thirdQuartile&amp;slot=8</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=1&amp;event=complete&amp;slot=9</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=1&amp;event=pause&amp;slot=10</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=1&amp;event=mute&amp;slot=11</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=1&amp;event=unmute&amp;slot=12</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=1&amp;event=fullscreen&amp;slot=13</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=1&amp;event=collapse&amp;slot=14</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=1&amp;event=creativeView&amp;slot=15</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=1&amp;event=resume&amp;slot=16</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=1&amp;event=rewind&amp;slot=17</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=1&amp;event=expand&amp;slot=18</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=1&amp;event=acceptInvitation&amp;slot=19</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=1&amp;event=close&amp;slot=20</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=1&amp;event=start&amp;slot=21</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=1&amp;event=midpoint&amp;slot=22</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=firstQuartile&amp;slot=23</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=thirdQuartile&amp;slot=24</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=1&amp;event=complete&amp;slot=25</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=1&amp;event=mute&amp;slot=26</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=1&amp;event=unmute&amp;slot=27</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=1&amp;event=start&amp;slot=28</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=1&amp;event=midpoint&amp;slot=29</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=firstQuartile&amp;slot=30</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=1&amp;event=thirdQuartile&amp;slot=31</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=1&amp;event=complete&amp;slot=32</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=1&amp;event=pause&amp;slot=33</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=1&amp;event=mute&amp;slot=34</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=1&amp;event=unmute&amp;slot=35</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=1&amp;event=fullscreen&amp;slot=36</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=1&amp;event=collapse&amp;slot=37</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=1&amp;event=creativeView&amp;slot=38</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=1&amp;event=resume&amp;slot=39</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=1&amp;event=rewind&amp;slot=40</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=1&amp;event=expand&amp;slot=41</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=1&amp;event=acceptInvitation&amp;slot=42</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=1&amp;event=close&amp;slot=43</Tracking>
+            </TrackingEvents>
+            <VideoClicks>
+              <ClickTracking>http://127.0.0.1:18888/track?ad=1&amp;event=click&amp;slot=0</ClickTracking>
+            </VideoClicks>
+            <MediaFiles>
+              <MediaFile bitrate="5000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-1.mp4</MediaFile>
+              <MediaFile bitrate="640" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-1.mp4</MediaFile>
+              <MediaFile bitrate="900" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-1.mp4</MediaFile>
+              <MediaFile bitrate="1200" delivery="progressive" height="480" type="video/mp4" width="854">asset:///ad-1.mp4</MediaFile>
+              <MediaFile bitrate="2000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-1.mp4</MediaFile>
+            </MediaFiles>
+          </Linear>
+        </Creative>
+      </Creatives>
+      <Extensions>
+        <Extension type="springserve">
+          <SpringServeCreativeId>local-1</SpringServeCreativeId>
+          <SpringServeCreativeUid>local-1</SpringServeCreativeUid>
+        </Extension>
+      </Extensions>
+      <Impression id="TCLAD_Impression_1">http://127.0.0.1:18888/track?ad=1&amp;event=impression&amp;slot=1</Impression>
+      <Error>http://127.0.0.1:18888/track?ad=1&amp;event=error&amp;slot=0&amp;code=[ERRORCODE]</Error>
+      <Impression id="blah">http://127.0.0.1:18888/track?ad=1&amp;event=impression&amp;slot=2</Impression>
+      <Impression id="doubleVerify">http://127.0.0.1:18888/track?ad=1&amp;event=impression&amp;slot=3</Impression>
+    </InLine>
+  </Ad>
+  <Ad id="local-ad-2" sequence="2">
+    <InLine>
+      <AdSystem>Local TCL structure fixture</AdSystem>
+      <AdTitle>Generated local test video 2</AdTitle>
+      <Impression id="SpringServe_Impression_1">http://127.0.0.1:18888/track?ad=2&amp;event=impression&amp;slot=0</Impression>
+      <Creatives>
+        <Creative id="local-creative-2">
+          <Linear>
+            <Duration>00:00:30</Duration>
+            <TrackingEvents>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=2&amp;event=start&amp;slot=0</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=firstQuartile&amp;slot=1</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=2&amp;event=midpoint&amp;slot=2</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=thirdQuartile&amp;slot=3</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=2&amp;event=complete&amp;slot=4</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=2&amp;event=start&amp;slot=5</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=2&amp;event=midpoint&amp;slot=6</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=firstQuartile&amp;slot=7</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=thirdQuartile&amp;slot=8</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=2&amp;event=complete&amp;slot=9</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=2&amp;event=pause&amp;slot=10</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=2&amp;event=mute&amp;slot=11</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=2&amp;event=unmute&amp;slot=12</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=2&amp;event=fullscreen&amp;slot=13</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=2&amp;event=collapse&amp;slot=14</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=2&amp;event=creativeView&amp;slot=15</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=2&amp;event=resume&amp;slot=16</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=2&amp;event=rewind&amp;slot=17</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=2&amp;event=expand&amp;slot=18</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=2&amp;event=acceptInvitation&amp;slot=19</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=2&amp;event=close&amp;slot=20</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=2&amp;event=start&amp;slot=21</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=2&amp;event=midpoint&amp;slot=22</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=firstQuartile&amp;slot=23</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=thirdQuartile&amp;slot=24</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=2&amp;event=complete&amp;slot=25</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=2&amp;event=mute&amp;slot=26</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=2&amp;event=unmute&amp;slot=27</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=2&amp;event=start&amp;slot=28</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=2&amp;event=midpoint&amp;slot=29</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=firstQuartile&amp;slot=30</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=2&amp;event=thirdQuartile&amp;slot=31</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=2&amp;event=complete&amp;slot=32</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=2&amp;event=pause&amp;slot=33</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=2&amp;event=mute&amp;slot=34</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=2&amp;event=unmute&amp;slot=35</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=2&amp;event=fullscreen&amp;slot=36</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=2&amp;event=collapse&amp;slot=37</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=2&amp;event=creativeView&amp;slot=38</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=2&amp;event=resume&amp;slot=39</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=2&amp;event=rewind&amp;slot=40</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=2&amp;event=expand&amp;slot=41</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=2&amp;event=acceptInvitation&amp;slot=42</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=2&amp;event=close&amp;slot=43</Tracking>
+            </TrackingEvents>
+            <VideoClicks>
+              <ClickTracking>http://127.0.0.1:18888/track?ad=2&amp;event=click&amp;slot=0</ClickTracking>
+            </VideoClicks>
+            <MediaFiles>
+              <MediaFile bitrate="1200" delivery="progressive" height="480" type="video/mp4" width="854">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="2000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="5000" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="5000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="640" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="10000" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="900" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-2.mp4</MediaFile>
+              <MediaFile bitrate="4120" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-2.mp4</MediaFile>
+            </MediaFiles>
+          </Linear>
+        </Creative>
+      </Creatives>
+      <Extensions>
+        <Extension type="springserve">
+          <SpringServeCreativeId>local-2</SpringServeCreativeId>
+          <SpringServeCreativeUid>local-2</SpringServeCreativeUid>
+        </Extension>
+      </Extensions>
+      <Impression id="TCLAD_Impression_1">http://127.0.0.1:18888/track?ad=2&amp;event=impression&amp;slot=1</Impression>
+      <Error>http://127.0.0.1:18888/track?ad=2&amp;event=error&amp;slot=0&amp;code=[ERRORCODE]</Error>
+      <Impression id="blah">http://127.0.0.1:18888/track?ad=2&amp;event=impression&amp;slot=2</Impression>
+      <Impression id="doubleVerify">http://127.0.0.1:18888/track?ad=2&amp;event=impression&amp;slot=3</Impression>
+    </InLine>
+  </Ad>
+  <Ad id="local-ad-3" sequence="3">
+    <InLine>
+      <AdSystem>Local TCL structure fixture</AdSystem>
+      <AdTitle>Generated local test video 3</AdTitle>
+      <Impression id="SpringServe_Impression_1">http://127.0.0.1:18888/track?ad=3&amp;event=impression&amp;slot=0</Impression>
+      <Creatives>
+        <Creative id="local-creative-3">
+          <Linear>
+            <Duration>00:00:15</Duration>
+            <TrackingEvents>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=3&amp;event=start&amp;slot=0</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=firstQuartile&amp;slot=1</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=3&amp;event=midpoint&amp;slot=2</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=thirdQuartile&amp;slot=3</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=3&amp;event=complete&amp;slot=4</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=3&amp;event=start&amp;slot=5</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=3&amp;event=midpoint&amp;slot=6</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=firstQuartile&amp;slot=7</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=thirdQuartile&amp;slot=8</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=3&amp;event=complete&amp;slot=9</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=3&amp;event=pause&amp;slot=10</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=3&amp;event=mute&amp;slot=11</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=3&amp;event=unmute&amp;slot=12</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=3&amp;event=fullscreen&amp;slot=13</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=3&amp;event=collapse&amp;slot=14</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=3&amp;event=creativeView&amp;slot=15</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=3&amp;event=resume&amp;slot=16</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=3&amp;event=rewind&amp;slot=17</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=3&amp;event=expand&amp;slot=18</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=3&amp;event=acceptInvitation&amp;slot=19</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=3&amp;event=close&amp;slot=20</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=3&amp;event=start&amp;slot=21</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=3&amp;event=midpoint&amp;slot=22</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=firstQuartile&amp;slot=23</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=thirdQuartile&amp;slot=24</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=3&amp;event=complete&amp;slot=25</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=3&amp;event=mute&amp;slot=26</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=3&amp;event=unmute&amp;slot=27</Tracking>
+              <Tracking event="start">http://127.0.0.1:18888/track?ad=3&amp;event=start&amp;slot=28</Tracking>
+              <Tracking event="midpoint">http://127.0.0.1:18888/track?ad=3&amp;event=midpoint&amp;slot=29</Tracking>
+              <Tracking event="firstQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=firstQuartile&amp;slot=30</Tracking>
+              <Tracking event="thirdQuartile">http://127.0.0.1:18888/track?ad=3&amp;event=thirdQuartile&amp;slot=31</Tracking>
+              <Tracking event="complete">http://127.0.0.1:18888/track?ad=3&amp;event=complete&amp;slot=32</Tracking>
+              <Tracking event="pause">http://127.0.0.1:18888/track?ad=3&amp;event=pause&amp;slot=33</Tracking>
+              <Tracking event="mute">http://127.0.0.1:18888/track?ad=3&amp;event=mute&amp;slot=34</Tracking>
+              <Tracking event="unmute">http://127.0.0.1:18888/track?ad=3&amp;event=unmute&amp;slot=35</Tracking>
+              <Tracking event="fullscreen">http://127.0.0.1:18888/track?ad=3&amp;event=fullscreen&amp;slot=36</Tracking>
+              <Tracking event="collapse">http://127.0.0.1:18888/track?ad=3&amp;event=collapse&amp;slot=37</Tracking>
+              <Tracking event="creativeView">http://127.0.0.1:18888/track?ad=3&amp;event=creativeView&amp;slot=38</Tracking>
+              <Tracking event="resume">http://127.0.0.1:18888/track?ad=3&amp;event=resume&amp;slot=39</Tracking>
+              <Tracking event="rewind">http://127.0.0.1:18888/track?ad=3&amp;event=rewind&amp;slot=40</Tracking>
+              <Tracking event="expand">http://127.0.0.1:18888/track?ad=3&amp;event=expand&amp;slot=41</Tracking>
+              <Tracking event="acceptInvitation">http://127.0.0.1:18888/track?ad=3&amp;event=acceptInvitation&amp;slot=42</Tracking>
+              <Tracking event="close">http://127.0.0.1:18888/track?ad=3&amp;event=close&amp;slot=43</Tracking>
+            </TrackingEvents>
+            <VideoClicks>
+              <ClickTracking>http://127.0.0.1:18888/track?ad=3&amp;event=click&amp;slot=0</ClickTracking>
+            </VideoClicks>
+            <MediaFiles>
+              <MediaFile bitrate="5000" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="5000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="10000" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="640" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="900" delivery="progressive" height="360" type="video/mp4" width="640">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="1200" delivery="progressive" height="480" type="video/mp4" width="854">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="2000" delivery="progressive" height="720" type="video/mp4" width="1280">asset:///ad-3.mp4</MediaFile>
+              <MediaFile bitrate="4050" delivery="progressive" height="1080" type="video/mp4" width="1920">asset:///ad-3.mp4</MediaFile>
+            </MediaFiles>
+          </Linear>
+        </Creative>
+      </Creatives>
+      <Extensions>
+        <Extension type="springserve">
+          <SpringServeCreativeId>local-3</SpringServeCreativeId>
+          <SpringServeCreativeUid>local-3</SpringServeCreativeUid>
+        </Extension>
+      </Extensions>
+      <Impression id="TCLAD_Impression_1">http://127.0.0.1:18888/track?ad=3&amp;event=impression&amp;slot=1</Impression>
+      <Error>http://127.0.0.1:18888/track?ad=3&amp;event=error&amp;slot=0&amp;code=[ERRORCODE]</Error>
+      <Impression id="blah">http://127.0.0.1:18888/track?ad=3&amp;event=impression&amp;slot=2</Impression>
+      <Impression id="doubleVerify">http://127.0.0.1:18888/track?ad=3&amp;event=impression&amp;slot=3</Impression>
+    </InLine>
+  </Ad>
+</VAST>

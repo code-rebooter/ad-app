@@ -1,0 +1,28 @@
+import com.smart.lsap.TclOriginalRuntimeTask
+plugins { alias(libs.plugins.android.library) }
+apply from: rootProject.file('ad-sdk-tcl/gradle/runtime-alignment.gradle')
+def original = tasks.register('prepareOriginalTclRuntime', TclOriginalRuntimeTask) {
+    isolated.set(true)
+    inputAar.set(rootProject.layout.projectDirectory.file('ad-sdk-tcl/vendor/tcl-base-2.8.02.aar'))
+    expectedSha256.set('1e9660a0e335e8e87e98057f5a0df520791a9754a0eb47dff789f00f7ecb56de')
+    outputDirectory.set(layout.buildDirectory.dir('original'))
+}
+def originalDir = layout.buildDirectory.dir('original')
+android {
+    namespace 'com.tcl.ff.component.overseabasebusiness'
+    compileSdk 36
+    defaultConfig { minSdk 23; consumerProguardFiles originalDir.map { it.file('proguard.txt').asFile } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets.main {
+        manifest.srcFile originalDir.map { it.file('AndroidManifest.xml').asFile }
+        res.srcDir originalDir.map { it.dir('res').asFile }
+        assets.srcDir originalDir.map { it.dir('assets').asFile }
+    }
+}
+tasks.named('preBuild').configure { dependsOn original }
+dependencies {
+    api files(originalDir.map { it.file('classes.jar').asFile }).builtBy(original)
+    api 'org.jetbrains.kotlin:kotlin-stdlib:2.2.21'
+    api 'com.squareup.okhttp3:okhttp:4.12.0'
+    api 'com.google.code.gson:gson:2.13.2'
+}

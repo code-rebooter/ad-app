@@ -25,6 +25,7 @@ internal object HaierUserAgentInstaller {
         "addy_jams",
         "google_ad_tv_desktop",
         "google_ad_tv_desktop_jm",
+        "google_ad_tv_desktop_tcl_test",
         "google_ad_tv_desktop_ytx",
         "google_ad_tv_desktop_007",
         "google_ad_tv_desktop_v260904_1",

@@ -208,6 +208,13 @@ android {
             res.srcDirs = ['src/haier_lsapDebug/res']
         }
 
+        google_ad_tv_desktop_tcl_test {
+            // Materialize the existing business sources without the replaced SDK/CMP files.
+            // Kotlin and lint both see the same directory, with no old SDK sources in their inputs.
+            java.srcDirs = [layout.buildDirectory.dir('generated/googleTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_tcl_test/java']
+            kotlin.srcDirs = java.srcDirs
+        }
+
         google_ad_tv_desktop {
             java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
             res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
@@ -927,6 +934,24 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        google_ad_tv_desktop_tcl_test {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "io.android.launcher.tv.desktop",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 10,
+                    versionName         : "1.0.9",
+                    signingConfig       : signingConfigs.googleAdTvDesktopRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_JM",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_JM",
+                    model               : "GOOGLE_AD_TV_DESKTOP_JM",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [share_uid: ""]
+            ])
+            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+        }
+
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
@@ -1314,6 +1339,9 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "addy_jams")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("addyJamsRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_tcl_test")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
@@ -1432,6 +1460,11 @@ dependencies {
     // The library adds the IMA ExoPlayer integration for ads.
     //noinspection UseTomlInstead
     hq006Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_tcl_testImplementation project(':ad-sdk-tcl')
+    google_ad_tv_desktop_tcl_testImplementation 'androidx.leanback:leanback:1.0.0'
+    google_ad_tv_desktop_tcl_testImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    google_ad_tv_desktop_tcl_testImplementation 'com.github.bumptech.glide:glide:4.11.0'
+
     //noinspection UseTomlInstead
     google_ad_tv_desktopImplementation "androidx.media3:media3-ui:1.8.0"
     //noinspection UseTomlInstead
@@ -1867,3 +1900,5 @@ configurations.configureEach { configuration ->
         )
     }
 }
+
+apply from: file("gradle/google-tcl-experiment.gradle")

@@ -1,0 +1,183 @@
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.artifacts.result.UnresolvedDependencyResult
+import java.util.zip.ZipInputStream
+import org.gradle.api.attributes.Attribute
+
+// These source exclusions and dependency checks apply only to the experiment.
+def flavorName = 'google_ad_tv_desktop_tcl_test'
+
+// Runtime AARs stay isolated and reusable. Only this app variant receives the
+// same common policies as the old TCL host; SXK-specific policies are excluded.
+androidComponents.onVariants(androidComponents.selector().withFlavor('ad', flavorName)) { variant ->
+    variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
+            com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    variant.instrumentation.setAsmFramesComputationMode(
+            com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+}
+def replacedNames = [
+    'AdManagerImpl.kt', 'Hq008CmpManager.kt', 'Hq008AdSdkDebugCapture.kt',
+    'Hq008CmpDebugActivity.kt', 'Hq008CmpSdkEntryTestActivity.kt', 'Hq008CmpSilentEntryTestActivity.kt'
+]
+def sharedBusiness = tasks.register('prepareGoogleTclBusinessSources', Sync) {
+    from file('src/hq008/java')
+    into layout.buildDirectory.dir('generated/googleTclBusiness/java')
+    replacedNames.each { name -> exclude "com/smart/android/ad_app/${name}" }
+}
+tasks.matching { it.name == 'preGoogle_ad_tv_desktop_tcl_testDebugBuild' || it.name == 'preGoogle_ad_tv_desktop_tcl_testReleaseBuild' }.configureEach {
+    dependsOn sharedBusiness
+}
+
+def commonPatchReport = layout.buildDirectory.file('reports/google-tcl/common-patches.json')
+def nativeJarFiles = ['base', 'media', 'player'].collect { component ->
+    rootProject.file("ad-sdk-tcl/runtime-${component}/build/original/classes.jar")
+}
+def commonPatchVerification = tasks.register('verifyGoogleTclCommonPatchInputs') {
+    dependsOn(['base', 'media', 'player'].collect { ":ad-sdk-tcl:runtime-${it}:prepareOriginalTclRuntime" })
+    inputs.files(nativeJarFiles)
+    outputs.file(commonPatchReport)
+    outputs.upToDateWhen { false }
+    doLast {
+        def bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+        def sxkClasses = ['com/tcl/ff/component/uniplayer/f/k.class', 'com/tcl/uniplayer/tuniplayer/b.class',
+                'com/tcl/tuniplayer_exo/a.class', 'com/google/android/exoplayer2/video/MediaCodecVideoRenderer.class'] as Set
+        def changes = []
+        int checked = 0
+        nativeJarFiles.each { jar ->
+            new ZipInputStream(new FileInputStream(jar)).withCloseable { zip ->
+                def entry
+                while ((entry = zip.nextEntry) != null) {
+                    if (!entry.name.endsWith('.class')) continue
+                    byte[] before = zip.readAllBytes()
+                    byte[] patched = com.smart.lsap.LsapClassPatcher.patchTclExperimentParameters(entry.name, before)
+                    if (!sxkClasses.contains(entry.name) && !Arrays.equals(patched,
+                            com.smart.lsap.LsapClassPatcher.patchHq008Parameters(entry.name, before)))
+                        throw new GradleException("Common TCL patch differs from legacy: ${entry.name}")
+                    def node = new org.objectweb.asm.tree.ClassNode()
+                    new org.objectweb.asm.ClassReader(patched).accept(node, 0)
+                    def calls = [:].withDefault { 0 }
+                    node.methods.each { method ->
+                        method.instructions.toArray().each { instruction ->
+                            if (instruction instanceof org.objectweb.asm.tree.MethodInsnNode && instruction.owner == bridge)
+                                calls[instruction.name]++
+                        }
+                    }
+                    if (calls['shouldApplySxkPlaybackPatch'] || calls['shouldRenderSxkVideoFrame'])
+                        throw new GradleException("SXK policy entered the experiment: ${entry.name}")
+                    calls.remove('shouldApplySxkPlaybackPatch')
+                    calls.remove('shouldRenderSxkVideoFrame')
+                    if (!Arrays.equals(before, patched)) changes.add([className: entry.name, bridgeCalls: new TreeMap(calls)])
+                    checked++
+                }
+            }
+        }
+        if (checked != 2215) throw new GradleException("Unexpected isolated runtime class count: ${checked}")
+        def required = ['com/tcl/ff/component/vastad/core/f/c.class',
+                'com/tcl/ff/component/vastad/lifecycle/LifecycleOwnerAgent.class',
+                'com/tcl/ff/component/vastad/core/d/a.class', 'com/tcl/ff/component/vastad/core/d/c.class',
+                'com/tcl/ff/component/vastad/core/d/e.class',
+                'com/tcl/ff/component/overseahttp/http/HttpRequester.class']
+        required.each { name ->
+            if (!changes.any { it.className == name }) throw new GradleException("Missing common TCL patch: ${name}")
+        }
+        def report = commonPatchReport.get().asFile
+        report.parentFile.mkdirs()
+        report.text = JsonOutput.prettyPrint(JsonOutput.toJson([profile: 'legacy-common-tcl-no-sxk',
+                classesChecked: checked, changedClasses: changes.sort { it.className }, sxkPolicyCalls: 0])) + '\n'
+        logger.lifecycle("Google TCL common policies: ${changes.size()} classes patched, ${checked} checked; no SXK")
+    }
+}
+tasks.matching { it.name.startsWith('preGoogle_ad_tv_desktop_tcl_test') && it.name.endsWith('Build') }.configureEach {
+    dependsOn commonPatchVerification
+}
+
+def bannedPrefixes = ['com/google/ads/interactivemedia/v3/', 'com/google/android/ump/', 'androidx/media3/']
+def bannedProjects = [':ad-sdk', ':ad-sdk-modern', ':ad-sdk-modern-no-ump', ':ad-sdk-gam-vast', ':ad-sdk-fusion'] as Set
+afterEvaluate {
+['Debug', 'Release'].each { buildType ->
+    def runtime = configurations.getByName("${flavorName}${buildType}RuntimeClasspath")
+    def compile = configurations.getByName("${flavorName}${buildType}CompileClasspath")
+    def runtimeClasses = runtime.incoming.artifactView {
+        attributes.attribute(Attribute.of('artifactType', String), 'android-classes-jar')
+    }.files
+    def verification = tasks.register("verifyGoogleTcl${buildType}Dependencies") {
+        inputs.files(runtimeClasses)
+        outputs.upToDateWhen { false }
+        doLast {
+            def selected = new TreeSet<String>()
+            [compile, runtime].each { configuration ->
+                configuration.incoming.resolutionResult.allDependencies.each { dependency ->
+                    if (dependency instanceof UnresolvedDependencyResult) throw new GradleException("Unresolved experimental dependency: ${dependency.attempted}", dependency.failure)
+                }
+                configuration.incoming.resolutionResult.allComponents.each { component ->
+                    def id = component.id
+                    if (id instanceof ModuleComponentIdentifier) {
+                        if (id.group.startsWith('androidx.media3') || id.group == 'com.google.ads.interactivemedia.v3' || id.group == 'com.google.android.ump')
+                            throw new GradleException("Forbidden experimental dependency: ${id}")
+                        selected.add("${id.group}:${id.module}:${id.version}")
+                    } else if (id instanceof ProjectComponentIdentifier && bannedProjects.contains(id.projectPath)) {
+                        throw new GradleException("Old SDK module in experiment: ${id.projectPath}")
+                    }
+                }
+            }
+            def scanned = []
+            Closure scanArchive
+            scanArchive = { byte[] bytes, String source ->
+                new ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { archive ->
+                    def entry
+                    while ((entry = archive.nextEntry) != null) {
+                        if (entry.directory) continue
+                        if (entry.name.endsWith('.class') && bannedPrefixes.any { entry.name.startsWith(it) })
+                            throw new GradleException("Forbidden class ${entry.name} in ${source}")
+                        if (entry.name.endsWith('.jar')) scanArchive(archive.readAllBytes(), "${source}!${entry.name}")
+                    }
+                }
+            }
+            runtimeClasses.files.each { artifact ->
+                if (artifact.name.endsWith('.jar') || artifact.name.endsWith('.aar')) {
+                    scanArchive(artifact.bytes, artifact.name)
+                    scanned.add(artifact.name)
+                } else if (artifact.directory) {
+                    artifact.eachFileRecurse { entry ->
+                        def name = artifact.toPath().relativize(entry.toPath()).toString().replace('\\', '/')
+                        if (entry.name.endsWith('.class') && bannedPrefixes.any { name.startsWith(it) })
+                            throw new GradleException("Forbidden class ${name} in ${artifact.name}")
+                    }
+                }
+            }
+            def report = layout.buildDirectory.file("reports/google-tcl/${buildType.toLowerCase()}-dependencies.json").get().asFile
+            report.parentFile.mkdirs()
+            report.text = JsonOutput.prettyPrint(JsonOutput.toJson([dependencies: selected, archivesScanned: scanned.sort(), forbiddenPrefixes: bannedPrefixes, violations: []])) + '\n'
+            logger.lifecycle("Google TCL ${buildType}: verified ${selected.size()} external dependencies and ${scanned.size()} archives; no IMA/UMP/Media3")
+        }
+    }
+    tasks.named("preGoogle_ad_tv_desktop_tcl_test${buildType}Build").configure { dependsOn verification }
+    def assembleName = "assembleGoogle_ad_tv_desktop_tcl_test${buildType}"
+    def apkVerification = tasks.register("verifyGoogleTcl${buildType}Apk", Exec) {
+        dependsOn assembleName
+        doFirst {
+            def apkDirectory = layout.buildDirectory.dir("outputs/apk/${flavorName}/${buildType.toLowerCase()}").get().asFile
+            def apks = apkDirectory.listFiles()?.findAll { it.name.endsWith('.apk') } ?: []
+            if (apks.size() != 1) throw new GradleException("Expected one experimental APK in ${apkDirectory}, found ${apks.size()}")
+            commandLine providers.gradleProperty('googleTclPython').orElse('python3').get(),
+                    file('tools/verify_google_tcl_apk.py').absolutePath,
+                    '--apk', apks.first().absolutePath,
+                    '--aapt2', new File(android.sdkDirectory, "build-tools/${android.buildToolsVersion}/aapt2").absolutePath,
+                    '--output', layout.buildDirectory.file("reports/google-tcl/${buildType.toLowerCase()}-apk.json").get().asFile.absolutePath,
+                    '--common-patch-manifest', commonPatchReport.get().asFile.absolutePath,
+                    '--native-jar', rootProject.file('ad-sdk-tcl/runtime-base/build/original/classes.jar').absolutePath,
+                    '--native-jar', rootProject.file('ad-sdk-tcl/runtime-media/build/original/classes.jar').absolutePath,
+                    '--native-jar', rootProject.file('ad-sdk-tcl/runtime-player/build/original/classes.jar').absolutePath
+            ['base', 'media', 'player'].each { component ->
+                args '--isolation-manifest', rootProject.file("ad-sdk-tcl/runtime-${component}/build/original/isolation-manifest.json").absolutePath
+            }
+            if (buildType == 'Release') {
+                args '--mapping', layout.buildDirectory.file("outputs/mapping/${flavorName}Release/mapping.txt").get().asFile.absolutePath
+            }
+        }
+    }
+    tasks.named(assembleName).configure { finalizedBy apkVerification }
+
+}
+}

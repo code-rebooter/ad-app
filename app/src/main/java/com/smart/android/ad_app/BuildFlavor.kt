@@ -17,7 +17,8 @@ internal object BuildFlavor {
                 isTclPoly(flavor) ||
                 isHaierLsap(flavor) ||
                 isGoogleAdTvDesktop(flavor) ||
-                isGoogleAdTvLockscreen(flavor)
+                isGoogleAdTvLockscreen(flavor) ||
+                isGoogleTclExperiment(flavor)
     }
 
     fun isTclPoly(flavor: String = BuildConfig.FLAVOR): Boolean {
@@ -36,6 +37,10 @@ internal object BuildFlavor {
 
     fun isAddyJams(flavor: String = BuildConfig.FLAVOR): Boolean {
         return flavor == "addy_jams"
+    }
+
+    fun isGoogleTclExperiment(flavor: String = BuildConfig.FLAVOR): Boolean {
+        return flavor == "google_ad_tv_desktop_tcl_test"
     }
 
     fun isGoogleAdTvDesktop(flavor: String = BuildConfig.FLAVOR): Boolean {

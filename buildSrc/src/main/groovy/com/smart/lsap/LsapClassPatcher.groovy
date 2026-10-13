@@ -692,10 +692,16 @@ final class LsapClassPatcher implements Opcodes {
         return patchHq008ParametersInternal(entryName, bytes, true)
     }
 
+    /** Reuse the existing common TCL policies without any SXK-only player changes. */
+    static byte[] patchTclExperimentParameters(String entryName, byte[] bytes) {
+        return patchHq008ParametersInternal(entryName, bytes, true, false)
+    }
+
     private static byte[] patchHq008ParametersInternal(
         String entryName,
         byte[] bytes,
-        boolean includeTclPlaybackPolicies
+        boolean includeTclPlaybackPolicies,
+        boolean includeSxkPlaybackPolicies = true
     ) {
         ClassNode node = new ClassNode()
         ClassReader reader = new ClassReader(bytes)
@@ -705,22 +711,24 @@ final class LsapClassPatcher implements Opcodes {
 
         node.methods.each { MethodNode method ->
             if (includeTclPlaybackPolicies) {
-                if (patchHq008RenderSurfacePolicy(entryName, method, bridge)) {
-                    changed = true
-                }
-                if (patchHq008AudioFocusPolicy(entryName, method, bridge)) {
-                    changed = true
-                }
-                if (patchHq008ExoAudioTrackPolicy(entryName, method, bridge)) {
-                    changed = true
+                if (includeSxkPlaybackPolicies) {
+                    if (patchHq008RenderSurfacePolicy(entryName, method, bridge)) {
+                        changed = true
+                    }
+                    if (patchHq008AudioFocusPolicy(entryName, method, bridge)) {
+                        changed = true
+                    }
+                    if (patchHq008ExoAudioTrackPolicy(entryName, method, bridge)) {
+                        changed = true
+                    }
+                    if (patchHq008VideoOutputFrameRate(entryName, method, bridge)) {
+                        changed = true
+                    }
                 }
                 if (patchHq008VastViewSizeChecker(entryName, method)) {
                     changed = true
                 }
                 if (patchHq008VastLifecycleGate(entryName, method)) {
-                    changed = true
-                }
-                if (patchHq008VideoOutputFrameRate(entryName, method, bridge)) {
                     changed = true
                 }
             }

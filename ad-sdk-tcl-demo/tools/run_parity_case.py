@@ -125,6 +125,9 @@ with (out / 'logcat.txt').open('wb') as log:
             with tarfile.open(archive) as tar:
                 tar.extractall(out, filter='data')
         (out / 'app-directories.txt').write_bytes(adb('shell', 'run-as', PKG, 'ls', '-laR', '.').stdout)
+        global_state = adb('exec-out', 'run-as', PKG, 'cat', 'files/global-network-state.json', check=False)
+        if global_state.returncode == 0:
+            (out / 'global-network-state.json').write_bytes(global_state.stdout)
         network = adb('exec-out', 'run-as', PKG, 'cat', 'files/network-audit.jsonl', check=False)
         if network.returncode == 0:
             (out / 'network-audit.jsonl').write_bytes(network.stdout)

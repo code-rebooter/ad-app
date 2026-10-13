@@ -12,7 +12,9 @@
 
 原厂 media 的 R 类引用了 base 的颜色与尺寸资源。runtime-media 同时读取 base 的原始资源目录，使现代非传递 R 构建仍生成原厂所需字段；原始的 580 个资源值及限定条件逐项核对。
 
-`verify_isolated_runtime.py` 按隔离清单比较 Release AAR：190 个类删除，13 个类修改边界，其余 2,202 个类不变。`verify_original_resources.py` 检查原厂 R 字段引用及资源值。APK 编译为 DEX 后不作“DEX 与 class 文件字节相同”的断言。
+`verify_isolated_runtime.py` 按隔离清单比较 Release AAR：190 个类删除，13 个类修改边界，其余 2,202 个类不变。`verify_original_resources.py` 检查原厂 R 字段引用及资源值。`verify_isolation_dex.py` 在实验 APK 检查隔离方法、保留原厂全局网络 setter 及其所在方法、D8 编译后调用数和三个 v4 marker。APK 编译为 DEX 后不作“DEX 与 class 文件字节相同”的断言。
+
+v4 明确核验 10 个恢复类与输入相同：Cookie/TLS 所在两类、FileUtils、UniPlayer 配置和清晰度切换类、Exo 缓存工厂、SimpleCache、CacheDataSink 及两个媒体数据库提供器。HttpRequester 的所有原有方法保持原厂，仅新增本地地址边界；构建逐方法核验原方法字节。
 
 广告业务由原厂 media_ad 执行。网络、VAST 模型与转换器、Wrapper、控制器、事件回报、播放器均来自这些原件；SDK 自有代码只提供公开 API 和链接来源适配。配置快照属于输入，由原厂配置模型读取。
 

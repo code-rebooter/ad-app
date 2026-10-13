@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 
 /** Runs the original TCL adurl engine; reference mode enters through the original public Ad API. */
 public final class DemoActivity extends Activity {
+    private java.net.CookieHandler initialCookieHandler;
+    private javax.net.ssl.HostnameVerifier initialHostnameVerifier;
     private Controller controller;
     private com.tcl.ff.component.vastad.Controller reference;
     private TextView status;
@@ -34,6 +36,8 @@ public final class DemoActivity extends Activity {
         }
         LocalhostProxySelector.install();
         networkAudit = NetworkAudit.install(this);
+        initialCookieHandler = java.net.CookieHandler.getDefault();
+        initialHostnameVerifier = javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL); root.setPadding(24, 16, 24, 16);
@@ -164,6 +168,7 @@ public final class DemoActivity extends Activity {
         return builder.setPageUrl(getIntent().getStringExtra("page_url")).build();
     }
     private void record(String event) {
+        recordGlobalNetworkState(event);
         status.setText(event.equals("FINISHED") ? "本轮广告已播放完成" : event);
         if (capture != null) capture.event(event);
         android.util.Log.i("TclNativeDemo", event);
@@ -192,10 +197,23 @@ public final class DemoActivity extends Activity {
             video.postDelayed(() -> { record("HOST_MUTE"); if (controller != null) controller.setVolume(0f); if (reference != null) reference.setVolume(0f); }, 8000);
         }
     }
+    private void recordGlobalNetworkState(String event) {
+        boolean cookieUnchanged = java.net.CookieHandler.getDefault() == initialCookieHandler;
+        boolean hostnameUnchanged = javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier() == initialHostnameVerifier;
+        try {
+            org.json.JSONObject report = new org.json.JSONObject().put("phase", event)
+                .put("cookieHandlerUnchanged", cookieUnchanged).put("hostnameVerifierUnchanged", hostnameUnchanged)
+                .put("policy", "original-player-network-behavior-preserved")
+                .put("observationOnly", true);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(getFilesDir(), "global-network-state.json"))) {
+                out.write(report.toString(2).getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (java.io.IOException | org.json.JSONException error) { throw new IllegalStateException("Cannot save global network probe", error); }
+    }
     @Override public void onPause() { super.onPause(); if (controller != null) controller.pause(); if (reference != null) reference.pause(); }
     @Override public void onResume() { super.onResume(); if (!paused) { if (controller != null) controller.resume(); if (reference != null) reference.resume(); } }
     @Override public void onDestroy() {
         if (pendingConfig != null) pendingConfig.cancel();
-        if (controller != null) controller.release(); if (reference != null) reference.release(); super.onDestroy();
+        if (controller != null) controller.release(); if (reference != null) reference.release(); recordGlobalNetworkState("DESTROYED_AFTER_RELEASE"); super.onDestroy();
     }
 }

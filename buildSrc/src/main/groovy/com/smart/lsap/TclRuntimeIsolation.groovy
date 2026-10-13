@@ -38,8 +38,30 @@ final class TclRuntimeIsolation implements Opcodes {
                 node.methods.removeAll { (it.access & ACC_PRIVATE) != 0 }
                 node.methods.findAll { it.name.startsWith('report') }.each { reset(it); retVoid(it); methods.add(it.name+it.desc) }
             } else if (name == BASE+'AdConfigFetcher') {
-                ['preloadConfig', 'b', 'd'].each { n -> replace(node,n,'()V',methods) { retVoid(it) } }
+                ['preloadConfig', 'a', 'b', 'd'].each { n -> replace(node,n,'()V',methods) { retVoid(it) } }
                 replace(node,'a','(Ljava/lang/String;)V',methods) { retVoid(it) }
+                replace(node,'<init>','()V',methods) {
+                    it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new MethodInsnNode(INVOKESPECIAL,'java/lang/Object','<init>','()V',false))
+                    it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new TypeInsnNode(NEW,'java/lang/Object')); it.instructions.add(new InsnNode(DUP))
+                    it.instructions.add(new MethodInsnNode(INVOKESPECIAL,'java/lang/Object','<init>','()V',false)); it.instructions.add(new FieldInsnNode(PUTFIELD,name,'c','Ljava/lang/Object;'))
+                    it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new TypeInsnNode(NEW,BASE+'ConfigInitObserver')); it.instructions.add(new InsnNode(DUP))
+                    it.instructions.add(new MethodInsnNode(INVOKESPECIAL,BASE+'ConfigInitObserver','<init>','()V',false)); it.instructions.add(new FieldInsnNode(PUTFIELD,name,'h','L'+BASE+'ConfigInitObserver;'))
+                    it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new LdcInsnNode('')); it.instructions.add(new FieldInsnNode(PUTFIELD,name,'g','Ljava/lang/String;')); retVoid(it)
+                }
+            } else if (name == 'com/tcl/ff/component/overseabase/base/util/AppUtils') {
+                // Keep the user's ad landing URL. Remove promotion of the TCL browser.
+                MethodNode method=required(node,'gotoWeb','(Landroid/content/Context;Ljava/lang/String;)V')
+                int found=0,packageFound=0
+                method.instructions.toArray().each { insn ->
+                    if (insn instanceof LdcInsnNode && insn.cst=='https://play.google.com/store/apps/details?id=com.tcl.browser') {
+                        method.instructions.set(insn,new VarInsnNode(ALOAD,1)); found++
+                    }
+                    if (insn instanceof LdcInsnNode && insn.cst=='com.tcl.browser') {
+                        method.instructions.set(insn,new InsnNode(ACONST_NULL)); packageFound++
+                    }
+                }
+                if (found!=1 || packageFound!=1) throw new GradleException('Unexpected TCL browser promotion/selection boundary')
+                methods.add(method.name+method.desc)
             } else if (name == BASE+'adutils/AdUtil') {
                 replace(node,'recordAdRequestTime','(Lcom/tcl/ff/component/overseabase/base/constant/AdType;)V',methods) { retVoid(it) }
                 replace(node,'getAdRequestTimes','(Lcom/tcl/ff/component/overseabase/base/constant/AdType;)I',methods) { it.instructions.add(new InsnNode(ICONST_0)); it.instructions.add(new InsnNode(IRETURN)) }
@@ -52,15 +74,17 @@ final class TclRuntimeIsolation implements Opcodes {
                     it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new LdcInsnNode('')); it.instructions.add(new FieldInsnNode(PUTFIELD,name,'a','Ljava/lang/String;')); retVoid(it)
                 }
             } else if (name == HTTP) {
-                replace(node,'postJsonSync','(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',methods) {
-                    it.instructions.add(new InsnNode(ACONST_NULL)); it.instructions.add(new InsnNode(ARETURN))
-                }
+                // Isolate the business address boundary, preserving every original HTTP method.
+                if (node.methods.any { it.name=='resolveSuppliedAdAddress' }) throw new GradleException('Unexpected supplied-address ABI')
+                MethodNode boundary=new MethodNode(ACC_PUBLIC,'resolveSuppliedAdAddress','(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',null,null)
+                boundary.instructions.add(new InsnNode(ACONST_NULL)); boundary.instructions.add(new InsnNode(ARETURN))
+                node.methods.add(boundary); methods.add('added '+boundary.name+boundary.desc)
             } else if (name == 'com/tcl/ff/component/media/ima/bi/a') {
                 node.methods.findAll { it.name.startsWith('on') }.each { reset(it); retVoid(it); methods.add(it.name+it.desc) }
             } else if (name == 'com/tcl/ff/component/media/processor/a/b') {
                 replace(node,'a','(L'+HTTP+';Ljava/lang/String;L'+BASE+'requestparams/VastAdRequestParams;)Ljava/lang/String;',methods) {
                     it.instructions.add(new VarInsnNode(ALOAD,1)); it.instructions.add(new VarInsnNode(ALOAD,2)); it.instructions.add(new LdcInsnNode('{}'))
-                    it.instructions.add(new MethodInsnNode(INVOKEVIRTUAL,HTTP,'postJsonSync','(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',false)); it.instructions.add(new InsnNode(ARETURN))
+                    it.instructions.add(new MethodInsnNode(INVOKEVIRTUAL,HTTP,'resolveSuppliedAdAddress','(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',false)); it.instructions.add(new InsnNode(ARETURN))
                 }
             } else if (name == 'com/tcl/ff/component/media/processor/api/AdsFetcher') {
                 // Backend scheduling/limits precede adurl; the host already supplied the chosen tag.
@@ -85,12 +109,15 @@ final class TclRuntimeIsolation implements Opcodes {
                 }
                 if (found!=1) throw new GradleException('Expected exactly one original XStream AnyTypePermission')
                 methods.add(method.name+method.desc+' [permissions only]')
-            } else if (name == 'com/google/android/exoplayer2/database/DefaultDatabaseProvider') {
-                ['getWritableDatabase','getReadableDatabase'].each { n -> replace(node,n,'()Landroid/database/sqlite/SQLiteDatabase;',methods) { denied(it) } }
-            } else if (name == 'com/google/android/exoplayer2/database/StandaloneDatabaseProvider') {
-                ['getWritableDatabase','getReadableDatabase'].each { n ->
-                    if (node.methods.any { it.name==n }) throw new GradleException('Unexpected original DB override')
-                    MethodNode m=new MethodNode(ACC_PUBLIC,n,'()Landroid/database/sqlite/SQLiteDatabase;',null,null); denied(m); node.methods.add(m); methods.add('added '+m.name+m.desc)
+            } else if (name == 'com/tcl/tuniplayer_base/d') {
+                // This is UniPlayer vendor telemetry, not XML VAST tracking.
+                replace(node,'a','(Z)V',methods) {
+                    it.instructions.add(new VarInsnNode(ALOAD,0)); it.instructions.add(new InsnNode(ACONST_NULL))
+                    it.instructions.add(new FieldInsnNode(PUTFIELD,name,'c','Lcom/tcl/tuniplayer_base/i/k;')); retVoid(it)
+                }
+                ['(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)V',
+                 '(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V'].each { descriptor ->
+                    replace(node,'a',descriptor,methods) { retVoid(it) }
                 }
             }
             if (!methods.empty) {
@@ -125,10 +152,10 @@ final class TclRuntimeIsolation implements Opcodes {
         if (!dangling.empty) throw new GradleException('Isolation has unresolved forbidden references:\n'+dangling.join('\n'))
         String component = entries.containsKey(HTTP+'.class') ? 'base' :
             (entries.containsKey('com/tcl/ff/component/media/ima/tcl/convert/XmlConverter.class') ? 'media' : 'player')
-        entries['META-INF/tcl-adurl-only/'+component+'.marker'] = 'adurl-only-v1'.getBytes('UTF-8')
+        entries['META-INF/tcl-adurl-only/'+component+'.marker'] = 'adurl-only-v4'.getBytes('UTF-8')
         ByteArrayOutputStream buffer=new ByteArrayOutputStream()
         new ZipOutputStream(buffer).withCloseable { zip -> entries.keySet().sort().each { name -> def e=new ZipEntry(name);e.time=0;zip.putNextEntry(e);zip.write(entries[name]);zip.closeEntry() } }
-        return [bytes:buffer.toByteArray(),report:[profile:'adurl-only-v1',removedClasses:removed.sort(),changedClasses:changes,inputJarSha256:sha(input),outputJarSha256:sha(buffer.toByteArray())]]
+        return [bytes:buffer.toByteArray(),report:[profile:'adurl-only-v4',removedClasses:removed.sort(),changedClasses:changes,inputJarSha256:sha(input),outputJarSha256:sha(buffer.toByteArray())]]
     }
     private static void verifyUntouchedMethods(byte[] before, byte[] after, List<String> changes) {
         ClassNode a=new ClassNode(), b=new ClassNode()
@@ -159,5 +186,5 @@ final class TclRuntimeIsolation implements Opcodes {
     private static void reset(MethodNode m) { m.instructions.clear();m.tryCatchBlocks.clear();m.localVariables?.clear();m.visibleLocalVariableAnnotations=null;m.invisibleLocalVariableAnnotations=null }
     private static void replace(ClassNode n,String name,String desc,List names,Closure body) { def m=required(n,name,desc);reset(m);body(m);names.add(name+desc) }
     private static void retVoid(MethodNode m) { m.instructions.add(new InsnNode(RETURN)) }
-    private static void denied(MethodNode m) { m.instructions.add(new TypeInsnNode(NEW,'java/lang/UnsupportedOperationException'));m.instructions.add(new InsnNode(DUP));m.instructions.add(new LdcInsnNode('Offline database is disabled in the adurl-only runtime'));m.instructions.add(new MethodInsnNode(INVOKESPECIAL,'java/lang/UnsupportedOperationException','<init>','(Ljava/lang/String;)V',false));m.instructions.add(new InsnNode(ATHROW)) }
+    private static void denied(MethodNode m,String reason='Offline database is disabled in the adurl-only runtime') { m.instructions.add(new TypeInsnNode(NEW,'java/lang/UnsupportedOperationException'));m.instructions.add(new InsnNode(DUP));m.instructions.add(new LdcInsnNode(reason));m.instructions.add(new MethodInsnNode(INVOKESPECIAL,'java/lang/UnsupportedOperationException','<init>','(Ljava/lang/String;)V',false));m.instructions.add(new InsnNode(ATHROW)) }
 }

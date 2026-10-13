@@ -41,7 +41,7 @@ public final class NativeRuntime {
             try (var input = loader.getResourceAsStream("META-INF/tcl-adurl-only/" + component + ".marker")) {
                 if (input == null) throw new IllegalStateException("Unisolated TCL runtime: " + component);
                 byte[] bytes = new byte[64]; int size = input.read(bytes);
-                if (!"adurl-only-v1".equals(new String(bytes, 0, size, java.nio.charset.StandardCharsets.UTF_8)))
+                if (!"adurl-only-v4".equals(new String(bytes, 0, size, java.nio.charset.StandardCharsets.UTF_8)))
                     throw new IllegalStateException("Unexpected isolation profile: " + component);
             } catch (java.io.IOException error) { throw new IllegalStateException("Cannot verify isolation", error); }
         }

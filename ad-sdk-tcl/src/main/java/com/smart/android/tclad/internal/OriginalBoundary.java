@@ -40,10 +40,10 @@ public final class OriginalBoundary {
     private static final class SuppliedAddressTransport extends com.tcl.ff.component.overseahttp.http.HttpRequester {
         private final String response;
         SuppliedAddressTransport(okhttp3.OkHttpClient client, String response) { super(client); this.response = response; }
-        @Override public String postJsonSync(String url, String body) {
+        @Override public String resolveSuppliedAdAddress(String url, String body) {
             if (url.equals(com.tcl.ff.component.overseabasebusiness.constant.ServerApi.getMixedVastTagApi())
                 || url.equals(com.tcl.ff.component.overseabasebusiness.constant.ServerApi.getRealVastTagUrl())) return response;
-            return super.postJsonSync(url, body);
+            return null;
         }
     }
 }

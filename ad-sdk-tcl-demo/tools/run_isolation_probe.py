@@ -31,6 +31,8 @@ with (a.output/'logcat.txt').open('wb') as log:
                 except json.JSONDecodeError: continue
                 (a.output/'isolation-probe.json').write_bytes(result.stdout);break
         (a.output/'app-directories.txt').write_bytes(adb('shell','run-as',a.package,'ls','-laR','.').stdout)
+        global_state=adb('exec-out','run-as',a.package,'cat','files/global-network-state.json',check=False)
+        if global_state.returncode==0:(a.output/'global-network-state.json').write_bytes(global_state.stdout)
         network=adb('exec-out','run-as',a.package,'cat','files/network-audit.jsonl',check=False)
         if network.returncode==0:(a.output/'network-audit.jsonl').write_bytes(network.stdout)
         print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)

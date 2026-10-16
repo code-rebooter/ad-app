@@ -162,7 +162,7 @@ def audit_common_patches(apk, aapt2, manifest, mapping=None):
             "sxkPolicyCalls": sxk_calls, "violations": violations}
 
 
-def audit(apk, aapt2, native_jars, common_patch_manifest, mapping=None, isolation_manifests=()):
+def audit(apk, aapt2, native_jars, common_patch_manifest, expected_application_id, mapping=None, isolation_manifests=()):
     all_types = set()
     all_definitions = set()
     dex_names = []
@@ -186,7 +186,7 @@ def audit(apk, aapt2, native_jars, common_patch_manifest, mapping=None, isolatio
     badging = subprocess.run([str(aapt2), "dump", "badging", str(apk)], check=True, capture_output=True, text=True).stdout
     package_match = re.search(r"package: name='([^']+)'", badging)
     package = package_match.group(1) if package_match else None
-    if package != "io.android.launcher.tv.desktop":
+    if package != expected_application_id:
         violations.append("Unexpected experimental package: " + str(package))
     original_classes = set()
     for jar in native_jars:
@@ -204,7 +204,7 @@ def audit(apk, aapt2, native_jars, common_patch_manifest, mapping=None, isolatio
     report = {
         "isolation": isolation,
         "apk": str(apk.resolve()), "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-        "applicationId": package, "dexFiles": sorted(dex_names), "dexTypesChecked": len(all_types), "dexClassDefinitionsChecked": len(all_definitions),
+        "applicationId": package, "expectedApplicationId": expected_application_id, "dexFiles": sorted(dex_names), "dexTypesChecked": len(all_types), "dexClassDefinitionsChecked": len(all_definitions),
         "originalRuntimeClassesExpected": len(original_classes),
         "originalRuntimeClassesPresent": len(original_classes & all_definitions),
         "nativeVastTypes": sum(value.startswith("Lcom/tcl/ff/component/vastad/") for value in all_types),
@@ -219,6 +219,7 @@ def audit(apk, aapt2, native_jars, common_patch_manifest, mapping=None, isolatio
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True)
+    parser.add_argument("--expected-application-id", required=True)
     parser.add_argument("--aapt2", type=Path, required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--native-jar", type=Path, action="append", required=True)
@@ -226,7 +227,7 @@ def main():
     parser.add_argument("--isolation-manifest", type=Path, action="append", required=True)
     parser.add_argument("--mapping", type=Path)
     args = parser.parse_args()
-    report = audit(args.apk, args.aapt2, args.native_jar, args.common_patch_manifest, args.mapping, args.isolation_manifest)
+    report = audit(args.apk, args.aapt2, args.native_jar, args.common_patch_manifest, args.expected_application_id, args.mapping, args.isolation_manifest)
     text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

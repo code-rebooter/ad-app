@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Preserve the supplied vendor translations and drawable content. Application source is checked normally. -->
+    <issue id="MissingTranslation"><ignore path="build/generated/embeddedTcl/**" /></issue>
+    <issue id="ExtraText"><ignore path="build/generated/embeddedTcl/**" /></issue>
+</lint>

@@ -26,6 +26,8 @@ internal class Hq008ConsentTraceSession(
         popupLogEnabled = enabled
     }
 
+    fun isPopupLogEnabled(): Boolean = popupLogEnabled
+
     fun resetPopupLogEnabled() {
         popupLogEnabled = true
     }

@@ -1,0 +1,79 @@
+import com.smart.lsap.TclFusionAarPatchTask
+import com.smart.lsap.TclUniversalBundleTask
+
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+version = '1.0.0'
+base { archivesName = 'ad-sdk-universal' }
+def patchTcl = tasks.register('patchUniversalTclIdentity', TclFusionAarPatchTask) {
+    inputAar.set(rootProject.layout.projectDirectory.file('ad-sdk-fusion/vendor/base/sdk.aar'))
+    outputAar.set(layout.buildDirectory.file('tcl/base-patched.aar'))
+}
+def prepareTcl = tasks.register('prepareUniversalTcl', TclUniversalBundleTask) {
+    baseAar.set(patchTcl.flatMap { it.outputAar })
+    mediaAar.set(rootProject.layout.projectDirectory.file('ad-sdk-fusion/vendor/media/sdk.aar'))
+    playerAar.set(rootProject.layout.projectDirectory.file('ad-sdk-fusion/vendor/player/sdk.aar'))
+    cmpAar.set(rootProject.layout.projectDirectory.file('ad-sdk-fusion/vendor/cmp/sdk.aar'))
+    outputDirectory.set(layout.buildDirectory.dir('generated/embeddedTcl'))
+}
+def embedded = layout.buildDirectory.dir('generated/embeddedTcl')
+android {
+    namespace 'com.smart.android.adsdk.universal'
+    compileSdk 36
+    defaultConfig {
+        minSdk 23
+        buildConfigField 'String', 'SDK_VERSION', '"' + project.version + '"'
+        consumerProguardFiles 'consumer-rules.pro'
+        consumerProguardFiles embedded.map { it.file('consumer-rules.pro').asFile }
+    }
+    buildFeatures { buildConfig true }
+    buildTypes { release { minifyEnabled false } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    sourceSets.main {
+        resources.srcDir embedded.map { it.dir('java-resources').asFile }
+        ['base', 'media', 'player', 'cmp'].each { component ->
+            res.srcDir embedded.map { it.dir("${component}/res").asFile }
+            assets.srcDir embedded.map { it.dir("${component}/assets").asFile }
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn prepareTcl }
+dependencies {
+    ['base', 'media', 'player', 'cmp'].each { component ->
+        implementation files(embedded.map { it.file("libs/tcl-${component}.jar").asFile }).builtBy(prepareTcl)
+    }
+    implementation 'androidx.core:core:1.17.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.leanback:leanback:1.0.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.13.2'
+    implementation 'com.google.guava:guava:31.1-android'
+    implementation 'com.github.bumptech.glide:glide:4.11.0'
+    implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
+    implementation('com.thoughtworks.xstream:xstream:1.4.18') { exclude group: 'xmlpull', module: 'xmlpull' }
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}
+apply from: rootProject.file('ad-sdk-tcl/gradle/runtime-alignment.gradle')
+tasks.register('verifyUniversalDependencies') {
+    doLast {
+        configurations.findAll { it.canBeResolved && it.name.endsWith('RuntimeClasspath') && !it.name.contains('Test') }.each { conf ->
+            conf.incoming.resolutionResult.allComponents.each { item ->
+                def id = item.id
+                if (id instanceof org.gradle.api.artifacts.component.ProjectComponentIdentifier && id.projectPath != project.path)
+                    throw new GradleException("Universal SDK must not depend on existing SDK modules: ${id}")
+                if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+                    (id.group.startsWith('androidx.media3') || id.group == 'com.google.android.ump' || id.group == 'com.google.ads.interactivemedia.v3'))
+                    throw new GradleException("Forbidden validation-phase dependency: ${id}")
+            }
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyUniversalDependencies' }

@@ -47,7 +47,56 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Keep
 object HaierAarRuntimeBridge {
-    const val PATCH_VERSION = "lsap-full-network-audit-7"
+    val PATCH_VERSION: String
+        get() = if (BuildConfig.UNIFIED_AD_SDK_NAME == "addy_jams") {
+            "lsap-playback-diagnostics-9"
+        } else {
+            "lsap-full-network-audit-7"
+        }
+    @JvmStatic
+    fun bindAdDiagnosticController(owner: Any) = HaierAarPlaybackDiagnostics.bindController(owner)
+
+    @JvmStatic
+    fun beginVastFetchDiagnostics() = HaierAarPlaybackDiagnostics.beginVastFetch()
+
+    @JvmStatic
+    fun readVastResponseBody(body: okhttp3.ResponseBody): String =
+        HaierAarPlaybackDiagnostics.readVastBody(body)
+
+    @JvmStatic
+    fun convertVastResponse(converter: Any, text: String?, model: Class<*>): Any? =
+        HaierAarPlaybackDiagnostics.convertVast(converter, text, model)
+
+    @JvmStatic
+    fun recordVastParseException(error: Throwable) = HaierAarPlaybackDiagnostics.parseException(error)
+
+    @JvmStatic
+    fun recordVastRequestError(owner: Any, code: Int) = HaierAarPlaybackDiagnostics.requestError(owner, code)
+
+    @JvmStatic
+    fun recordAdPlayerError(owner: Any, error: Throwable) = HaierAarPlaybackDiagnostics.playerError(owner, error)
+
+    @JvmStatic
+    fun recordAdPlayerState(owner: Any, state: Int) = HaierAarPlaybackDiagnostics.playerState(owner, state)
+
+    @JvmStatic
+    fun recordPlayableAdPod(owner: Any, pod: Any?) = HaierAarPlaybackDiagnostics.playablePod(owner, pod)
+
+    @JvmStatic
+    fun recordAdControllerStage(owner: Any, stage: String) = HaierAarPlaybackDiagnostics.controllerStage(owner, stage)
+
+    @JvmStatic
+    fun recordSdkBranchFlag(value: Boolean, name: String) = HaierAarPlaybackDiagnostics.branchFlag(value, name)
+
+    @JvmStatic
+    fun recordPrimaryAdState(state: Any?) = HaierAarPlaybackDiagnostics.primaryState(state)
+
+    @JvmStatic
+    fun recordAdDiagnosticStage(stage: String) = HaierAarPlaybackDiagnostics.stage(stage)
+
+    @JvmStatic
+    fun attachAdPlaybackProbe(player: Any?) = HaierAarPlaybackProbe.attach(player)
+
     private const val TAG = "HaierAarBridge"
     private const val HTTP_AGENT = "http.agent"
     private const val LSAP_PREFS = "lsapdata"

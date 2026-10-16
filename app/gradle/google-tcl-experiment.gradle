@@ -163,6 +163,7 @@ afterEvaluate {
             commandLine providers.gradleProperty('googleTclPython').orElse('python3').get(),
                     file('tools/verify_google_tcl_apk.py').absolutePath,
                     '--apk', apks.first().absolutePath,
+                    '--expected-application-id', android.productFlavors.getByName(flavorName).applicationId,
                     '--aapt2', new File(android.sdkDirectory, "build-tools/${android.buildToolsVersion}/aapt2").absolutePath,
                     '--output', layout.buildDirectory.file("reports/google-tcl/${buildType.toLowerCase()}-apk.json").get().asFile.absolutePath,
                     '--common-patch-manifest', commonPatchReport.get().asFile.absolutePath,

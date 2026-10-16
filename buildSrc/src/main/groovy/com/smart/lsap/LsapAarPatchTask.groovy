@@ -58,6 +58,7 @@ abstract class LsapAarPatchTask extends DefaultTask {
 
         Map<String, byte[]> classEntries = [:]
         int modifiedClasses = 0
+        Set<String> diagnosticClasses = [] as Set
         Map<String, Integer> networkSurface = [:].withDefault { 0 }
         List<String> residualNetworkCalls = []
         List<String> residualBuildIdentityReads = []
@@ -71,6 +72,11 @@ abstract class LsapAarPatchTask extends DefaultTask {
                     networkSurface[category] = networkSurface[category] + count
                 }
                 byte[] patched = LsapClassPatcher.patch(jarEntry.name, bytes)
+                if (targetFlavor.get() == 'addy_jams') {
+                    byte[] diagnosed = LsapPlaybackDiagnosticsPatcher.patch(jarEntry.name, patched)
+                    if (!Arrays.equals(patched, diagnosed)) diagnosticClasses.add(jarEntry.name)
+                    patched = diagnosed
+                }
                 if (!Arrays.equals(bytes, patched)) modifiedClasses++
                 residualNetworkCalls.addAll(
                     LsapClassPatcher.findResidualNetworkCalls(jarEntry.name, patched)
@@ -117,6 +123,9 @@ abstract class LsapAarPatchTask extends DefaultTask {
                     residualBuildIdentityReads.take(50).join('\n')
             )
         }
+        if (targetFlavor.get() == 'addy_jams' && diagnosticClasses != LsapPlaybackDiagnosticsPatcher.TARGETS) {
+            throw new GradleException("ADDY_JAMS diagnostic hooks missing: ${LsapPlaybackDiagnosticsPatcher.TARGETS - diagnosticClasses}")
+        }
         if (modifiedClasses < 20) {
             throw new GradleException("Only ${modifiedClasses} LSAP classes patched; expected at least 20")
         }
@@ -134,7 +143,8 @@ abstract class LsapAarPatchTask extends DefaultTask {
         byte[] patchedClasses = classesOutput.toByteArray()
 
         String metadata = [
-            'patchVersion=lsap-full-network-audit-7',
+            "patchVersion=${targetFlavor.get() == 'addy_jams' ? 'lsap-playback-diagnostics-9' : 'lsap-full-network-audit-7'}",
+            "playbackDiagnosticClasses=${diagnosticClasses.size()}",
             "originalAarSha256=${actualHash}",
             "patchedClassesJarSha256=${sha256(patchedClasses)}",
             "targetFlavor=${targetFlavor.get()}",

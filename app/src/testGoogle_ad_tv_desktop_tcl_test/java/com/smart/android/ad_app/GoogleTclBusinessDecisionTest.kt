@@ -32,10 +32,10 @@ class GoogleTclBusinessDecisionTest {
     }
     @Test fun onlyExperimentalFlavorUsesTheNewHostFamilyRoute() {
         assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_tcl_test"))
-        assertEquals("GOOGLE_AD_TV_DESKTOP_JM", BuildConfig.CHANNEL)
-        assertEquals("GOOGLE_AD_TV_DESKTOP_JM", BuildConfig.C_TYPE)
-        assertEquals("GOOGLE_AD_TV_DESKTOP_JM", BuildConfig.MODEL)
-        assertEquals("io.android.launcher.tv.desktop", BuildConfig.APPLICATION_ID)
+        assertEquals("GOOGLE_AD_TV_DESKTOP_V260904_1", BuildConfig.CHANNEL)
+        assertEquals("GOOGLE_AD_TV_DESKTOP_V260904_1", BuildConfig.C_TYPE)
+        assertEquals("GOOGLE_AD_TV_DESKTOP_V260904_1", BuildConfig.MODEL)
+        assertEquals("com.localvideoplayer.tv", BuildConfig.APPLICATION_ID)
         assertTrue(BuildFlavor.isHq008Family("google_ad_tv_desktop_tcl_test"))
         assertFalse(BuildFlavor.isGoogleAdTvDesktop("google_ad_tv_desktop_tcl_test"))
         assertTrue(BuildFlavor.isGoogleAdTvDesktop("google_ad_tv_desktop"))

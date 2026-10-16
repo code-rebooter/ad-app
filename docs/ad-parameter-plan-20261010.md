@@ -1,19 +1,23 @@
 # Google GAM 直连 VAST：待补参数与对照记录
 
-日期：2026-10-10（Asia/Shanghai）。适用渠道：九猫 `GOOGLE_AD_TV_DESKTOP_JM`，广告执行使用 TCL 路径，不使用 IMA。
+> 分享版：样本身份值已脱敏，保留参数和历史核对结论；示例值不可用于真实投放。
+
+> 2026-10-16 更新：当前补参标记以 [IMA / 参考方案 实际参数对照](ad-parameter-comparison-20261016.md) 及 [已标记补参表](../artifacts/parameter-documentation-20261016/parameter-enrichment.md) 为准。下文保留历史阶段方案，不能视为 IMA 实际追加清单。
+
+日期：2026-10-10（Asia/Shanghai）。适用于实验自解析链路，广告执行使用 参考方案 路径，不使用 IMA。
 
 本文仅整理待实施方案。此次没有修改广告请求代码、后台配置或 APK，也没有执行线上部署。当前版本先作为未补参数的对照；是否补参数及何时实施，之后根据记录决定。
 
 ## 2026-10-13 实际实施范围
 
-仅 TCL 实验渠道的自有 `google-gam/resolve` 请求新增两个 string 字段，原有 `channel_id/mac` 保留：
+仅 参考方案 实验渠道的自有 `google-gam/resolve` 请求新增两个 string 字段，原有 `channel_id/mac` 保留：
 
 | 字段 | 当前实现 |
 | --- | --- |
-| `rdid` | 按 TCL 方式，先读自有 `google_tcl_ad/aid`；为空时使用 `UUID.randomUUID().toString()` 生成并保存，后续复用。 |
+| `rdid` | 按 参考方案 方式，先读自有 `<本地存储>/aid`；为空时使用 `UUID.randomUUID().toString()` 生成并保存，后续复用。 |
 | `androidid` | 读取 `Settings.Secure.ANDROID_ID`；读取失败或没有值时上传空字符串。 |
 
-后台决定是否及如何拼接广告参数，客户端仍原样交给 TCL 执行后台返回的 `ad_tag_url`。未新增 GAID、限制跟踪状态采集或 `idtype` 等字段；自有接口字段 `rdid` 使用自建 UUID，不代表已证实雷鸟向 Google 原样转发该 UUID。
+后台决定是否及如何拼接广告参数，客户端仍原样交给 参考方案 执行后台返回的 `ad_tag_url`。未新增 GAID、限制跟踪状态采集或 `idtype` 等字段；自有接口字段 `rdid` 使用自建 UUID，不代表已证实参考服务向 Google 原样转发该 UUID。
 
 以下章节保留 2026-10-10 的参数研究与历史对照，属于参考方案，不代表全部已实施或已经确认的 IMA 固定追加清单。
 
@@ -23,7 +27,7 @@
 
 | 参数 | 当前正式标签 | 后续处理 | 值从哪里来 |
 | --- | --- | --- | --- |
-| `url` | 没有；已有 `description_url` | 增加该字段。按本次 IMA 行为复用 `description_url` 的值 | 现有标签中的 `https://ghtfor.cc`；不用再提供一个新地址 |
+| `url` | 没有；已有 `description_url` | 增加该字段。按本次 IMA 行为复用 `description_url` 的值 | 现有标签中的 `https://example.com`；不用再提供一个新地址 |
 | `vpa` | 没有 | 自动播放填 `auto`；点击触发播放填 `click` | 本次实际播放方式 |
 | `rdid` | 没有 | 有可用、允许使用的广告 ID 时传真实 GAID | 设备的 Google 广告 ID 接口 |
 | `idtype` | 没有 | `rdid` 使用 Android 广告 ID 时填字符串 `adid` | ID 的类型；不是另取一个设备编号 |
@@ -39,7 +43,7 @@
 | `devt` | 机顶盒库存 | 官方目前只列 `stb`；其他设备不填此值 |
 | `dth` | 设备类型提示 | 机顶盒与 `devt=stb` 配合填写 `7`；它在全参数表中单独列为推荐项，不能称所有 VAST 请求都统一必填 |
 | `ott_placement` | Google 要求声明的 CTV 展示位置 | `1`=暂停广告，`2`=电视首页／桌面，`3`=画中画，`5`=叠加；普通流内广告不要求此项。按真实位置填。[G2] |
-| `msid` | 推荐补齐应用身份 | Android 应用包名：`io.android.launcher.tv.desktop` |
+| `msid` | 推荐补齐应用身份 | Android 应用包名：`com.example.app.a` |
 | `an` | 推荐补齐应用身份 | 应用真实、可读的名称，不能凭空指定 |
 
 以上适用条件来自 Google 官方说明。[G1][G2] 如果是机顶盒，再处理 `devt/dth` 两项；如果广告实际在电视首页，再处理 `ott_placement`。不要将这些条件项与核心清单混成一个全设备通用数字。
@@ -58,7 +62,7 @@
 | `6` | 游戏主机 |
 | `7` | 机顶盒 |
 
-- X88 等机顶盒：`devt=stb&dth=7`。
+- 测试机顶盒：`devt=stb&dth=7`。
 - 投影仪外接盒子，广告运行在盒子上：按盒子填写。
 - 投影仪内置 Android TV／Google TV，广告运行在内置系统上：按 CTV 归类可使用 `dth=5`，不传 `devt=stb`。这是根据 CTV 分类作出的判断；官方没有独立的“投影仪”枚举。
 - 普通 Android 投影仪：仅有 Android 系统不足以确定它属于哪类库存，具体型号／投放位置确定后再定，不统一写死成盒子。
@@ -71,14 +75,14 @@
 
 | 输入 | IMA 最终发送的 `url` |
 | --- | --- |
-| 沿用用户正式标签参数，带 `description_url=https://ghtfor.cc` | `https://ghtfor.cc` |
-| 官方测试标签，不带 `description_url` | `io.android.launcher.tv.desktop.adsenseformobileapps.com/` |
+| 沿用用户正式标签参数，带 `description_url=https://example.com` | `https://example.com` |
+| 官方测试标签，不带 `description_url` | `com.example.app.a.adsenseformobileapps.com/` |
 
 所以针对现有正式标签，待实施做法是**保留 `description_url`，再把同一个已解码的值填到 `url`**。现有值已经有了，缺的是最终请求中的字段名；不是要求再找网站。`url` 和 `description_url` 是不同字段。[G1][G2]
 
 ```text
-description_url=https%3A%2F%2Fghtfor.cc
-url=https%3A%2F%2Fghtfor.cc
+description_url=https%3A%2F%2Fexample.com
+url=https%3A%2F%2Fexample.com
 ```
 
 这一做法复现本次 IMA 请求的取值。地址仍应真实代表相应库存；复用它本身不能证明页面内容／库存配置已经满足 Google 要求。[G1]
@@ -97,47 +101,43 @@ val isLat = if (info.isLimitAdTrackingEnabled) "1" else "0"
 
 目标 Android 13 及以上需声明 `com.google.android.gms.permission.AD_ID`。没有 Google Play 服务、调用失败、ID 为空或全零时，不把该值当成可用 GAID。API 正常返回的限制跟踪状态可照实使用；调用失败不等于“未限制”。`is_lat=0` 仅表示未开启设备级限制，不代表已获得所有隐私同意。[G3][G4][G5]
 
-本次 X88 的 **IMA 最终请求**记录为：
+本次测试设备的 **IMA 最终请求**记录为：
 
-| 参数 | 2026-10-10 实测值 |
+| 参数 | 2026-10-10 样本（已脱敏） |
 | --- | --- |
-| `rdid` | `43702484-cff0-40b3-a680-38809cfd7dd0` |
+| `rdid` | `<广告标识 A1>` |
 | `idtype` | `adid` |
 | `is_lat` | `0` |
 
-这些是历史实测值，不是后续所有设备的配置常量。当前 TCL 实验版尚未增加对应读取／补值逻辑。
+这些是脱敏后的历史样本示意值，不是后续设备的配置常量。当前 参考方案 实验版尚未增加对应读取／补值逻辑。
 
-## 4. TCL 标识与 Google 标识的区别
+## 4. 参考方案 标识与 Google 标识的区别
 
-核对 TCL 2.8.02 原厂取参代码后确认：`DeviceInfoGeneratorImpl` 默认读取本地 `tcl_ad/aid`，没有值时生成并保存随机 UUID；`getDeviceType()` 固定返回 `aaid`。`VastAdRequestParams` 把 `getAid()` 的结果用于 `did`。
+核对 参考方案 2.8.02 原厂取参代码后确认：`DeviceInfoGeneratorImpl` 默认读取本地 `<本地存储>/aid`，没有值时生成并保存随机 UUID；`getDeviceType()` 固定返回 `aaid`。`VastAdRequestParams` 把 `getAid()` 的结果用于 `did`。
 
-因此，雷鸟标签中的 `did` 与 `ifa_type=aaid`，不能仅凭字段名字认定为真实 GAID。雷鸟服务端后续如何处理该标识，现有客户端抓包没有证明。
+因此，参考服务标签中的 `did` 与 `ifa_type=aaid`，不能仅凭字段名字认定为真实 GAID。参考服务服务端后续如何处理该标识，现有客户端抓包没有证明。
 
-**Google 的 `rdid` 不使用这套随机 UUID 代替 GAID。**TCL 原厂广告请求关联用的 `requestId` 也不是 GAID，更不是 Google `correlator`。[G3]
+**Google 的 `rdid` 不使用这套随机 UUID 代替 GAID。**参考方案 原厂广告请求关联用的 `requestId` 也不是 GAID，更不是 Google `correlator`。[G3]
 
-当前实验版仍由 TCL 原厂在 VAST URL 上追加 `requestId`；本次没有改变此行为。后续如调整 Google 参数，应将这件事单独记录，不把“原厂会追加”称为“Google 必需”。
+当前实验版仍由 参考方案 原厂在 VAST URL 上追加 `requestId`；本次没有改变此行为。后续如调整 Google 参数，应将这件事单独记录，不把“原厂会追加”称为“Google 必需”。
 
 ## 5. 当前版本与补参数版本怎样比较
 
 ### 当前对照版本 A
 
-现有交测文件：`google-jm-tcl-1.0.9-release.apk`，版本 `1.0.9 / 10`，SHA-256：
-
-```text
-09c48d52645b303268c9a2d53da235d20f714d68df5cff90b8460f602f736b17
-```
+历史对照包版本：`1.0.9 / 10`；交付文件身份已省略。
 
 这是此前交测文件的身份记录，不表示本次已经发到线上。现有实验链路保留后台标签参数，原厂追加 `requestId`，没有自动补齐上述 Google 字段。
 
-用户提供的正式标签如下；此前后台曾切换到测试位，实际观察前应记录 `resolve` 最终返回的广告位，不能仅凭后台口头配置判断缓存已经更新：
+原标签结构如下（身份值已脱敏）；此前后台曾切换到测试位，实际观察前应记录 `resolve` 最终返回的广告位，不能仅凭后台口头配置判断缓存已经更新：
 
 ```text
-https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&description_url=https%3A%2F%2Fghtfor.cc&tfcd=0&npa=0&ad_type=audio_video&sz=1x1%7C300x250%7C320x480%7C400x300%7C640x360%7C640x430%7C640x480&gdfp_req=1&unviewed_position_start=1&output=vast&env=vp&impl=s&plcmt=1&vpmute=0&app_package=io.android.launcher.tv.desktop&correlator=
+https://pubads.g.doubleclick.net/gampad/ads?iu=/<广告位 A>&description_url=https%3A%2F%2Fexample.com&tfcd=0&npa=0&ad_type=audio_video&sz=1x1%7C300x250%7C320x480%7C400x300%7C640x360%7C640x430%7C640x480&gdfp_req=1&unviewed_position_start=1&output=vast&env=vp&impl=s&plcmt=1&vpmute=0&app_package=com.example.app.a&correlator=
 ```
 
 ### 后续待决定的版本 B
 
-推荐由客户端在进入 TCL 取链响应桥接前，处理 Google 域名标签的补值：现有 `url` 信息来自标签；GAID、限制状态和会话值来自本设备／本次会话。后端不需要另找 `url`，现有 `resolve` 请求合约也不必仅为这些补值而先改动。
+推荐由客户端在进入 参考方案 取链响应桥接前，处理 Google 域名标签的补值：现有 `url` 信息来自标签；GAID、限制状态和会话值来自本设备／本次会话。后端不需要另找 `url`，现有 `resolve` 请求合约也不必仅为这些补值而先改动。
 
 这一位置是待实施方案，不是已经完成的代码。用 URL 查询参数工具逐项设置，避免重复字段和重复编码；不按文字拼接包含未编码值的字符串。
 
@@ -168,10 +168,4 @@ https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&de
 - [G4] `AdvertisingIdClient`，读取方式、后台线程与失败情况：`https://developers.google.com/android/reference/com/google/android/gms/ads/identifier/AdvertisingIdClient`
 - [G5] `AdvertisingIdClient.Info`，广告 ID、限制状态与 AD_ID 权限：`https://developers.google.com/android/reference/com/google/android/gms/ads/identifier/AdvertisingIdClient.Info`
 
-本地证据：
-
-- [IMA 最终请求与完整参数](/Users/zy/Documents/Codex/ad-app/artifacts/ima-final-request-audit-20261010/report.md)
-- [IMA 四组测试结果](/Users/zy/Documents/Codex/ad-app/artifacts/ima-final-request-audit-20261010/verified-summary.json)
-- [原厂 TCL ID 生成代码](/Users/zy/Documents/Codex/ad-app/artifacts/tcl-side-effects-audit-20261009/com.tcl.ff.component.overseabase.base.device.DeviceInfoGeneratorImpl.txt:14)
-- [原厂 TCL 取参代码](/Users/zy/Documents/Codex/ad-app/artifacts/tcl-original-engine-audit-20261009/com.tcl.ff.component.overseabasebusiness.requestparams.VastAdRequestParams.txt:131)
-- [九猫交测包与真实链路记录](/Users/zy/Documents/Codex/ad-app/artifacts/google-tcl-channel-experiment-20261010/jiu-mao/report.md)
+本地核验摘要见 [脱敏参数对照](ad-parameter-comparison-20261016.md)。

@@ -1,6 +1,6 @@
 # Google 渠道 TCL 实验版
 
-开发分支为 `experiment/google-tcl`，基线提交 `53e4ad4`；合入 `main` 后继续通过独立 flavor 选择实验方案。构建 flavor 为 `google_ad_tv_desktop_tcl_test`，现已按九猫对齐：包名 `io.android.launcher.tv.desktop`，后台 channel_id、C_TYPE 和 MODEL 均为 `GOOGLE_AD_TV_DESKTOP_JM`，版本 `1.0.9` / versionCode 10，签名沿用九猫现有的 `googleAdTvDesktopRelease`。默认业务接口地址与原九猫渠道一致。安装会覆盖设备上相同包名的旧应用；原有 `google_ad_tv_desktop_jm` 构建配置和实现保持原样。
+开发分支为 `experiment/google-tcl`，基线提交 `53e4ad4`；合入 `main` 后继续通过独立 flavor 选择实验方案。构建 flavor 为 `google_ad_tv_desktop_tcl_test`，当前按 V260904_1 渠道对齐：包名 `com.localvideoplayer.tv`，后台 channel_id、C_TYPE 和 MODEL 均为 `GOOGLE_AD_TV_DESKTOP_V260904_1`，版本 `1.0.10` / versionCode 11，签名使用该渠道原有的 `localVideoPlayerRelease`。默认业务接口地址与原 V260904_1 渠道一致。安装会覆盖相同包名且签名一致的旧应用；原有 `google_ad_tv_desktop_v260904_1` 和九猫构建配置、实现保持原样。
 
 ## 业务和广告边界
 
@@ -49,7 +49,7 @@ assemble 自动检查最终 DEX 中全部 31 个类的桥接调用和 10 个关�
 
 assemble 实验包时自动执行 APK 核验；检查失败则构建失败。核验报告输出到 app/build/reports/google-tcl，业务分支测试见实验 flavor 的测试结果目录。全量旧源码约定测试存在基线失败，须单独记录，不能把新增测试通过说成全量测试通过。
 
-初版采用 `.tcltest` 独立包名。当前九猫交测版已经使用九猫原应用身份；正式库存收益对照仍需要真实后台配置及独立测试设备，不能以测试素材播放成功推断收益结果。
+初版采用 `.tcltest` 独立包名。2026-10-10 九猫交测版使用九猫原应用身份；正式库存收益对照仍需要真实后台配置及独立测试设备，不能以测试素材播放成功推断收益结果。
 
 ## 真机网络核验
 
@@ -61,6 +61,6 @@ assemble 实验包时自动执行 APK 核验；检查失败则构建失败。核
 
 两种最终 APK 逐个保留隔离运行时的全部 2,215 个原厂类，IMA/Media3/UMP 等禁止内容违规 0。新增 5 项业务测试通过；lint 仍有 4 项原共享 Manifest 错误，正式 Google 亦有同项，未修改正式代码来消除这些错误。详细证据：artifacts/google-tcl-channel-experiment-20261010/report.md。
 
-## 九猫交测状态
+## 九猫历史交测状态（2026-10-10）
 
 九猫配置及公共补丁已完成交测构建。2026-10-10 11:45（Asia/Shanghai），后台缓存更新后，九猫签名 Release 的 flow-control enabled=true、skip_cmp=true，authorize authorized=true，后台真实 Google 官方 10 秒测试标签完整播放，四种业务上报被后台确认。11:47 的 Debug 网络复核确认 XML 六个跟踪请求均 HTTP 200。最终设备安装恢复为交付 Release，并核对 SHA-256 一致；实际业务日志上传及正式库存收益仍待交测。证据和交付文件见 artifacts/google-tcl-channel-experiment-20261010/jiu-mao。

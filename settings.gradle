@@ -46,3 +46,5 @@ include ':ad-sdk-tcl:runtime-base'
 include ':ad-sdk-tcl:runtime-player'
 
 include ':ad-sdk-tcl:runtime-media'
+
+include ':ad-sdk-universal'

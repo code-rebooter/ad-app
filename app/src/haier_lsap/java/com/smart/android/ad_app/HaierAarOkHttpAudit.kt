@@ -27,9 +27,13 @@ internal object HaierAarOkHttpAudit {
         val prepared = prepareRequest(request).newBuilder()
             .header("User-Agent", effectiveUa)
             .build()
-        val auditedClient = client.newBuilder()
-            .addNetworkInterceptor(FinalNetworkInterceptor)
-            .build()
+        val builder = client.newBuilder().addNetworkInterceptor(FinalNetworkInterceptor)
+        // Preserve the SDK's original listener and observe the same request, including body reads.
+        val diagnosticRequestId = HaierAarRequestContext.currentRequestId()
+        if (HaierAarPlaybackDiagnostics.enabled && diagnosticRequestId != null) {
+            builder.eventListenerFactory(HaierAarHttpDiagnostics.factory(client.eventListenerFactory, diagnosticRequestId))
+        }
+        val auditedClient = builder.build()
         return auditedClient.newCall(prepared)
     }
 

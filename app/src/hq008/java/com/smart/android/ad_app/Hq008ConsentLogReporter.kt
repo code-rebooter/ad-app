@@ -23,6 +23,7 @@ internal object Hq008ConsentLogReporter {
     private val criticalAdLogEvents = setOf(
         "AD_GDPR_CONSENT_ATTACHED",
         "AD_SDK_HTTP_CAPTURE",
+        "AD_SDK_DIAGNOSTIC",
         "USER_ACTION_START",
         "USER_ACTION_SUCCESS",
         "USER_ACTION_FAIL"
@@ -52,6 +53,10 @@ internal object Hq008ConsentLogReporter {
             traceSession.updatePopupLogEnabled(enabled)
         }
         Log.i(TAG, "consent-log-report 开关更新，popupLogEnabled=$enabled")
+    }
+
+    fun isFlowLoggingEnabled(): Boolean = synchronized(lock) {
+        traceSession.hasPendingSteps() && traceSession.isPopupLogEnabled()
     }
 
     fun hasActiveFlow(): Boolean {
@@ -169,6 +174,20 @@ internal object Hq008ConsentLogReporter {
                 put("traceCompactedMode", "critical_ad_log_only")
             }
             adLogPayload = gson.toJson(compactedTraceSummary)
+        }
+        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
+            val diagnosticSummary = buildTraceSummary(
+                finalEventType = snapshot.finalEventType,
+                finalEventMessage = finalEventMessage,
+                stepsForUpload = stepsForUpload,
+                includeAdLog = { step -> step.eventType == "AD_SDK_DIAGNOSTIC" &&
+                    listOf("playback_probe_summary", "diagnostic_evidence_summary", "previous_flow_checkpoint")
+                        .any { step.rawEventMessage.contains("stage=$it") } }
+            ).apply {
+                put("traceCompacted", true)
+                put("traceCompactedMode", "diagnostic_summaries_only")
+            }
+            adLogPayload = gson.toJson(diagnosticSummary)
         }
         if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
             val compactedTraceSummary = buildTraceSummary(
@@ -293,7 +312,9 @@ internal object Hq008ConsentLogReporter {
         val error = findLastValue(steps, "AD_PHASE_ERROR", "error")
 
         val requestedSummary = if (hasEvent(steps, "AD_REQUESTED")) "播放请求=已发起" else "播放请求=未发起"
-        val loadedSummary = if (hasEvent(steps, "AD_LOADED")) "素材加载=已完成" else "素材加载=未完成"
+        val loadedSummary = if (findLastValue(steps, "AD_LOADED", "loadingCallbackOnly") == "true") {
+            "SDK加载通知=已收到"
+        } else if (hasEvent(steps, "AD_LOADED")) "素材加载=已完成" else "素材加载=未完成"
         val startedSummary = if (hasEvent(steps, "AD_STARTED")) "开始播放=已回调" else "开始播放=未回调"
         val hiddenSummary = hidden?.let { "隐藏模式=${translateBooleanToken(it)}" }
         val requestSummary = requestId?.let { "请求ID=$it" }

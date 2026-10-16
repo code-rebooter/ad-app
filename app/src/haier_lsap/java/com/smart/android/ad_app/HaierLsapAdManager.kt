@@ -86,6 +86,8 @@ private object HaierLsapFormalAd {
         )
         HaierAarRequestContext.set(requestId)
         HaierAarAuditUploader.beginFlow(requestId)
+        HaierAarPlaybackDiagnostics.begin(requestId)
+        HaierAarPlaybackProbe.begin(requestId, flRoot)
 
         Log.i(
             TAG,
@@ -130,6 +132,8 @@ private object HaierLsapFormalAd {
             ?.takeUnless { it.isTerminal() }
             ?.let { request ->
                 request.markTerminal()
+                HaierAarPlaybackProbe.finish(request.requestId, "window_hidden", null)
+                HaierAarPlaybackDiagnostics.finish(request.requestId)
                 HaierAarAuditUploader.appendFlowCaptureToConsentLog(
                     requestId = request.requestId,
                     terminalReason = "window_hidden"
@@ -186,6 +190,7 @@ private object HaierLsapFormalAd {
 
         runCatching {
             HaierAarRuntimeBridge.enforceNow("before_unified_request")
+            HaierAarPlaybackDiagnostics.branchSnapshot()
             val hiddenMode = AdDisplayConfig.isHiddenMode()
             container.removeAllViews()
             container.alpha = if (hiddenMode) 0f else 1f
@@ -199,12 +204,14 @@ private object HaierLsapFormalAd {
                 tagId,
                 object : UnifiedAdRequestCallbacks {
                     override fun onAdLoading() {
+                        HaierAarPlaybackProbe.callback(request.requestId, "onAdLoading")
                         container.post {
                             notifyLoaded(request)
                         }
                     }
 
                     override fun onAdPlayStarted() {
+                        HaierAarPlaybackProbe.callback(request.requestId, "onAdPlayStarted")
                         if (currentRequest !== request || request.isTerminal()) {
                             Log.w(
                                 TAG,
@@ -223,6 +230,7 @@ private object HaierLsapFormalAd {
                     }
 
                     override fun onAdPlayEnded(success: Boolean) {
+                        HaierAarPlaybackProbe.callback(request.requestId, "onAdPlayEnded", success)
                         Log.i(
                             TAG,
                             "正式链路：收到 onAdPlayEnded，requestId=${request.requestId}，success=$success"
@@ -230,6 +238,7 @@ private object HaierLsapFormalAd {
                     }
 
                     override fun onRequestFinished(success: Boolean) {
+                        HaierAarPlaybackProbe.callback(request.requestId, "onRequestFinished", success)
                         container.post {
                             finishRequest(request, success)
                         }
@@ -264,12 +273,13 @@ private object HaierLsapFormalAd {
             extra = request.buildProgressDiagnostics() + mapOf(
                 "sdk" to sdkName,
                 "sdkEntry" to "unified",
-                "tagId" to tagId
+                "tagId" to tagId,
+                "loadingCallbackOnly" to (sdkName == "addy_jams")
             )
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_LOADED",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
+            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},loadingCallbackOnly=${sdkName == "addy_jams"},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
         )
     }
 
@@ -320,6 +330,8 @@ private object HaierLsapFormalAd {
     }
 
     private fun completeRequest(request: PendingShowRequest) {
+        HaierAarPlaybackProbe.finish(request.requestId, "request_finished", true)
+        HaierAarPlaybackDiagnostics.finish(request.requestId)
         Log.i(
             TAG,
             "正式链路：海尔统一广告 SDK 会话完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}"
@@ -361,7 +373,11 @@ private object HaierLsapFormalAd {
             request.markTerminal()
         }
         clearTimeout()
-        val errorText = error?.message ?: "unknown"
+        HaierAarPlaybackProbe.finish(request.requestId, reason, false)
+        HaierAarPlaybackDiagnostics.finish(request.requestId)
+        val sdkFailure = HaierAarPlaybackDiagnostics.failureDetails(request.requestId)
+        val errorText = error?.message ?: sdkFailure["sdkRootCauseMessage"]?.toString()
+            ?.takeIf { it.isNotBlank() } ?: sdkFailure["sdkErrorMeaning"]?.toString() ?: "unknown"
         Log.e(
             TAG,
             "正式链路：海尔统一广告 SDK 流程失败，stage=$stage，requestId=${request.requestId}，adId=${request.adId}，reason=$reason，error=$errorText",
@@ -371,9 +387,9 @@ private object HaierLsapFormalAd {
             requestId = request.requestId,
             adId = request.adId,
             hiddenMode = AdDisplayConfig.isHiddenMode(),
-            errorCode = null,
+            errorCode = sdkFailure["sdkErrorCode"] as? Int,
             errorMessage = reporterMessage,
-            extra = request.buildCompletionDiagnostics() + mapOf(
+            extra = request.buildCompletionDiagnostics() + sdkFailure + mapOf(
                 "sdk" to sdkName,
                 "sdkEntry" to "unified",
                 "tagId" to tagId,
@@ -388,7 +404,7 @@ private object HaierLsapFormalAd {
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,callbackTimeoutMs=${request.callbackTimeoutMs},error=$errorText"
+            eventMessage = "sdk=$sdkName,sdkEntry=unified,requestId=${request.requestId},adId=${request.adId.orEmpty()},tagId=$tagId,hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,callbackTimeoutMs=${request.callbackTimeoutMs},errorCode=${sdkFailure["sdkErrorCode"] ?: "none"},error=$errorText"
         )
         if (releaseSession) {
             releaseCurrentSession()

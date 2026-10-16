@@ -8,22 +8,21 @@ plugins {
 }
 
 def tclDemoProjectDir = rootProject.file("../tcl_ad_demo")
-def tclDemoSigningPropertiesFile = new File(tclDemoProjectDir, "signing/release-signing.properties")
+def tclDemoSigningPropertiesFile = file("signing_files/tcl-ad-demo-release.properties")
 def tclDemoSigningProperties = new Properties()
 if (tclDemoSigningPropertiesFile.exists()) {
     tclDemoSigningPropertiesFile.withInputStream { stream ->
         tclDemoSigningProperties.load(stream)
     }
 }
-def tclDemoNoneuSigningPropertiesFile = new File(tclDemoProjectDir, "signing/noneu-release-signing.properties")
+def tclDemoNoneuSigningPropertiesFile = file("signing_files/tcl-ad-demo-noneu-release.properties")
 def tclDemoNoneuSigningProperties = new Properties()
 if (tclDemoNoneuSigningPropertiesFile.exists()) {
     tclDemoNoneuSigningPropertiesFile.withInputStream { stream ->
         tclDemoNoneuSigningProperties.load(stream)
     }
 }
-def googlePlayAppsProjectDir = rootProject.file("../GooglePlayApps")
-def localVideoPlayerSigningPropertiesFile = new File(googlePlayAppsProjectDir, "keystore-local-video-player.properties")
+def localVideoPlayerSigningPropertiesFile = file("signing_files/local-video-player-release.properties")
 def localVideoPlayerSigningProperties = new Properties()
 if (localVideoPlayerSigningPropertiesFile.exists()) {
     localVideoPlayerSigningPropertiesFile.withInputStream { stream ->
@@ -404,7 +403,7 @@ android {
 
         tclDemoRelease {
             if (tclDemoSigningPropertiesFile.exists()) {
-                storeFile new File(tclDemoProjectDir, tclDemoSigningProperties.getProperty("storeFile"))
+                storeFile new File(tclDemoSigningPropertiesFile.parentFile, tclDemoSigningProperties.getProperty("storeFile"))
                 storePassword tclDemoSigningProperties.getProperty("storePassword")
                 keyAlias tclDemoSigningProperties.getProperty("keyAlias")
                 keyPassword tclDemoSigningProperties.getProperty("keyPassword")
@@ -470,7 +469,7 @@ android {
 
         tclDemoNoneuRelease {
             if (tclDemoNoneuSigningPropertiesFile.exists()) {
-                storeFile new File(tclDemoProjectDir, tclDemoNoneuSigningProperties.getProperty("storeFile"))
+                storeFile new File(tclDemoNoneuSigningPropertiesFile.parentFile, tclDemoNoneuSigningProperties.getProperty("storeFile"))
                 storePassword tclDemoNoneuSigningProperties.getProperty("storePassword")
                 keyAlias tclDemoNoneuSigningProperties.getProperty("keyAlias")
                 keyPassword tclDemoNoneuSigningProperties.getProperty("keyPassword")
@@ -496,7 +495,7 @@ android {
 
         localVideoPlayerRelease {
             if (localVideoPlayerSigningPropertiesFile.exists()) {
-                storeFile new File(googlePlayAppsProjectDir, localVideoPlayerSigningProperties.getProperty("storeFile"))
+                storeFile new File(localVideoPlayerSigningPropertiesFile.parentFile, localVideoPlayerSigningProperties.getProperty("storeFile"))
                 storePassword localVideoPlayerSigningProperties.getProperty("storePassword")
                 keyAlias localVideoPlayerSigningProperties.getProperty("keyAlias")
                 keyPassword localVideoPlayerSigningProperties.getProperty("keyPassword")

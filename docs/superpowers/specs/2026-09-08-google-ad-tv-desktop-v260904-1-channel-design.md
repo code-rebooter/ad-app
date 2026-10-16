@@ -21,7 +21,7 @@ identity, and GAM configuration routing separate from existing customers.
 | Primary/backup API domain | `https://api.bcytua.cc/` |
 | Shared UID | empty |
 | UMP App ID | `ca-app-pub-3199037222330432~8403613512` |
-| Signing config | `localVideoPlayerRelease` from the sibling `GooglePlayApps` project |
+| Signing config | `localVideoPlayerRelease` from `app/signing_files/local-video-player-release.properties` |
 
 The flavor uses the same source directories, manifest, Google IMA/Media3/UMP
 dependencies, ProGuard behavior, and playback implementation as
@@ -29,10 +29,16 @@ dependencies, ProGuard behavior, and playback implementation as
 
 ## Signing
 
-Load signing values from the ignored file
-`../GooglePlayApps/keystore-local-video-player.properties`. Resolve its
-`storeFile` relative to the `GooglePlayApps` project directory. Do not copy the
-keystore or its passwords into `AD_APP`.
+As of 2026-10-16, load signing values from the tracked file
+`app/signing_files/local-video-player-release.properties`. Resolve its
+`storeFile` relative to that properties file, pointing to the tracked
+`app/signing_files/local-video-player-upload.jks`. These files preserve the
+original Local Video Player upload certificate, passwords, and alias, without
+requiring the sibling `GooglePlayApps` project.
+
+The repository owner explicitly approved committing and publishing the signing
+credentials to the currently public repository on 2026-10-16. Making the
+repository private later does not revoke previously downloaded credentials.
 
 Both debug and release variants of this flavor use that signing config, matching
 the existing debug-signing override pattern for customer channels.
@@ -58,7 +64,7 @@ in place until ad delivery is proven and consent requirements are revisited.
 
 ## Code Changes
 
-1. Add the external `localVideoPlayerRelease` signing property loader and
+1. Add the repository-local `localVideoPlayerRelease` signing property loader and
    signing config to `app/build.gradle`.
 2. Add a `google_ad_tv_desktop_v260904_1` source set that reuses
    `src/hq008` and `src/google_ad_tv_desktop`.

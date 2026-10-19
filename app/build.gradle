@@ -30,6 +30,22 @@ if (localVideoPlayerSigningPropertiesFile.exists()) {
     }
 }
 
+def localCalendarSigningPropertiesFile = file("signing_files/local-calendar-release.properties")
+def localCalendarSigningProperties = new Properties()
+if (localCalendarSigningPropertiesFile.exists()) {
+    localCalendarSigningPropertiesFile.withInputStream { stream ->
+        localCalendarSigningProperties.load(stream)
+    }
+}
+
+def kaneShortSigningPropertiesFile = file("signing_files/kaneshort-release.properties")
+def kaneShortSigningProperties = new Properties()
+if (kaneShortSigningPropertiesFile.exists()) {
+    kaneShortSigningPropertiesFile.withInputStream { stream ->
+        kaneShortSigningProperties.load(stream)
+    }
+}
+
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
@@ -214,6 +230,27 @@ android {
             kotlin.srcDirs = java.srcDirs
         }
 
+        google_ad_tv_desktop_v260904_x98k {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
+            kotlin.srcDirs = java.srcDirs
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+        }
+
+        google_ad_tv_desktop_localcalendar {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
+            kotlin.srcDirs = java.srcDirs
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+        }
+
+        google_ad_tv_desktop_kaneshort {
+            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
+            kotlin.srcDirs = java.srcDirs
+            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+        }
+
         google_ad_tv_desktop {
             java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
             res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
@@ -287,20 +324,9 @@ android {
 
         google_ad_tv_desktop_v260904_1 {
             manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
+            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
+            kotlin.srcDirs = java.srcDirs
             res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
         google_ad_tv_desktop_tpmaotai1935 {
@@ -507,6 +533,26 @@ android {
                 keyAlias localVideoPlayerSigningProperties.getProperty("keyAlias")
                 keyPassword localVideoPlayerSigningProperties.getProperty("keyPassword")
                 storeType localVideoPlayerSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
+        localCalendarRelease {
+            if (localCalendarSigningPropertiesFile.exists()) {
+                storeFile new File(localCalendarSigningPropertiesFile.parentFile, localCalendarSigningProperties.getProperty("storeFile"))
+                storePassword localCalendarSigningProperties.getProperty("storePassword")
+                keyAlias localCalendarSigningProperties.getProperty("keyAlias")
+                keyPassword localCalendarSigningProperties.getProperty("keyPassword")
+                storeType localCalendarSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
+        kaneShortRelease {
+            if (kaneShortSigningPropertiesFile.exists()) {
+                storeFile new File(kaneShortSigningPropertiesFile.parentFile, kaneShortSigningProperties.getProperty("storeFile"))
+                storePassword kaneShortSigningProperties.getProperty("storePassword")
+                keyAlias kaneShortSigningProperties.getProperty("keyAlias")
+                keyPassword kaneShortSigningProperties.getProperty("keyPassword")
+                storeType kaneShortSigningProperties.getProperty("storeType", "JKS")
             }
         }
 
@@ -951,6 +997,76 @@ android {
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
         }
 
+        google_ad_tv_desktop_v260904_x98k {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.localvideoplayer.tv",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.localVideoPlayerRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_V260904_X98K",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_V260904_X98K",
+                    model               : "GOOGLE_AD_TV_DESKTOP_V260904_X98K",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
+            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
+        google_ad_tv_desktop_localcalendar {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.localcalendar.tv",
+                    minSdk              : 24,
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 3,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.localCalendarRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR",
+                    model               : "GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
+            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
+        google_ad_tv_desktop_kaneshort {
+            applyCommonFlavorConfig(delegate, [
+                    applicationId       : "com.adsflare.kaneshort",
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.kaneShortRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_KANESHORT",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_KANESHORT",
+                    model               : "GOOGLE_AD_TV_DESKTOP_KANESHORT",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
+            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "io.android.launcher.tv.desktop",
@@ -1039,8 +1155,8 @@ android {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.localvideoplayer.tv",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 12,
+                    versionName         : "1.0.11",
                     signingConfig       : signingConfigs.localVideoPlayerRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_V260904_1",
@@ -1052,6 +1168,8 @@ android {
                             ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
+            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
+            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
@@ -1341,6 +1459,15 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_tcl_test")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
     }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_v260904_x98k")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_localcalendar")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("localCalendarRelease"))
+    }
+    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_kaneshort")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("kaneShortRelease"))
+    }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
     }
@@ -1493,9 +1620,7 @@ dependencies {
     google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
     google_ad_tv_desktop_007Implementation googleImaPatchedAar
     google_ad_tv_desktop_007Implementation googleUmpPatchedAar
-    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-ui:1.8.0"
-    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer:1.8.0"
-    google_ad_tv_desktop_v260904_1Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
+    google_ad_tv_desktop_v260904_1Implementation project(':ad-sdk-tcl')
     google_ad_tv_desktop_v260904_1Implementation googleImaPatchedAar
     google_ad_tv_desktop_v260904_1Implementation googleUmpPatchedAar
     google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-ui:1.8.0"
@@ -1847,6 +1972,15 @@ dependencies {
 
 }
 
+// Customer channels inherit the complete latest IMA-to-TCL dependency set,
+// including patched IMA/UMP AARs and their declared runtime dependencies.
+['google_ad_tv_desktop_v260904_x98k', 'google_ad_tv_desktop_localcalendar',
+        'google_ad_tv_desktop_kaneshort'].each { flavorName ->
+    configurations.named("${flavorName}Implementation").configure {
+        extendsFrom configurations.getByName('google_ad_tv_desktop_v260904_1Implementation')
+    }
+}
+
 def googleAdConfigurationNames = [
         'google_ad_tv_desktopImplementation',
         'google_ad_tv_desktop_jmImplementation',
@@ -1901,3 +2035,5 @@ configurations.configureEach { configuration ->
 }
 
 apply from: file("gradle/google-tcl-experiment.gradle")
+
+apply from: file("gradle/google-ima-tcl.gradle")

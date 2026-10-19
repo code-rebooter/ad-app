@@ -569,3 +569,8 @@
 - 出现 `USER_ACTION_FAIL` 后，后续是否出现 `PENDING_USER_ACTION_FOUND`
 - 出现 `CONSENT_REPORT_FAIL` 后，后续是否出现 `PENDING_CONSENT_REPORT_FOUND`
 - LSAP 三渠道如果后台关闭 flow-control，应看到 `AAR_SDK_GATE_CHANGED enabled=false`，随后 AAR 后续出口应在 `AD_SDK_HTTP_CAPTURE` 的 `sdk_network_logs` 内出现拦截事件
+
+
+## IMA → TCL 渠道最终 URL（2026-10-19 更新）
+
+适用于 `google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。这四个渠道在原 AD_SDK_REQUEST 步骤的 adLog 中追加 request_id、final_url、ima_tcl_url_patch。final_url 是开关及公共补丁修正后交给 TCL 的完整链接；在原有终态汇总日志中一起上传，不新增该步骤的单独日志请求。详见 [最终 URL 与 FILLED 状态](/Users/zy/Documents/Codex/ad-app/docs/google_ima_tcl_reporting.md)。填充状态走原 /api/v2/ad/report 的 AD_PROGRESS + FILLED，不是新增日志请求。

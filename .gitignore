@@ -21,3 +21,11 @@ __pycache__/
 
 # Local build deliveries and diagnostic output
 /outputs/
+
+/app/signing_files/local-calendar-release.properties
+
+/app/signing_files/local-calendar-upload.jks
+
+/app/signing_files/kaneshort-release.properties
+
+/app/signing_files/kaneshort-release.jks

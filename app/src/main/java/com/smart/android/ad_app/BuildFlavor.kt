@@ -49,6 +49,9 @@ internal object BuildFlavor {
                 flavor == "google_ad_tv_desktop_ytx" ||
                 flavor == "google_ad_tv_desktop_007" ||
                 flavor == "google_ad_tv_desktop_v260904_1" ||
+                flavor == "google_ad_tv_desktop_v260904_x98k" ||
+                flavor == "google_ad_tv_desktop_localcalendar" ||
+                flavor == "google_ad_tv_desktop_kaneshort" ||
                 flavor == "google_ad_tv_desktop_tpmaotai1935"
     }
 

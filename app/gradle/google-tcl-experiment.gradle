@@ -5,16 +5,18 @@ import org.gradle.api.artifacts.result.UnresolvedDependencyResult
 import java.util.zip.ZipInputStream
 import org.gradle.api.attributes.Attribute
 
-// These source exclusions and dependency checks apply only to the experiment.
-def flavorName = 'google_ad_tv_desktop_tcl_test'
+// The original direct-TCL experiment retains its isolated runtime and build boundaries.
+def experimentFlavors = ['google_ad_tv_desktop_tcl_test']
 
 // Runtime AARs stay isolated and reusable. Only this app variant receives the
 // same common policies as the old TCL host; SXK-specific policies are excluded.
+experimentFlavors.each { flavorName ->
 androidComponents.onVariants(androidComponents.selector().withFlavor('ad', flavorName)) { variant ->
     variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
             com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
     variant.instrumentation.setAsmFramesComputationMode(
             com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+}
 }
 def replacedNames = [
     'AdManagerImpl.kt', 'Hq008CmpManager.kt', 'Hq008AdSdkDebugCapture.kt',
@@ -25,7 +27,9 @@ def sharedBusiness = tasks.register('prepareGoogleTclBusinessSources', Sync) {
     into layout.buildDirectory.dir('generated/googleTclBusiness/java')
     replacedNames.each { name -> exclude "com/smart/android/ad_app/${name}" }
 }
-tasks.matching { it.name == 'preGoogle_ad_tv_desktop_tcl_testDebugBuild' || it.name == 'preGoogle_ad_tv_desktop_tcl_testReleaseBuild' }.configureEach {
+tasks.matching { task -> experimentFlavors.any { flavorName ->
+    task.name == "pre${flavorName.capitalize()}DebugBuild" || task.name == "pre${flavorName.capitalize()}ReleaseBuild"
+} }.configureEach {
     dependsOn sharedBusiness
 }
 
@@ -88,20 +92,26 @@ def commonPatchVerification = tasks.register('verifyGoogleTclCommonPatchInputs')
         logger.lifecycle("Google TCL common policies: ${changes.size()} classes patched, ${checked} checked; no SXK")
     }
 }
-tasks.matching { it.name.startsWith('preGoogle_ad_tv_desktop_tcl_test') && it.name.endsWith('Build') }.configureEach {
+tasks.matching { task -> experimentFlavors.any { flavorName ->
+    task.name.startsWith("pre${flavorName.capitalize()}") && task.name.endsWith('Build')
+} }.configureEach {
     dependsOn commonPatchVerification
 }
 
 def bannedPrefixes = ['com/google/ads/interactivemedia/v3/', 'com/google/android/ump/', 'androidx/media3/']
 def bannedProjects = [':ad-sdk', ':ad-sdk-modern', ':ad-sdk-modern-no-ump', ':ad-sdk-gam-vast', ':ad-sdk-fusion'] as Set
 afterEvaluate {
+experimentFlavors.each { flavorName ->
+    def flavorTaskName = flavorName.capitalize()
+    def taskSuffix = ''
+    def reportDirectory = 'google-tcl'
 ['Debug', 'Release'].each { buildType ->
     def runtime = configurations.getByName("${flavorName}${buildType}RuntimeClasspath")
     def compile = configurations.getByName("${flavorName}${buildType}CompileClasspath")
     def runtimeClasses = runtime.incoming.artifactView {
         attributes.attribute(Attribute.of('artifactType', String), 'android-classes-jar')
     }.files
-    def verification = tasks.register("verifyGoogleTcl${buildType}Dependencies") {
+    def verification = tasks.register("verifyGoogleTcl${taskSuffix}${buildType}Dependencies") {
         inputs.files(runtimeClasses)
         outputs.upToDateWhen { false }
         doLast {
@@ -146,15 +156,15 @@ afterEvaluate {
                     }
                 }
             }
-            def report = layout.buildDirectory.file("reports/google-tcl/${buildType.toLowerCase()}-dependencies.json").get().asFile
+            def report = layout.buildDirectory.file("reports/${reportDirectory}/${buildType.toLowerCase()}-dependencies.json").get().asFile
             report.parentFile.mkdirs()
             report.text = JsonOutput.prettyPrint(JsonOutput.toJson([dependencies: selected, archivesScanned: scanned.sort(), forbiddenPrefixes: bannedPrefixes, violations: []])) + '\n'
             logger.lifecycle("Google TCL ${buildType}: verified ${selected.size()} external dependencies and ${scanned.size()} archives; no IMA/UMP/Media3")
         }
     }
-    tasks.named("preGoogle_ad_tv_desktop_tcl_test${buildType}Build").configure { dependsOn verification }
-    def assembleName = "assembleGoogle_ad_tv_desktop_tcl_test${buildType}"
-    def apkVerification = tasks.register("verifyGoogleTcl${buildType}Apk", Exec) {
+    tasks.named("pre${flavorTaskName}${buildType}Build").configure { dependsOn verification }
+    def assembleName = "assemble${flavorTaskName}${buildType}"
+    def apkVerification = tasks.register("verifyGoogleTcl${taskSuffix}${buildType}Apk", Exec) {
         dependsOn assembleName
         doFirst {
             def apkDirectory = layout.buildDirectory.dir("outputs/apk/${flavorName}/${buildType.toLowerCase()}").get().asFile
@@ -165,7 +175,7 @@ afterEvaluate {
                     '--apk', apks.first().absolutePath,
                     '--expected-application-id', android.productFlavors.getByName(flavorName).applicationId,
                     '--aapt2', new File(android.sdkDirectory, "build-tools/${android.buildToolsVersion}/aapt2").absolutePath,
-                    '--output', layout.buildDirectory.file("reports/google-tcl/${buildType.toLowerCase()}-apk.json").get().asFile.absolutePath,
+                    '--output', layout.buildDirectory.file("reports/${reportDirectory}/${buildType.toLowerCase()}-apk.json").get().asFile.absolutePath,
                     '--common-patch-manifest', commonPatchReport.get().asFile.absolutePath,
                     '--native-jar', rootProject.file('ad-sdk-tcl/runtime-base/build/original/classes.jar').absolutePath,
                     '--native-jar', rootProject.file('ad-sdk-tcl/runtime-media/build/original/classes.jar').absolutePath,
@@ -181,4 +191,6 @@ afterEvaluate {
     tasks.named(assembleName).configure { finalizedBy apkVerification }
 
 }
+}
+
 }

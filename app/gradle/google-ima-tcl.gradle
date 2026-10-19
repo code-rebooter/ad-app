@@ -1,0 +1,46 @@
+// These channels share IMA URL assembly and the isolated TCL execution runtime.
+def imaTclFlavors = ['google_ad_tv_desktop_v260904_1', 'google_ad_tv_desktop_v260904_x98k',
+        'google_ad_tv_desktop_localcalendar', 'google_ad_tv_desktop_kaneshort']
+def businessSources = tasks.register('prepareGoogleImaTclBusinessSources', Sync) {
+    from('src/hq008/java') { spec ->
+        ['AdManagerImpl.kt', 'Hq008CmpManager.kt', 'Hq008AdSdkDebugCapture.kt',
+         'Hq008CmpDebugActivity.kt', 'Hq008CmpSdkEntryTestActivity.kt',
+         'Hq008CmpSilentEntryTestActivity.kt'].each { name ->
+            spec.exclude "com/smart/android/ad_app/${name}"
+        }
+    }
+    from('src/google_ad_tv_desktop/java') { spec ->
+        spec.exclude 'com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleAdVastPlayerView.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt'
+    }
+    // Reuse the existing URL/payload rules verbatim, with this flavor's runtime bridge.
+    from('src/haier_lsap/java') { spec ->
+        spec.include 'com/smart/android/ad_app/HaierAarUaPayloadNormalizer.kt'
+        spec.filter { line ->
+            line.replace('HaierAarRuntimeBridge.currentEffectiveUa()',
+                    'Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()')
+                .replace('HaierAarRuntimeBridge.', 'Hq008XhsxAarRuntimeBridge.')
+        }
+    }
+    into layout.buildDirectory.dir('generated/googleImaTclBusiness/java')
+}
+tasks.matching { task -> imaTclFlavors.any { flavorName ->
+    task.name == "pre${flavorName.capitalize()}DebugBuild" || task.name == "pre${flavorName.capitalize()}ReleaseBuild"
+} }.configureEach {
+    dependsOn businessSources
+}
+imaTclFlavors.each { flavorName ->
+androidComponents.onVariants(androidComponents.selector().withFlavor('ad', flavorName)) { variant ->
+    variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
+            com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleImaUrlVisitorFactory,
+            com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclTrackingVisitorFactory,
+            com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclFillVisitorFactory,
+            com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    variant.instrumentation.setAsmFramesComputationMode(
+            com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+}
+}

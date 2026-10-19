@@ -457,3 +457,10 @@ https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&de
 7. `enabled=false` 时客户端不播放广告。
 8. 多国家、多客户、多广告位命中规则符合预期。
 9. 日志能通过 `request_id` 和 `config_version` 串起来。
+
+
+## IMA → TCL 渠道补充：参数调整开关（2026-10-19 更新）
+
+以下四个渠道的客户端支持 `data.ima_tcl_url_patch`：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。后台协议使用整数 `0/1`，缺失默认 `0`；同时兼容字符串和布尔表示。`0` 保留 IMA 原始 URL，`1` 执行先前 TCL 参数适配；两个分支在交给 TCL 之前均统一执行现有公共 URL 参数修正。本字段不是规则列表。
+
+完整响应示例、兼容范围、执行顺序及后台接入说明见 [IMA → TCL 开关协议](/Users/zy/Documents/Codex/ad-app/docs/google_ima_tcl_url_patch_api.md)。其他未接入本套 IMA → TCL 实现的 Google 渠道不读取这个字段。

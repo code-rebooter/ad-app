@@ -22,6 +22,7 @@ internal object Hq008ConsentLogReporter {
     private const val AD_FLOW_SUMMARY_EVENT = "AD_FLOW_SUMMARY"
     private val criticalAdLogEvents = setOf(
         "AD_GDPR_CONSENT_ATTACHED",
+        "AD_SDK_REQUEST",
         "AD_SDK_HTTP_CAPTURE",
         "AD_SDK_DIAGNOSTIC",
         "USER_ACTION_START",
@@ -35,6 +36,7 @@ internal object Hq008ConsentLogReporter {
         maxTraceSteps = MAX_TRACE_STEPS
     )
     private val debugTraceListeners = linkedSetOf<DebugTraceListener>()
+    @Volatile internal var debugUploadObserver: ((String, Map<String, Any>, String?) -> Unit)? = null
 
     fun addDebugTraceListener(listener: DebugTraceListener) {
         synchronized(lock) {
@@ -124,20 +126,23 @@ internal object Hq008ConsentLogReporter {
             TAG,
             "consent-log-report 开始上报 finalEventType=${payload.eventType} adLogLength=${payload.adLog.length}"
         )
+        val params = linkedMapOf<String, Any>(
+            "channel_id" to AdChannelResolver.currentChannel(),
+            "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
+            "ad_version" to BuildConfig.VERSION_CODE,
+            "event_type" to payload.eventType,
+            "event_message" to payload.eventMessage,
+            "ad_log" to payload.adLog
+        )
+        if (BuildConfig.DEBUG) debugUploadObserver?.invoke("request", params.toMap(), null)
         NetworkHelper.makeRequest<EmptyData>(
             url = consentLogUrl,
             method = RequestMethod.POST,
-            params = linkedMapOf(
-                "channel_id" to AdChannelResolver.currentChannel(),
-                "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
-                "ad_version" to BuildConfig.VERSION_CODE,
-                "event_type" to payload.eventType,
-                "event_message" to payload.eventMessage,
-                "ad_log" to payload.adLog
-            ),
+            params = params,
             isEncryted = false,
             useDomainSwitch = false,
         ) { _, error ->
+            if (BuildConfig.DEBUG) debugUploadObserver?.invoke("result", params.toMap(), error?.message)
             if (error != null) {
                 Log.w(TAG, "consent-log-report failed finalEventType=${payload.eventType} error=${error.message}")
             } else {

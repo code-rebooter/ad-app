@@ -15,6 +15,7 @@ internal object Hq008AdReporter {
     private val REPORT_URL = "${Hq008ApiConfig.FIXED_BASE_URL}api/v2/ad/report"
     private const val TAG = "Hq008AdReporter"
     private val gson = Gson()
+    @Volatile internal var debugReportObserver: ((String, Map<String, Any>, String?) -> Unit)? = null
 
     object EventType {
         const val AD_PROGRESS = "AD_PROGRESS"
@@ -24,6 +25,7 @@ internal object Hq008AdReporter {
 
     object Message {
         const val REQUESTED = "REQUESTED"
+        const val FILLED = "FILLED"
         const val LOADED = "LOADED"
         const val STARTED = "STARTED"
         const val COMPLETED = "COMPLETED"
@@ -59,6 +61,20 @@ internal object Hq008AdReporter {
                     "containerHeight" to containerHeight
                 ) + extra
             )
+        )
+    }
+
+    fun reportFilled(
+        requestId: String,
+        adId: String?,
+        hiddenMode: Boolean,
+        extra: Map<String, Any?> = emptyMap()
+    ) {
+        report(
+            requestId = requestId,
+            eventType = EventType.AD_PROGRESS,
+            message = Message.FILLED,
+            diagnosticInfo = buildDiagnosticInfo(adId, hiddenMode, extra)
         )
     }
 
@@ -152,6 +168,7 @@ internal object Hq008AdReporter {
 
         resolveLocalIp()?.let { params["local_ip"] = it }
         val requestJson = gson.toJson(params)
+        if (BuildConfig.DEBUG) debugReportObserver?.invoke("request", params.toMap(), null)
 
         Log.i(
             TAG,
@@ -169,6 +186,7 @@ internal object Hq008AdReporter {
             isEncryted = false,
             useDomainSwitch = false,
         ) { _, error ->
+            if (BuildConfig.DEBUG) debugReportObserver?.invoke("result", params.toMap(), error?.message)
             if (error != null) {
                 Log.e(TAG, "上报链路：上报失败，requestId=$requestId，eventType=$eventType，message=$message，error=${error.message}", error)
             } else {

@@ -87,30 +87,12 @@ android {
             java.srcDirs = ['src/main/java']
         }
 
-        hq001 {
-            java.srcDirs = ['src/hq001/java', 'src/tclShared/java']
-        }
 
-        hq002 {
-            java.srcDirs = ['src/hq002/java']
-        }
 
-        hq003 {
-            java.srcDirs = ['src/hq003/java']
-        }
-        hq004 {
-            java.srcDirs = ['src/hq004/java']
-        }
-        hq005 {
-            java.srcDirs = ['src/hq005/java']
-        }
-        hq006 {
-            java.srcDirs = ['src/hq006/java']
-        }
 
-        hq007 {
-            java.srcDirs = ['src/hq007/java', 'src/tclShared/java']
-        }
+
+
+
 
         hq008 {
             java.srcDirs = ['src/hq008/java']
@@ -391,19 +373,7 @@ android {
 
     signingConfigs {
 
-        hikeen {
-            storeFile file("HikeenKeystore.jks")
-            storePassword '123456'
-            keyAlias 'zeasn'
-            keyPassword '123456'
-        }
 
-        h713 {
-            storeFile file("h713.jks")
-            storePassword "123456"
-            keyAlias "h713"
-            keyPassword "123456"
-        }
 
         x88 {
             storeFile file("platform_x88.keystore")
@@ -412,13 +382,6 @@ android {
             keyPassword "platform"
         }
 
-        yxt {
-            storeFile file("yxt_X98K_10.keystore")
-            //storeFile file("platform_X98K_301.keystore")
-            storePassword "android"
-            keyAlias "platform"
-            keyPassword "android"
-        }
 
         chihi_21002 {
             storeFile file("chiptripLauncher.jks")
@@ -645,78 +608,12 @@ android {
             flavor.buildConfigField "String", "UNIFIED_AD_SDK_NAME", "\"${merged.lsapSdkName}\""
         }
 
-        hq001 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId  : "com.hqota.launcher.hq",
-                    adFlowBaseUrl  : "https://api.kytira.cc/",
-                    signingConfig  : signingConfigs.hikeen
-            ])
-        }
 
-        hq002 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId         : "com.hqota.launcher.slfhq",
-                    adFlowBaseUrl         : "https://api.kytira.cc/",
-                    signingConfig         : signingConfigs.h713,
-                    handlerInitialDelayMs : 2500L,
-                    handlerScheduleSeconds: 20L
-            ])
-        }
 
-        hq003 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId         : "com.hqota.launcher.liuhq",
-                    adFlowBaseUrl         : "https://api.kytira.cc/",
-                    signingConfig         : signingConfigs.hikeen,
-                    handlerInitialDelayMs : 4500L,
-                    handlerScheduleSeconds: 60L
-            ])
-        }
 
-        hq004 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId  : "com.hqota.launcher.aduhq",
-                    adFlowBaseUrl  : "https://api.kytira.cc/",
-                    signingConfig  : signingConfigs.h713
-            ])
-        }
 
-        hq005 {
-            //这个yxt签名文件跟com.chihim.launcher.x98m是对应的，不能随意该任何一个，不然无法展示广告
-            applyCommonFlavorConfig(delegate, [
-                    applicationId  : "com.chihim.launcher.x98m",
-                    adFlowBaseUrl  : "https://api.kytira.cc/",
-                    signingConfig  : signingConfigs.yxt
-            ])
-        }
 
-        hq006 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId         : "com.google.android.dyrtb",
-                    adFlowBaseUrl         : "https://api.kytira.cc/",
-                    versionCode           : 3,
-                    versionName           : "1.0.3",
-                    signingConfig         : signingConfigs.h713,
-                    baseUrl               : "https://api.kytira.cc/",
-                    channel               : "AD_RT",
-                    cType                 : "AD_RT",
-                    model                 : "AD_RT",
-                    backupDomain          : "https://api.kytira.cc/",
-                    handlerScheduleSeconds: 300L
-            ])
-        }
 
-        hq007 {
-            applyCommonFlavorConfig(delegate, [
-                    applicationId: "com.yt.launcher.ad",
-                    adFlowBaseUrl: "https://api.kytira.cc/",
-                    minSdk       : 23,
-                    signingConfig: signingConfigs.h713,
-                    channel      : "HQTV_yt",
-                    cType        : "HQTV_yt",
-                    model        : "HQTV_yt"
-            ])
-        }
 
         hq008 {
             applyCommonFlavorConfig(delegate, [
@@ -1546,46 +1443,6 @@ dependencies {
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
     implementation files('libs/lib_autorun-release-202608191720.aar')
 
-    //noinspection UseTomlInstead
-    hq001Implementation ('com.google.guava:guava:33.5.0-android')
-    //noinspection UseTomlInstead
-    hq007Implementation ('com.google.guava:guava:33.5.0-android')
-    hq007Implementation fileTree(dir: 'libs/hq001', include: ['*.jar', '*.aar'])
-    //hq001Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    //hq001Implementation 'com.google.code.gson:gson:2.12.1'
-
-    //noinspection UseTomlInstead
-    hq003Implementation 'com.squareup.retrofit2:adapter-rxjava2:3.0.0'
-    //noinspection UseTomlInstead
-    hq003Implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
-    //noinspection UseTomlInstead
-    hq003Implementation 'androidx.media3:media3-exoplayer:1.8.0'
-    //noinspection UseTomlInstead
-    hq003Implementation 'androidx.media3:media3-ui:1.8.0'
-    //noinspection UseTomlInstead
-    hq003Implementation 'androidx.media3:media3-exoplayer-ima:1.8.0'
-    //noinspection UseTomlInstead
-    hq003Implementation "io.reactivex.rxjava2:rxjava:2.2.21"
-    //noinspection UseTomlInstead
-    hq003Implementation "io.reactivex.rxjava2:rxandroid:2.1.1"
-
-    //hq004Implementation 'com.google.code.gson:gson:2.12.1'
-    //hq004Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    //noinspection UseTomlInstead
-    hq004Implementation 'androidx.media3:media3-exoplayer:1.8.0'
-
-    //noinspection UseTomlInstead
-    hq005Implementation ('com.google.guava:guava:33.5.0-android')
-    //hq005Implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    //hq005Implementation 'com.google.code.gson:gson:2.12.1'
-
-    //noinspection UseTomlInstead
-    hq006Implementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    hq006Implementation "androidx.media3:media3-exoplayer:1.8.0"
-    // The library adds the IMA ExoPlayer integration for ads.
-    //noinspection UseTomlInstead
-    hq006Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
     google_ad_tv_desktop_tcl_testImplementation project(':ad-sdk-tcl')
     google_ad_tv_desktop_tcl_testImplementation 'androidx.leanback:leanback:1.0.0'
     google_ad_tv_desktop_tcl_testImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'

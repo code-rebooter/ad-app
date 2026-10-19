@@ -36,7 +36,7 @@
 # google_ad_tv_desktop 需要反射 UMP 4.0.0 内部 ConsentForm/WebView/Dialog。
 -keep class com.google.android.gms.internal.consent_sdk.** { *; }
 
-#Tcl.aar的混淆配置，mofeng_ad.aar也是这个混淆配置
+# TCL 广告引擎共用混淆规则
 -keep class com.tcl.ff.component.vastad.**{*;}
 #xstream
 -keep class com.thoughtworks.xstream.**{*;}
@@ -123,15 +123,11 @@
 -keep class com.itv.component.unified.** { *; }
 
 
-#Sad1.0.9的混淆
--keep class com.seraphic.ad.** { *; }
--keep interface com.seraphic.ad.** { *; }
--keepclassmembers class com.seraphic.ad.** { *; }
 
 
 
-#zyvideo_ad.aar的混淆配置
-#okhttp
+# 共用网络与反射规则
+# okhttp
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class com.squareup.okhttp.** { *; }
@@ -164,9 +160,6 @@
 -dontwarn jcifs.smb.SmbFileInputStream
 -dontwarn org.apache.commons.net.ftp.FTPClient
 -dontwarn org.apache.commons.net.ftp.FTPFile
-#Rxjava + Retrofit
--keep class io.reactivex.** { *; }
--keep class retrofit2.** { *; }
 -keepattributes Signature
 -keepattributes Exceptions
 
@@ -189,24 +182,8 @@
 -dontwarn com.jcraft.jzlib.Inflater
 -dontwarn com.jcraft.jzlib.JZlib$WrapperType
 -dontwarn com.jcraft.jzlib.JZlib
--dontwarn io.reactivex.Observable
--dontwarn io.reactivex.Observer
--dontwarn io.reactivex.Scheduler
--dontwarn io.reactivex.android.schedulers.AndroidSchedulers
--dontwarn io.reactivex.disposables.Disposable
--dontwarn io.reactivex.schedulers.Schedulers
 -dontwarn org.jboss.marshalling.Marshaller
 -dontwarn org.jboss.marshalling.Unmarshaller
--dontwarn retrofit2.CallAdapter$Factory
--dontwarn retrofit2.Converter$Factory
--dontwarn retrofit2.Retrofit$Builder
--dontwarn retrofit2.Retrofit
--dontwarn retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
--dontwarn retrofit2.converter.gson.GsonConverterFactory
--dontwarn retrofit2.http.Field
--dontwarn retrofit2.http.FormUrlEncoded
--dontwarn retrofit2.http.Headers
--dontwarn retrofit2.http.POST
 -dontwarn com.bea.xml.stream.MXParserFactory
 -dontwarn com.bea.xml.stream.XMLOutputFactoryBase
 -dontwarn com.ctc.wstx.stax.WstxInputFactory
@@ -287,7 +264,6 @@
 -keep class com.speed.bean.** { *; }
 -keep class com.speed.ad.bean.** { *; }
 -keep class com.speed.net.ApiResponse { *; }
--keep class com.smart.android.ad_app.sdk.AdData { *; }
 # Keep hq008 authorize response fields stable for Gson reflection in release builds.
 -keepclassmembers class com.smart.android.ad_app.Hq008AuthorizeResponseData {
     <fields>;

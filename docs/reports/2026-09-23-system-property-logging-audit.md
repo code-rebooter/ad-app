@@ -34,8 +34,7 @@
 1. `lib_autorun-release-202608191720.aar` 包含原生 `libpluginloader.so`，存在 `__android_log_print` 调用。Java 字节码转换不能控制该调用。邻近 SdkKit 工程有相关 C 源码，但本次未替换当前依赖的原生二进制。
 2. 运行时下载或动态加载的插件未经过当前 APK 构建流程，需要在插件各自构建流程应用相同规则。
 3. Android 系统、其他进程、WebView/播放器原生实现的日志不属于应用 Java/Kotlin 打印出口。
-4. hq002/hq004 等旧 flavor 的附加构建检查遇到公共源码依赖缺失，例如 Hq008CmpManager、Hq008ConsentLogReporter 和广告配置字段；不能声明所有历史 flavor 都完成构建验证。
-5. AAR 验证覆盖其中实际包含的类和内嵌 JAR。外部 App 单独集成 AAR 时，其宿主代码及额外解析的 Maven 依赖不会自动经过本项目的 APK 日志处理，需要宿主构建接入同样规则。
+4. AAR 验证覆盖其中实际包含的类和内嵌 JAR。外部 App 单独集成 AAR 时，其宿主代码及额外解析的 Maven 依赖不会自动经过本项目的 APK 日志处理，需要宿主构建接入同样规则。
 
 因此，本次验证的是仓库源码与上述成功构建产物的 Java/Kotlin 日志控制，不能称所有运行环境日志已被彻底控制。
 

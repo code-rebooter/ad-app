@@ -73,7 +73,6 @@ private fun readSystemProperty(key: String): String? {
 - Modify: `app/src/hq008/java/com/smart/android/ad_app/Hq008CmpDecisionClient.kt`
 - Modify: `app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentLogReporter.kt`
 - Modify: `app/src/hq008/java/com/smart/android/ad_app/Hq008AdReporter.kt`
-- Modify: `app/src/hq006/java/com/smart/android/ad_app/sdk/AdManager.kt`
 - Modify: `app/src/tcl_poly/java/com/smart/android/ad_app/poly/PolyGammaTestEntryActivity.kt`
 - Modify: `app/src/haier_lsapDebug/java/com/smart/android/ad_app/haier/HaierLsapDebugEntryActivity.kt`
 
@@ -113,6 +112,6 @@ Expected: PASS
 
 - [ ] **Step 2: Search for remaining production call sites**
 
-Run: `rg -n "BuildConfig\\.CHANNEL" app/src/main app/src/hq008 app/src/hq006 app/src/tcl_poly app/src/haier_lsapDebug`
+Run: `rg -n "BuildConfig\\.CHANNEL" app/src/main app/src/hq008 app/src/tcl_poly app/src/haier_lsapDebug`
 
 Expected: only allowed display/test leftovers remain, no core request/report path still depends on direct `BuildConfig.CHANNEL`.

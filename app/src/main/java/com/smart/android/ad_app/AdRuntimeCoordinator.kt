@@ -38,10 +38,6 @@ object AdRuntimeCoordinator {
                     return@launch
                 }
 
-                if (BuildConfig.FLAVOR == "hq006") {
-                    WebViewProviderHook.ensureHooked()
-                }
-
                 Log.i(TAG, "正式链路：运行协调器进入主流程，flavor=${BuildConfig.FLAVOR}，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}")
                 ForegroundAppWatcher.start(appContext) { packageName ->
                     Log.i(TAG, "正式链路：监听到前台目标应用变化，packageName=$packageName，准备请求开屏广告")

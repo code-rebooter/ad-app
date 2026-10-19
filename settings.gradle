@@ -20,9 +20,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven { url 'https://jitpack.io' }
         flatDir {
-            dirs 'libs',
-                    'libs/hq001',
-                    'libs/hq002'
+            dirs 'libs'
         }
     }
 }

@@ -63,7 +63,6 @@
 - `Hq008ConsentLogReporter`
 - `Hq008LocalSchedulePolicy`
 - `Hq008FloatingFlowGuard`
-- `hq006` RTB 竞价请求
 - 调试展示页面中的渠道摘要
 
 ### 3. Logging

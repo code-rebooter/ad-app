@@ -19,9 +19,6 @@ This change covers the eight variants that already consume the patched IMA AAR:
 - `google_ad_tv_lockscreen`
 - `google_ad_tv_lockscreen_hq002`
 
-`hq006` and `hq003` remain outside this patch because they are separate product
-flows and are not configured to consume the generated Google IMA AAR today.
-
 The implementation will not modify the remote IMA Core JavaScript, rewrite the
 host-provided ad tag, log full advertising or tracking URLs, or force-disable
 the Google Play services GKS network backend.

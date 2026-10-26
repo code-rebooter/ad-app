@@ -20,7 +20,7 @@ class Hq008DynamicCallbackTimeoutContractTest {
         assertTrue(managerSource.contains("callbackTimeoutMs = callbackTimeoutMs"))
         assertTrue(managerSource.contains("val callbackTimeoutMs: Long"))
         assertTrue(managerSource.contains("\"callbackTimeoutMs\" to effectiveCallbackTimeoutMs"))
-        assertTrue(managerSource.contains("mainHandler.postDelayed(currentTimeoutRunnable!!, request.callbackTimeoutMs)"))
+        assertTrue(managerSource.contains("mainHandler.postDelayed(it, request.lifecycle.remainingMs(SystemClock.elapsedRealtime()))"))
     }
 
     @Test

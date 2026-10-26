@@ -7,7 +7,7 @@ import org.junit.Test
 class Hq008DiagnosticRetentionTest {
     @Test
     fun `large HTTP capture keeps the diagnostic summaries in the upload`() {
-        val session = Hq008ConsentTraceSession()
+        val session = Hq008ConsentTraceSession(requestIdFactory = { "test" })
         fun add(type: String, message: String = "", json: String? = null) =
             session.record(100L, type, message, message, json)
         add("CMP_GATE_START")

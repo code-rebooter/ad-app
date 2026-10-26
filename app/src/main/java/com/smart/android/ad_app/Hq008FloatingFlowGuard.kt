@@ -2,83 +2,65 @@ package com.smart.android.ad_app
 
 object Hq008FloatingFlowGuard {
     private const val DEFAULT_MAX_FLOW_DURATION_MS = 10 * 60 * 1_000L
+    private const val PLAYBACK_CLEANUP_MARGIN_MS = 5_000L
 
-    class Token internal constructor(
-        val channelId: String,
-        internal val id: Long
-    )
-
-    private data class ActiveFlow(
-        val token: Token,
-        val startedAtMs: Long,
-        val maxDurationMs: Long
-    ) {
-        fun isExpired(nowMs: Long): Boolean {
-            return nowMs - startedAtMs > maxDurationMs
-        }
+    class Token internal constructor(val channelId: String, internal val id: Long) {
+        @Volatile var requestId: String? = null
     }
 
+    data class Entry(val token: Token, val expiredToken: Token?)
+    private data class ActiveFlow(val token: Token, var deadlineMs: Long)
     private val lock = Any()
     private var activeFlow: ActiveFlow? = null
     private var nextTokenId = 1L
 
-    fun tryEnter(channelId: String = AdChannelResolver.currentChannel()): Token? {
-        return tryEnter(
-            channelId = channelId,
-            nowMs = System.currentTimeMillis(),
-            maxDurationMs = DEFAULT_MAX_FLOW_DURATION_MS
-        )
+    // Monotonic time also works in local JVM tests without Android framework calls.
+    private fun elapsedMs(): Long = System.nanoTime() / 1_000_000L
+
+    fun tryEnter(channelId: String = AdChannelResolver.currentChannel()): Token? =
+        tryEnterWithExpiry(channelId)?.token
+
+    fun tryEnterWithExpiry(channelId: String): Entry? =
+        tryEnterWithExpiry(channelId, elapsedMs())
+
+    internal fun tryEnter(channelId: String, nowMs: Long,
+        maxDurationMs: Long = DEFAULT_MAX_FLOW_DURATION_MS): Token? =
+        tryEnterWithExpiry(channelId, nowMs, maxDurationMs)?.token
+
+    internal fun tryEnterWithExpiry(channelId: String, nowMs: Long,
+        maxDurationMs: Long = DEFAULT_MAX_FLOW_DURATION_MS): Entry? = synchronized(lock) {
+        val previous = activeFlow
+        if (previous != null && nowMs <= previous.deadlineMs) return@synchronized null
+        val token = Token(channelId, nextTokenId++)
+        activeFlow = ActiveFlow(token, nowMs + maxDurationMs.coerceAtLeast(1L))
+        Entry(token, previous?.token)
     }
 
-    internal fun tryEnter(
-        channelId: String,
-        nowMs: Long,
-        maxDurationMs: Long = DEFAULT_MAX_FLOW_DURATION_MS
-    ): Token? {
-        synchronized(lock) {
-            val current = activeFlow
-            if (current != null && !current.isExpired(nowMs)) {
-                return null
-            }
+    fun extendForPlayback(token: Token, timeoutMs: Long) =
+        extendForPlayback(token, timeoutMs, elapsedMs())
 
-            val token = Token(
-                channelId = channelId,
-                id = nextTokenId++
-            )
-            activeFlow = ActiveFlow(
-                token = token,
-                startedAtMs = nowMs,
-                maxDurationMs = maxDurationMs.coerceAtLeast(1L)
-            )
-            return token
+    internal fun extendForPlayback(token: Token, timeoutMs: Long, nowMs: Long) {
+        synchronized(lock) {
+            activeFlow?.takeIf { it.token === token }?.let {
+                it.deadlineMs = maxOf(it.deadlineMs, nowMs + timeoutMs + PLAYBACK_CLEANUP_MARGIN_MS)
+            }
         }
     }
 
     fun finish(token: Token?, reason: String) {
-        if (token == null) return
         synchronized(lock) {
-            val current = activeFlow ?: return
-            if (current.token == token) {
-                activeFlow = null
-            }
+            if (activeFlow?.token === token) activeFlow = null
         }
     }
 
     @JvmStatic
-    fun isActive(token: Token?): Boolean {
-        if (token == null) return false
-        synchronized(lock) {
-            return activeFlow?.token == token
-        }
+    fun isActive(token: Token?): Boolean = synchronized(lock) {
+        token != null && activeFlow?.token === token
     }
 
     @JvmStatic
-    fun cancelActive(reason: String): Token? {
-        synchronized(lock) {
-            val cancelled = activeFlow?.token
-            activeFlow = null
-            return cancelled
-        }
+    fun cancelActive(reason: String): Token? = synchronized(lock) {
+        activeFlow?.token.also { activeFlow = null }
     }
 
     internal fun resetForTest() {

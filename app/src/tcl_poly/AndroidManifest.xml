@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.GET_TASKS" />
 
     <application
         android:name=".APP"
@@ -29,14 +28,6 @@
                 android:name="android.content.ContactDirectory"
                 android:value="true" />
         </provider>
-
-        <receiver
-            android:name=".DesktopStatusReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="io.permission.DESKTOP_STATUS" />
-            </intent-filter>
-        </receiver>
 
         <meta-data
             android:name="tcl_app_key"

@@ -268,8 +268,11 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         if (skipped) session.onComplete() else session.onError?.invoke()
     }
 
-    override fun destroyAd() {
-        val session = current ?: return
+    override fun destroyAd() = destroyAd(null)
+
+    override fun destroyAd(requestId: String?) = onMain {
+        val session = current ?: return@onMain
+        if (requestId != null && session.id != requestId) return@onMain
         if (session.active) trace(session, "AD_PHASE_CANCELLED", "reason=window_destroy")
         close(session)
     }

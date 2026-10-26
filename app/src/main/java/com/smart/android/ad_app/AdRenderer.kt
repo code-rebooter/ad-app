@@ -1,7 +1,6 @@
 package com.smart.android.ad_app
 
 import com.smart.android.ad_app.AdLocalLog as Log
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import com.smart.android.ad_app.bean.AdConfigDto
 import com.smart.android.ad_app.bean.Position
 
@@ -22,41 +21,6 @@ object AdRenderer {
         val position: Position,
         val isFocusable: Boolean
     )
-
-    fun showSplashAd(dto: AdConfigDto) {
-        val window = TvAdFloatingWindow(
-            context = appContext,
-            adId = dto.adId,
-            soundEnabled = dto.soundEnabled,
-            callbackTimeoutMs = dto.callbackTimeoutMs,
-            adChannelId = dto.adChannelId,
-            gamConfig = dto.gamConfig
-        )
-        val renderConfig = resolveRenderConfig(
-            defaultWidth = MATCH_PARENT,
-            defaultHeight = MATCH_PARENT,
-            defaultX = 0,
-            defaultY = 0,
-            defaultPosition = Position.CENTER,
-            defaultFocusable = true
-        )
-        window.configure {
-            width = renderConfig.width
-            height = renderConfig.height
-            x = renderConfig.x
-            y = renderConfig.y
-            position = renderConfig.position
-            isFocusable = renderConfig.isFocusable
-        }
-        Log.i(
-            TAG,
-            "广告展示链路：准备展示开屏广告，adId=${dto.adId}，hidden=${AdDisplayConfig.isHiddenMode()}，width=${renderConfig.width}，height=${renderConfig.height}，x=${renderConfig.x}，y=${renderConfig.y}，focusable=${renderConfig.isFocusable}"
-        )
-
-        if (window.hasOverlayPermission()) {
-            window.show()
-        }
-    }
 
     fun showFloatingAd(
         dto: AdConfigDto,

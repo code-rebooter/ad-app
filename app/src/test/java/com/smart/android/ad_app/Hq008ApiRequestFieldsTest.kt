@@ -1,6 +1,5 @@
-package com.smart.android.ad_app.google
+package com.smart.android.ad_app
 
-import com.smart.android.ad_app.Hq008ApiRequestFields
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -20,15 +19,32 @@ class Hq008ApiRequestFieldsTest {
         }
     }
 
-    @Test fun `unavailable android ID is sent as an empty string`() {
-        assertEquals("", Hq008ApiRequestFields.fields("google_ad_tv_desktop_v260904_1", "v") { null }["androidid"])
-        assertEquals("", Hq008ApiRequestFields.fields("google_ad_tv_desktop_v260904_1", "v") {
-            throw SecurityException("unavailable")
-        }["androidid"])
+    @Test fun `all TCL flavors send the host version and actual TCL SDK version`() {
+        for (flavor in listOf("hq008", "hq008XHSX", "tcl_aishang", "ad_ytx01",
+            "ad_ytx01_sxk", "ad_ytx01_jx", "ad_album_101_001", "hq008Noneu",
+            "hq008Noneuc2", "tcl_poly")) {
+            assertEquals(flavor, mapOf(
+                "androidid" to "actual-android-id",
+                "ad_version_name" to "1.0.4",
+                "sdk_version" to "2.8.02"
+            ), Hq008ApiRequestFields.fields(flavor, "1.0.4") { "actual-android-id" })
+        }
     }
 
-    @Test fun `other app flavors gain androidid without claiming the Google TCL SDK identity`() {
-        assertEquals(mapOf("androidid" to "actual-id"), Hq008ApiRequestFields.fields("haier_lsap", "v") { "actual-id" })
+    @Test fun `unavailable android ID is sent as an empty string`() {
+        for (flavor in listOf("google_ad_tv_desktop_v260904_1", "hq008XHSX")) {
+            assertEquals("", Hq008ApiRequestFields.fields(flavor, "v") { null }["androidid"])
+            assertEquals("", Hq008ApiRequestFields.fields(flavor, "v") {
+                throw SecurityException("unavailable")
+            }["androidid"])
+        }
+    }
+
+    @Test fun `LSAP and unrelated flavors do not claim the TCL SDK version`() {
+        for (flavor in listOf("haier_lsap", "addy_hq1002", "addy_jams", "unrelated")) {
+            assertEquals(flavor, mapOf("androidid" to "actual-id"),
+                Hq008ApiRequestFields.fields(flavor, "v") { "actual-id" })
+        }
     }
 
     @Test fun `existing local UID is reused without replacing or saving it`() {

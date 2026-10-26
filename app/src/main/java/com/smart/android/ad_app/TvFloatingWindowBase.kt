@@ -138,8 +138,10 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
      */
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
-        if (isShowing || !hasOverlayPermission()) {
-            "W: Cannot show: already showing or no overlay permission".adDebugPrintLog()
+        if (isShowing) return
+        if (!hasOverlayPermission()) {
+            "W: Cannot show: no overlay permission".adDebugPrintLog()
+            onPermissionDenied()
             return
         }
 

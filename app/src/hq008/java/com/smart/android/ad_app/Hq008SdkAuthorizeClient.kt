@@ -26,9 +26,11 @@ internal object Hq008SdkAuthorizeClient {
     fun request(
         context: Context,
         channelId: String,
+        requestId: String = Hq008ConsentLogReporter.activeRequestId().ifBlank { generateRequestId() },
         onResult: (dto: Hq008AuthorizeResponseData?, error: String?) -> Unit
     ) {
-        val requestId = Hq008ConsentLogReporter.activeRequestId().ifBlank { generateRequestId() }
+        // URL-only diagnostics also call authorize without opening an ad flow trace.
+        val hasFlowOwner = Hq008ConsentLogReporter.isActiveRequest(requestId)
         Hq008ConsentLogReporter.report(
             eventType = "AUTHORIZE_START",
             eventMessage = "requestId=$requestId"
@@ -48,6 +50,7 @@ internal object Hq008SdkAuthorizeClient {
             isEncryted = false,
             useDomainSwitch = false,
         ) { response, error ->
+            if (hasFlowOwner && !Hq008ConsentLogReporter.isActiveRequest(requestId)) return@makeRequest
             if (error != null) {
                 Log.e(TAG, "authorize failed request_id=$requestId error=${error.message}", error)
                 Hq008ConsentLogReporter.report(

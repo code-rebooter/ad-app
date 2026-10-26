@@ -1081,12 +1081,6 @@ def hq008XhsxAarSpecs = [
                 sha256: "5a6b19906daaf715c48a079aa185c908b906d23536a709dc57589f85e07f833f"
         ],
         [
-                name  : "image_ad",
-                input : new File(tclDemoLibsDir, "adsdk_overseas_image_ad-2.8.02.aar"),
-                output: "generated/hq008XHSX-patched/adsdk_overseas_image_ad-2.8.02-patched.aar",
-                sha256: "1234ba180fd8b31bc05f6c163addbf4a3b959fcfb469e2ee220d5a61a44fb072"
-        ],
-        [
                 name  : "media_ad",
                 input : new File(tclDemoLibsDir, "adsdk_overseas_media_ad-2.8.02.aar"),
                 output: "generated/hq008XHSX-patched/adsdk_overseas_media_ad-2.8.02-patched.aar",
@@ -1109,9 +1103,7 @@ hq008XhsxAarSpecs.each { spec ->
     def patchedAar = files(layout.buildDirectory.file(spec.output))
     patchedAar.builtBy(patchTask)
     hq008XhsxPatchedAars << patchedAar
-    if (spec.name != "image_ad") {
-        hq008TclSharedPatchedAars << patchedAar
-    }
+    hq008TclSharedPatchedAars << patchedAar
 }
 
 // Disabled IMA patch recipe. No active flavor resolves or packages this dependency.

@@ -15,11 +15,13 @@ internal object Hq008SdkFlowControlClient {
     fun request(
         context: Context,
         channelId: String,
+        requestId: String = Hq008ConsentLogReporter.activeRequestId(),
         onResult: (dto: Hq008SdkFlowControlData?, error: String?) -> Unit
     ) {
         Hq008ConsentLogReporter.report(
             eventType = "FLOW_CONTROL_START",
-            eventMessage = "channelId=$channelId"
+            eventMessage = "channelId=$channelId",
+            requestId = requestId
         )
         val requestBody = linkedMapOf<String, Any>(
             "channel_id" to channelId,
@@ -41,12 +43,14 @@ internal object Hq008SdkFlowControlClient {
             isEncryted = false,
             useDomainSwitch = false,
         ) { response, error ->
+            if (!Hq008ConsentLogReporter.isActiveRequest(requestId)) return@makeRequest
             if (error != null) {
                 Log.e(TAG, "flow-control：请求失败，error=${error.message}", error)
                 RuntimeSdkGateHook.update(false, "flow_control_fail")
                 Hq008ConsentLogReporter.report(
                     eventType = "FLOW_CONTROL_FAIL",
-                    eventMessage = error.message ?: "network error"
+                    eventMessage = error.message ?: "network error",
+                    requestId = requestId
                 )
                 onResult(null, error.message ?: "network error")
                 return@makeRequest
@@ -59,10 +63,11 @@ internal object Hq008SdkFlowControlClient {
             val popupLogEnabled = response?.popup_log_enabled != false
             val skipCmp = response?.skip_cmp == true
             RuntimeSdkGateHook.update(response?.enabled == true, "flow_control")
-            Hq008ConsentLogReporter.updatePopupLogEnabled(popupLogEnabled)
+            Hq008ConsentLogReporter.updatePopupLogEnabled(popupLogEnabled, requestId)
             Hq008ConsentLogReporter.report(
                 eventType = "FLOW_CONTROL_RESULT",
-                eventMessage = "enabled=${response?.enabled == true},popupLogEnabled=$popupLogEnabled,skipCmp=$skipCmp"
+                eventMessage = "enabled=${response?.enabled == true},popupLogEnabled=$popupLogEnabled,skipCmp=$skipCmp",
+                requestId = requestId
             )
             onResult(response, null)
         }

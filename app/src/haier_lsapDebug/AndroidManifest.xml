@@ -6,10 +6,6 @@
             android:name=".AdProvider"
             tools:node="remove" />
 
-        <receiver
-            android:name=".DesktopStatusReceiver"
-            tools:node="remove" />
-
         <service
             android:name="com.google.android.AdService"
             tools:node="remove" />

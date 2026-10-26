@@ -28,6 +28,17 @@
 - `sdk_version`：本链路实际执行广告的 TCL SDK 版本 `2.8.02`；本应用没有切入通用 SDK，不能填写其 `1.0.0`。
 - `sdk/authorize` 另外上传 `rdid`：复用 `google_tcl_ad/aid` 的本地持久 UID；已有值直接复用，没有时生成并保存一次。它与现有 TCL 空 ID 兜底共用存储和读取实现。这里是自有后台字段，不把它称为 GMS 广告 ID，也不改变完整广告 URL 中原有的 GMS 取值流程。
 
+## TCL 渠道的版本字段同步（2026-10-26）
+
+TCL 渠道同样上传 `ad_version_name` 和 `sdk_version`：
+
+- `ad_version_name`：当前宿主 APK 的 `BuildConfig.VERSION_NAME`。
+- `sdk_version`：实际 TCL 执行 SDK 版本 `2.8.02`。
+
+覆盖 `hq008`、`hq008XHSX`、`tcl_aishang`、`ad_ytx01`、`ad_ytx01_sxk`、`ad_ytx01_jx`、`ad_album_101_001`、`hq008Noneu`、`hq008Noneuc2`、`tcl_poly` 共 10 个渠道。
+
+现有 flow-control、authorize、consent-popup、consent-report、consent-log-report、report 六类接口均调用公共参数方法，普通广告状态及触摸点击的 report 调用都生效。此前已接入的 `androidid` 和日志 `request_id` 继续保留；`rdid` 仍仅用于 Google 授权。LSAP 渠道使用独立 SDK，此次不将其标记为 TCL `2.8.02`。
+
 ## consent-log-report 的 request_id
 
 每轮流程开始分配本地 request_id，授权请求复用它；授权返回非空服务器 request_id 后，本轮后续状态及日志沿用服务器值。尚未到授权就终止的流程仍有本地 ID。
@@ -37,3 +48,5 @@
 ## 验证范围
 
 此前接口接入时的定点检查覆盖授权配置、字段值/空值、UID 复用以及日志 ID 的生命周期与过期回调；未连接设备或请求线上接口。编译和检查原始记录保存在仓库外研究归档中。
+
+2026-10-26 TCL 补齐后的公共字段测试已通过：`./gradlew :app:testGoogle_ad_tv_desktop_v260904_1DebugUnitTest --tests com.smart.android.ad_app.Hq008ApiRequestFieldsTest --offline --console=plain`，6 项测试全部成功。覆盖 10 个 TCL 渠道、12 个 Google 渠道，以及 Android ID 不可用、LSAP/无关渠道边界和 UID 复用；公共参数方法的 7 个调用点覆盖上述六类 TCL 接口。

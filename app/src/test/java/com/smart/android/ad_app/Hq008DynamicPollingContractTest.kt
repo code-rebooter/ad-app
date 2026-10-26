@@ -29,7 +29,7 @@ class Hq008DynamicPollingContractTest {
 
         assertTrue(flowGuardSource.contains("fun tryEnter"))
         assertTrue(flowGuardSource.contains("fun finish"))
-        assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.tryEnter(channel.value)"))
+        assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.tryEnterWithExpiry(channel.value)"))
         assertTrue(adConfigManagerSource.contains("requestHq008Authorize(flowToken)"))
         assertTrue(adConfigManagerSource.contains("Hq008FloatingFlowGuard.finish(flowToken"))
         assertTrue(rendererSource.contains("onFloatingFlowFinished"))

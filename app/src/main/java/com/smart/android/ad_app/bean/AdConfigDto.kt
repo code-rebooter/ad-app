@@ -44,26 +44,3 @@ enum class Position(val backendValue: Int) {
         }
     }
 }
-
-
-/*
-*
-*
-* {
-  "adId": "default_splash_ad",
-  "adType": 0,
-  "contentType": 0,
-  "displayDuration": 10000,
-  "imageUrl": "https://xfile.f3tcp.cc/imgs/default_splash.webp",
-  "isClosable": 1,
-  "position": 0,
-  "videoUrl": "https://xfile.f3tcp.cc/imgs/default_video.mp4",
-  "adUrl": "https://www.baidu.com",
-  "isCountdownVisible": true,
-  "floatingWidth": 400,
-  "floatingHeight": 240,
-  "floatingX": 0,
-  "floatingY": 0
-}
-*
-* */

@@ -24,12 +24,14 @@ internal object Hq008AdSdkDebugCapture {
 
     private object AdSdkHttpCaptureInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
+            val flowRequestId = Hq008ConsentLogReporter.activeRequestId()
             val request = chain.request()
             val requestUrl = request.url.toString()
             val requestBody = readRequestBodySafely(request)
             return try {
                 val response = chain.proceed(request)
                 captureIfNeeded(
+                    flowRequestId = flowRequestId,
                     requestUrl = requestUrl,
                     requestBody = requestBody,
                     responseBody = response.peekBody(MAX_HTTP_CAPTURE_BYTES).string(),
@@ -38,6 +40,7 @@ internal object Hq008AdSdkDebugCapture {
                 response
             } catch (error: Throwable) {
                 captureIfNeeded(
+                    flowRequestId = flowRequestId,
                     requestUrl = requestUrl,
                     requestBody = requestBody,
                     responseBody = null,
@@ -130,12 +133,13 @@ internal object Hq008AdSdkDebugCapture {
     }
 
     private fun captureIfNeeded(
+        flowRequestId: String,
         requestUrl: String,
         requestBody: String?,
         responseBody: String?,
         failureMessage: String?
     ) {
-        if (!Hq008ConsentLogReporter.hasActiveFlow()) {
+        if (!Hq008ConsentLogReporter.isActiveRequest(flowRequestId)) {
             return
         }
         val payload = parseAdSdkPayload(requestBody) ?: return
@@ -148,6 +152,7 @@ internal object Hq008AdSdkDebugCapture {
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_SDK_HTTP_CAPTURE",
+            requestId = flowRequestId,
             eventMessage = buildString {
                 append("requestUrl=$requestUrl")
                 append(",gdprConsentPresent=${!gdprConsent.isNullOrBlank()}")

@@ -30,7 +30,7 @@ class Hq008FlowLoggingContractTest {
         assertTrue(adConfigManagerSource.contains("AD_FLOW hq008 authorize callback"))
         assertTrue(adConfigManagerSource.contains("AD_FLOW hq008 dispatch floating ad"))
         assertTrue(adConfigManagerSource.contains("eventType = \"AD_PHASE_START\""))
-        assertTrue(adConfigManagerSource.contains("Hq008ConsentLogReporter.finishActiveFlow(reason)"))
+        assertTrue(adConfigManagerSource.contains("Hq008ConsentLogReporter.finishActiveFlow(reason, flowToken.requestId)"))
 
         assertTrue(authorizeClientSource.contains("eventType = \"AUTHORIZE_START\""))
         assertTrue(authorizeClientSource.contains("eventType = \"AUTHORIZE_RESULT\""))
@@ -51,7 +51,7 @@ class Hq008FlowLoggingContractTest {
         assertTrue(adManagerSource.contains("eventType = \"AD_PHASE_TIMEOUT\""))
         assertTrue(adManagerSource.contains("request.callbackTimeoutMs"))
         assertTrue(adManagerSource.contains("AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
-        assertTrue(adManagerSource.contains("mainHandler.postDelayed(currentTimeoutRunnable!!, request.callbackTimeoutMs)"))
+        assertTrue(adManagerSource.contains("mainHandler.postDelayed(it, request.lifecycle.remainingMs(SystemClock.elapsedRealtime()))"))
         assertTrue(adManagerSource.contains(".setGdprConsent(consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsent\", consent)"))
         assertTrue(adManagerSource.contains("put(\"gdprConsentLength\", consent.length)"))

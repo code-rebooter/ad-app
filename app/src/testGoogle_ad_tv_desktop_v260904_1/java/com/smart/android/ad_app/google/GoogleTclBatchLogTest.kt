@@ -10,7 +10,8 @@ class GoogleTclBatchLogTest {
     @Test fun `full final URL waits in the existing batch until its only terminal upload`() {
         val session=Hq008ConsentTraceSession()
         val url="https://ads.example.com/ads?ms="+"abc%2Bdef".repeat(120)+"&uach=real%3D"
-        fun record(event: String, log: String?=null)=session.record(100L,event,"requestId=req-filled","test",log)
+        fun record(event: String, log: String?=null)=session.record(100L,event,
+            if (event == "CMP_GATE_START") "adType=FLOATING" else "requestId=req-filled","test",log)
         assertNull(record("CMP_GATE_START"))
         session.bindAuthorizationRequestId(session.activeRequestId(), "req-filled")
         assertNull(record("AD_PHASE_START"))

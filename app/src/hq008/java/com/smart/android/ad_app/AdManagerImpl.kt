@@ -58,12 +58,14 @@ object AdManagerImpl : IAdManager {
         )
     }
 
-    override fun destroyAd() {
+    override fun destroyAd() = destroyAd(null)
+
+    override fun destroyAd(requestId: String?) {
         if (BuildFlavor.isHaierLsap()) {
-            HaierLsapAdManagerBridge.destroyAd()
+            HaierLsapAdManagerBridge.destroyAd(requestId)
             return
         }
-        Hq008TclVideoAd.destroyAd()
+        Hq008TclVideoAd.destroyAd(requestId)
     }
 }
 
@@ -100,9 +102,19 @@ private object HaierLsapAdManagerBridge : IAdManager {
         )
     }
 
-    override fun destroyAd() {
-        delegate.destroyAd()
+    override fun destroyAd() = delegate.destroyAd()
+    override fun destroyAd(requestId: String?) = delegate.destroyAd(requestId)
+}
+
+/** The two public wrappers share one delegate in the pinned TCL 2.8.02 SDK. */
+internal object Hq008TclControllerIdentity {
+    private val delegateField by lazy {
+        Controller::class.java.declaredFields.single {
+            it.type.name.startsWith("com.tcl.ff.component.vastad.core.d.")
+        }.apply { isAccessible = true }
     }
+
+    fun of(controller: Controller): Any = delegateField.get(controller) ?: controller
 }
 
 private object Hq008TclVideoAd {
@@ -110,7 +122,6 @@ private object Hq008TclVideoAd {
     private const val SDK_APP_CATEGORY = "app"
     private const val SDK_CONTENT_TITLE = "App Content"
 
-    private val initLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
@@ -120,14 +131,13 @@ private object Hq008TclVideoAd {
     private var initRequested = false
 
     private var pendingRequest: PendingShowRequest? = null
-    private var currentController: Controller? = null
-    private var currentContainerRef: WeakReference<ViewGroup>? = null
     private var currentRequest: PendingShowRequest? = null
-    private var currentTimeoutRunnable: Runnable? = null
+    private val requestOwner = Hq008PlaybackRequestOwner()
+    private val controllers = Hq008PlaybackControllers<Controller>(Hq008TclControllerIdentity::of)
+    private var initAttempt = 0L
+    private var initTimeoutRunnable: Runnable? = null
 
-    fun init() {
-        ensureInitialized()
-    }
+    fun init() = onMain { ensureInitialized() }
 
     fun showAd(
         flRoot: ViewGroup,
@@ -138,64 +148,78 @@ private object Hq008TclVideoAd {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        val requestId = Hq008ReportRequestIdResolver.resolve(adId)
-        val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
-        // PLAY_FLOW showAd entry
-        Log.i(
-            TAG,
-            "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
-        )
-        Log.i(TAG, "播放链路：已进入 showAd，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}，容器尺寸=${flRoot.width}x${flRoot.height}")
-        Hq008AdReporter.reportRequested(
-            requestId = requestId,
-            adId = adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            containerWidth = flRoot.width,
-            containerHeight = flRoot.height,
-            extra = mapOf(
-                "requestCreatedAtMs" to SystemClock.elapsedRealtime(),
-                "callbackTimeoutMs" to effectiveCallbackTimeoutMs
+        val createdAtMs = SystemClock.elapsedRealtime()
+        onMain {
+            destroyAd()
+            val requestId = Hq008ReportRequestIdResolver.resolve(adId)
+            val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
+            // PLAY_FLOW showAd entry
+            Log.i(
+                TAG,
+                "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
             )
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_REQUESTED",
-            eventMessage = "requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=$effectiveCallbackTimeoutMs,containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
-        )
-        val request = PendingShowRequest(
-            requestId = requestId,
-            adId = adId,
-            soundEnabled = soundEnabled,
-            callbackTimeoutMs = effectiveCallbackTimeoutMs,
-            requestCreatedAtMs = SystemClock.elapsedRealtime(),
-            containerRef = WeakReference(flRoot),
-            adStart = adStart,
-            adError = adError,
-            adComplete = adComplete
-        )
+            Log.i(TAG, "播放链路：已进入 showAd，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}，容器尺寸=${flRoot.width}x${flRoot.height}")
+            Hq008AdReporter.reportRequested(
+                requestId = requestId,
+                adId = adId,
+                hiddenMode = AdDisplayConfig.isHiddenMode(),
+                containerWidth = flRoot.width,
+                containerHeight = flRoot.height,
+                extra = mapOf(
+                    "requestCreatedAtMs" to createdAtMs,
+                    "callbackTimeoutMs" to effectiveCallbackTimeoutMs
+                )
+            )
+            Hq008ConsentLogReporter.report(
+                eventType = "AD_REQUESTED",
+                eventMessage = "requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=$effectiveCallbackTimeoutMs,containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
+            )
+            val containerRef = WeakReference(flRoot)
+            val controllerLease = controllers.begin { controller ->
+                containerRef.get()?.let { container ->
+                    runCatching { controller.stop(container) }
+                        .onFailure { Log.w(TAG, "Stop TCL video ad failed.", it) }
+                }
+                runCatching { controller.release() }
+                    .onFailure { Log.w(TAG, "Release TCL video ad failed.", it) }
+            }
+            val request = PendingShowRequest(
+                requestId = requestId,
+                adId = adId,
+                soundEnabled = soundEnabled,
+                callbackTimeoutMs = effectiveCallbackTimeoutMs,
+                lifecycle = requestOwner.begin(createdAtMs, effectiveCallbackTimeoutMs),
+                containerRef = containerRef,
+                controllerLease = controllerLease,
+                adStart = adStart,
+                adError = adError,
+                adComplete = adComplete
+            )
 
-        if (!isInitialized()) {
-            Log.i(TAG, "播放链路：媒体广告 SDK 尚未初始化完成，先缓存本次广告请求，等待初始化结束后继续")
-            pendingRequest = request
-            ensureInitialized()
-            return
+            currentRequest = request
+            armTimeout(request)
+            if (!isInitialized()) {
+                Log.i(TAG, "播放链路：媒体广告 SDK 尚未初始化完成，先缓存本次广告请求，等待初始化结束后继续")
+                pendingRequest = request
+                ensureInitialized()
+                return@onMain
+            }
+
+            startAd(request)
         }
-
-        startAd(request)
     }
 
-    fun destroyAd() {
-        currentRequest
-            ?.takeUnless { it.isTerminal() }
-            ?.let { request ->
-                request.markTerminal()
-                Hq008ConsentLogReporter.report(
-                    eventType = "AD_PHASE_CANCELLED",
-                    eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=window_destroy,reason=window_hidden"
-                )
-            }
-        clearActiveRequestState()
-        pendingRequest = null
-        releaseCurrentController()
+    fun destroyAd(requestId: String? = null) = onMain {
+        val request = currentRequest ?: return@onMain
+        if (requestId != null && request.requestId != requestId) return@onMain
+        if (request.markTerminal()) {
+            Hq008ConsentLogReporter.report(
+                eventType = "AD_PHASE_CANCELLED",
+                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},stage=window_destroy,reason=window_hidden"
+            )
+        }
+        clearActiveRequestState(request)
+        releaseController(request)
     }
 
     private fun ensureInitialized() {
@@ -203,61 +227,66 @@ private object Hq008TclVideoAd {
             startPendingRequestIfNeeded()
             return
         }
-
-        synchronized(initLock) {
-            if (isInitialized()) {
-                startPendingRequestIfNeeded()
-                return
+        if (initRequested) return
+        initRequested = true
+        val attempt = ++initAttempt
+        initTimeoutRunnable = Runnable {
+            if (initAttempt != attempt || !initRequested) return@Runnable
+            resetInitializationAttempt()
+            pendingRequest?.let { request ->
+                if (request.lifecycle.remainingMs(SystemClock.elapsedRealtime()) == 0L) {
+                    timeoutRequest(request)
+                } else {
+                    // Retry initialization without extending this request's original deadline.
+                    ensureInitialized()
+                }
             }
-            if (initRequested) {
-                return
-            }
-            initRequested = true
-        }
-
+        }.also { mainHandler.postDelayed(it, AdPlaybackPolicy.CALLBACK_TIMEOUT_MS) }
         val switchConfig = AdReportSwitchConfig().apply {
             privacyAgreed = true
             uxpEnabled = true
             errorStatisticsEnabled = true
         }
-
         runCatching {
             Hq008AdSdkDebugCapture.ensureInstalled()
             Ad.get().setEnableLog(Hq008AdSdkDebugCapture.isSdkVerboseLogEnabled())
-            Initialization.init(
-                appContext,
-                switchConfig,
-                object : MediaAdInitListener {
-                    override fun onInitComplete() {
-                        synchronized(initLock) {
-                            initCompleted = true
-                            initRequested = false
-                        }
-                        Log.i(TAG, "播放链路：TCL 媒体广告 SDK 初始化完成，准备继续处理待播放广告")
-                        startPendingRequestIfNeeded()
-                    }
+            Initialization.init(appContext, switchConfig, object : MediaAdInitListener {
+                override fun onInitComplete() = onMain {
+                    if (attempt != initAttempt) return@onMain
+                    initCompleted = true
+                    resetInitializationAttempt()
+                    Log.i(TAG, "播放链路：TCL 媒体广告 SDK 初始化完成，准备继续处理待播放广告")
+                    startPendingRequestIfNeeded()
                 }
-            )
+            })
             Log.i(TAG, "播放链路：已发起 TCL 媒体广告 SDK 初始化请求")
         }.onFailure { error ->
-            synchronized(initLock) {
-                initCompleted = false
-                initRequested = false
-            }
-            val failedRequest = pendingRequest
-            if (failedRequest != null) {
-                failRequest(
-                    request = failedRequest,
-                    stage = "sdk_init",
-                    reporterMessage = Hq008AdReporter.Message.INIT_ERROR,
-                    reason = "sdk_init_failed",
-                    error = error
-                )
-            } else {
-                Log.e(TAG, "播放链路：TCL 媒体广告 SDK 初始化失败", error)
-            }
-            pendingRequest = null
+            if (attempt != initAttempt) return@onFailure
+            resetInitializationAttempt()
+            pendingRequest?.let { failRequest(it, "sdk_init", Hq008AdReporter.Message.INIT_ERROR, "sdk_init_failed", error) }
+            Log.e(TAG, "播放链路：TCL 媒体广告 SDK 初始化失败", error)
         }
+    }
+
+    private fun resetInitializationAttempt() {
+        initRequested = false
+        initAttempt++
+        initTimeoutRunnable?.let(mainHandler::removeCallbacks)
+        initTimeoutRunnable = null
+    }
+
+    private fun isActive(request: PendingShowRequest): Boolean =
+        currentRequest === request && requestOwner.isActive(request.lifecycle)
+
+    private fun canContinue(request: PendingShowRequest): Boolean {
+        if (!isActive(request)) return false
+        if (requestOwner.canContinue(request.lifecycle, SystemClock.elapsedRealtime())) return true
+        timeoutRequest(request)
+        return false
+    }
+
+    private fun onMain(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
     }
 
     private fun isInitialized(): Boolean {
@@ -271,6 +300,7 @@ private object Hq008TclVideoAd {
     }
 
     private fun startAd(request: PendingShowRequest) {
+        if (!canContinue(request)) return
         val container = request.containerRef.get()
         if (container == null) {
             failRequest(
@@ -282,8 +312,8 @@ private object Hq008TclVideoAd {
             return
         }
 
-        releaseCurrentController()
-        container.post {
+        mainHandler.post {
+            if (!canContinue(request)) return@post
             val safeContainer = request.containerRef.get()
             if (safeContainer == null) {
                 failRequest(
@@ -315,7 +345,7 @@ private object Hq008TclVideoAd {
                     TAG,
                     "播放链路：广告容器已准备就绪，hidden=$hiddenMode，alpha=${safeContainer.alpha}，container=${safeContainer.width}x${safeContainer.height}"
                 )
-                Ad.get()
+                val controller = Ad.get()
                     .begin(appContext)
                     .lazyLoad()
                     .setAdType(AdType.WATERFALL)
@@ -324,11 +354,12 @@ private object Hq008TclVideoAd {
                     .listen(
                         object : AdStatusListener {
                             override fun onAdLoaded(controller: Controller) {
-                                safeContainer.post {
-                                    request.loadedAtMs = SystemClock.elapsedRealtime()
-                                    if (request.isTerminal()) {
+                                mainHandler.post {
+                                    if (!canContinue(request)) {
+                                        controllers.attach(request.controllerLease, controller)
                                         return@post
                                     }
+                                    request.loadedAtMs = SystemClock.elapsedRealtime()
                                     Log.i(TAG, "播放链路：广告素材加载完成，hidden=${AdDisplayConfig.isHiddenMode()}")
                                     Hq008AdReporter.reportLoaded(
                                         requestId = request.requestId,
@@ -344,8 +375,7 @@ private object Hq008TclVideoAd {
                                         eventType = "AD_LOADED",
                                         eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
                                     )
-                                    currentController = controller
-                                    currentContainerRef = WeakReference(safeContainer)
+                                    controllers.attach(request.controllerLease, controller)
                                     runCatching {
                                         Log.i(TAG, "播放链路：准备调用 controller.start() 开始播放")
                                         controller.start(safeContainer)
@@ -362,8 +392,8 @@ private object Hq008TclVideoAd {
                             }
 
                             override fun onAdStartPlay() {
-                                safeContainer.post {
-                                    if (request.isTerminal()) {
+                                mainHandler.post {
+                                    if (!canContinue(request)) {
                                         return@post
                                     }
                                     request.markStarted()
@@ -384,8 +414,8 @@ private object Hq008TclVideoAd {
                             }
 
                             override fun onAdStartPlay(progress: Double) {
-                                safeContainer.post {
-                                    if (request.isTerminal()) {
+                                mainHandler.post {
+                                    if (!canContinue(request)) {
                                         return@post
                                     }
                                     request.markStarted()
@@ -406,11 +436,12 @@ private object Hq008TclVideoAd {
                             }
 
                             override fun onAdFinished() {
-                                safeContainer.post {
-                                    if (!request.markTerminal()) {
+                                mainHandler.post {
+                                    if (!canContinue(request) || !request.markTerminal()) {
                                         return@post
                                     }
                                     clearActiveRequestState(request)
+                                    releaseController(request)
                                     // PLAY_FLOW onAdFinished
                                     Log.i(
                                         TAG,
@@ -434,7 +465,7 @@ private object Hq008TclVideoAd {
                             }
 
                             override fun onAdError(errorCode: Int) {
-                                safeContainer.post {
+                                mainHandler.post {
                                     failRequest(
                                         request = request,
                                         stage = "sdk_callback",
@@ -446,7 +477,7 @@ private object Hq008TclVideoAd {
                             }
 
                             override fun onContainerSizeError() {
-                                safeContainer.post {
+                                mainHandler.post {
                                     failRequest(
                                         request = request,
                                         stage = "container_size",
@@ -458,7 +489,7 @@ private object Hq008TclVideoAd {
                         }
                     )
                     .start()
-                armTimeout(request)
+                controllers.attach(request.controllerLease, controller)
                 Log.i(TAG, "播放链路：已调用 Ad.start()，等待 SDK 返回素材加载结果")
             }.onFailure { error ->
                 failRequest(
@@ -472,27 +503,8 @@ private object Hq008TclVideoAd {
         }
     }
 
-    private fun releaseCurrentController() {
-        val controller = currentController
-        val container = currentContainerRef?.get()
-
-        if (controller != null && container != null) {
-            runCatching {
-                controller.stop(container)
-            }.onFailure { error ->
-                Log.w(TAG, "Stop TCL video ad failed.", error)
-            }
-        }
-
-        runCatching {
-            controller?.release()
-        }.onFailure { error ->
-            Log.w(TAG, "Release TCL video ad failed.", error)
-        }
-
-        currentController = null
-        currentContainerRef?.clear()
-        currentContainerRef = null
+    private fun releaseController(request: PendingShowRequest) {
+        controllers.close(request.controllerLease)
     }
 
     private fun buildRequestParams(): RequestParams {
@@ -573,18 +585,18 @@ private object Hq008TclVideoAd {
         val adId: String?,
         val soundEnabled: Boolean,
         val callbackTimeoutMs: Long,
-        val requestCreatedAtMs: Long,
+        val lifecycle: Hq008PlaybackRequestOwner.Ticket,
         val containerRef: WeakReference<ViewGroup>,
+        val controllerLease: Hq008PlaybackControllers.Lease<Controller>,
         val adStart: (() -> Unit)?,
         val adError: (() -> Unit)?,
         val adComplete: () -> Unit,
         var loadedAtMs: Long? = null,
         var startedAtMs: Long? = null,
-        var finishedAtMs: Long? = null
+        var timeoutRunnable: Runnable? = null
     ) {
-        fun isTerminal(): Boolean {
-            return finishedAtMs != null
-        }
+        val requestCreatedAtMs: Long get() = lifecycle.createdAtMs
+        val finishedAtMs: Long? get() = lifecycle.finishedAtMs
 
         fun markStarted() {
             if (startedAtMs == null) {
@@ -593,11 +605,7 @@ private object Hq008TclVideoAd {
         }
 
         fun markTerminal(finishedAtMs: Long = SystemClock.elapsedRealtime()): Boolean {
-            if (this.finishedAtMs != null) {
-                return false
-            }
-            this.finishedAtMs = finishedAtMs
-            return true
+            return requestOwner.finish(lifecycle, finishedAtMs)
         }
 
         fun requestToLoadDurationMs(): Long? {
@@ -646,42 +654,40 @@ private object Hq008TclVideoAd {
     }
 
     private fun armTimeout(request: PendingShowRequest) {
-        clearActiveRequestState()
-        currentRequest = request
-        currentTimeoutRunnable = Runnable {
-            if (!request.markTerminal()) {
-                return@Runnable
-            }
-            currentTimeoutRunnable = null
-            currentRequest = null
-            Log.e(TAG, "播放链路：等待广告回调超时，requestId=${request.requestId}，adId=${request.adId}，timeoutMs=${request.callbackTimeoutMs}")
-            Hq008AdReporter.reportError(
-                requestId = request.requestId,
-                adId = request.adId,
-                hiddenMode = AdDisplayConfig.isHiddenMode(),
-                errorCode = null,
-                errorMessage = Hq008AdReporter.Message.TIMEOUT,
-                extra = request.buildCompletionDiagnostics() + mapOf(
-                    "stage" to "callback_timeout",
-                    "timeoutMs" to request.callbackTimeoutMs
-                )
-            )
-            Hq008ConsentLogReporter.report(
-                eventType = "AD_PHASE_TIMEOUT",
-                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=callback_timeout,reason=callback_timeout,timeoutMs=${request.callbackTimeoutMs}"
-            )
-            releaseCurrentController()
-            request.adError?.invoke()
+        request.timeoutRunnable = Runnable { timeoutRequest(request) }.also {
+            mainHandler.postDelayed(it, request.lifecycle.remainingMs(SystemClock.elapsedRealtime()))
         }
-        mainHandler.postDelayed(currentTimeoutRunnable!!, request.callbackTimeoutMs)
     }
 
-    private fun clearActiveRequestState(request: PendingShowRequest? = null) {
-        currentTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        currentTimeoutRunnable = null
-        if (request == null || currentRequest?.requestId == request.requestId) {
-            currentRequest = null
+    private fun timeoutRequest(request: PendingShowRequest) {
+        if (!isActive(request) || !request.markTerminal()) return
+        val stage = if (pendingRequest === request) "sdk_init" else "callback_timeout"
+        clearActiveRequestState(request)
+        Log.e(TAG, "播放链路：等待广告回调超时，requestId=${request.requestId}，timeoutMs=${request.callbackTimeoutMs}")
+        Hq008AdReporter.reportError(
+            requestId = request.requestId,
+            adId = request.adId,
+            hiddenMode = AdDisplayConfig.isHiddenMode(),
+            errorCode = null,
+            errorMessage = Hq008AdReporter.Message.TIMEOUT,
+            extra = request.buildCompletionDiagnostics() + mapOf("stage" to stage, "timeoutMs" to request.callbackTimeoutMs)
+        )
+        Hq008ConsentLogReporter.report(
+            eventType = "AD_PHASE_TIMEOUT",
+            eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},stage=$stage,reason=callback_timeout,timeoutMs=${request.callbackTimeoutMs}"
+        )
+        releaseController(request)
+        mainHandler.post { request.adError?.invoke() }
+    }
+
+    private fun clearActiveRequestState(request: PendingShowRequest) {
+        request.timeoutRunnable?.let(mainHandler::removeCallbacks)
+        request.timeoutRunnable = null
+        if (pendingRequest === request) {
+            pendingRequest = null
+            if (!isInitialized()) resetInitializationAttempt()
         }
+        if (currentRequest === request) currentRequest = null
     }
 
     private fun failRequest(
@@ -692,9 +698,7 @@ private object Hq008TclVideoAd {
         error: Throwable? = null,
         errorCode: Int? = null
     ) {
-        if (!request.markTerminal()) {
-            return
-        }
+        if (!isActive(request) || !request.markTerminal()) return
         clearActiveRequestState(request)
         val errorText = error?.message ?: "unknown"
         Log.e(
@@ -727,7 +731,7 @@ private object Hq008TclVideoAd {
                 append(",reason=$reason")
             }
         )
-        releaseCurrentController()
-        request.adError?.invoke()
+        releaseController(request)
+        mainHandler.post { request.adError?.invoke() }
     }
 }

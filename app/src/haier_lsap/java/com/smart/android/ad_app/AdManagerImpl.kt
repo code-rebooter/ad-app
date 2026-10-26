@@ -27,7 +27,6 @@ object AdManagerImpl : IAdManager {
         )
     }
 
-    override fun destroyAd() {
-        HaierLsapAdManager.destroyAd()
-    }
+    override fun destroyAd() = HaierLsapAdManager.destroyAd()
+    override fun destroyAd(requestId: String?) = HaierLsapAdManager.destroyAd(requestId)
 }

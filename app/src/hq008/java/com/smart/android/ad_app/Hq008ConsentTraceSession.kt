@@ -28,18 +28,25 @@ internal class Hq008ConsentTraceSession(
     private var traceStartedElapsedMs: Long = 0L
     private var popupLogEnabled = true
     private var requestId = ""
+    private val requestIdAliases = mutableSetOf<String>()
 
     fun activeRequestId(): String = requestId
 
     /** A late authorize callback must never rename a newer flow. */
     fun bindAuthorizationRequestId(localRequestId: String, resolvedRequestId: String) {
-        if (pendingSteps.isNotEmpty() && requestId == localRequestId && resolvedRequestId.isNotBlank()) {
+        if (ownsRequest(localRequestId) && resolvedRequestId.isNotBlank()) {
+            requestIdAliases += resolvedRequestId
             requestId = resolvedRequestId
         }
     }
 
-    fun updatePopupLogEnabled(enabled: Boolean) {
+    fun ownsRequest(expectedRequestId: String): Boolean =
+        pendingSteps.isNotEmpty() && expectedRequestId.isNotBlank() && expectedRequestId in requestIdAliases
+
+    fun updatePopupLogEnabled(enabled: Boolean, expectedRequestId: String? = null): Boolean {
+        if (expectedRequestId != null && !ownsRequest(expectedRequestId)) return false
         popupLogEnabled = enabled
+        return true
     }
 
     fun isPopupLogEnabled(): Boolean = popupLogEnabled
@@ -55,15 +62,22 @@ internal class Hq008ConsentTraceSession(
         eventType: String,
         rawEventMessage: String,
         eventMessage: String,
-        adLog: String?
+        adLog: String?,
+        expectedRequestId: String? = null
     ): TraceSnapshot? {
+        val owner = expectedRequestId ?: REQUEST_ID_PATTERN.find(rawEventMessage)?.groupValues?.get(1)
+        if (owner != null && !ownsRequest(owner)) return null
+        // Polling while an ad is playing must not replace its trace or request ID.
+        if (eventType == "FLOATING_FLOW_SKIPPED" && rawEventMessage.contains("reason=in_flight")) return null
         if (!shouldTrackEvent(eventType)) {
             return null
         }
 
-        if (eventType == "CMP_GATE_START" || eventType == "FLOATING_FLOW_SKIPPED") {
-            resetStepsOnly()
+        if (eventType == "CMP_GATE_START" ||
+            (eventType == "FLOATING_FLOW_SKIPPED" && pendingSteps.isEmpty())) {
+            resetAll()
             requestId = requestIdFactory()
+            requestIdAliases += requestId
         } else if (pendingSteps.isEmpty()) {
             return null
         }
@@ -90,12 +104,11 @@ internal class Hq008ConsentTraceSession(
         eventType: String,
         rawEventMessage: String,
         eventMessage: String,
-        adLog: String?
+        adLog: String?,
+        expectedRequestId: String? = null
     ): TraceSnapshot? {
-        if (pendingSteps.isEmpty()) {
-            resetPopupLogEnabled()
-            return null
-        }
+        if (pendingSteps.isEmpty() ||
+            (expectedRequestId != null && !ownsRequest(expectedRequestId))) return null
         appendStep(
             nowMs = nowMs,
             eventType = eventType,
@@ -180,6 +193,11 @@ internal class Hq008ConsentTraceSession(
         pendingSteps.clear()
         traceStartedElapsedMs = 0L
         requestId = ""
+        requestIdAliases.clear()
+    }
+
+    private companion object {
+        val REQUEST_ID_PATTERN = Regex("(?:^|[,\\s])(?:requestId|request_id)=([^,\\s]+)")
     }
 
     private fun resetAll() {

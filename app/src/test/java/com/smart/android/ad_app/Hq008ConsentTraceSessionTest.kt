@@ -11,7 +11,7 @@ class Hq008ConsentTraceSessionTest {
 
     @Test
     fun `authorize allowed should keep full flow trace open until ad terminal arrives`() {
-        val session = Hq008ConsentTraceSession()
+        val session = Hq008ConsentTraceSession(requestIdFactory = { "req-1" })
 
         assertNull(
             session.record(
@@ -76,7 +76,7 @@ class Hq008ConsentTraceSessionTest {
 
     @Test
     fun `force finish should upload unfinished batch and next flow must not inherit old steps`() {
-        val session = Hq008ConsentTraceSession()
+        val session = Hq008ConsentTraceSession(requestIdFactory = { "req-old" })
 
         session.record(
             nowMs = 2_000L,

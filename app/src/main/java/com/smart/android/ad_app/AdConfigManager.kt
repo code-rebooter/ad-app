@@ -3,14 +3,9 @@ package com.smart.android.ad_app
 import android.provider.Settings
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.bean.AdConfigDto
-import com.smart.android.ad_app.bean.EmptyData
-import com.speed.ext.getMacAddress
-import com.speed.net.NetworkHelper
-import com.speed.net.enum.RequestMethod
 
 object AdConfigManager {
     private const val TAG = "AdConfigManager"
-    private var currentAdId: String? = null  // 保存当前广告 adId
     private const val POPUP_FALLBACK_ACTION = "MAYBE_LATER"
     private const val HQ008_DEFAULT_FLOATING_WIDTH = 210
     private const val HQ008_DEFAULT_FLOATING_HEIGHT = 131
@@ -37,7 +32,7 @@ object AdConfigManager {
                     )
                 }
 
-                    Hq008CmpDecisionClient.request(appContext) { dto, error ->
+                Hq008CmpDecisionClient.request(appContext) { dto, error ->
                     if (error != null) {
                         Log.e(TAG, "广告链路：consent-popup 请求失败，error=$error")
                         Hq008ConsentLogReporter.report(
@@ -151,174 +146,128 @@ object AdConfigManager {
             "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${channel.value}，channelSource=${channel.source.label}，hidden=${AdDisplayConfig.isHiddenMode()}"
         )
 
-        if (BuildFlavor.isHq008Family() && adType == AdType.FLOATING) {
-            if (!AdPlaybackAvailability.isPlaybackAllowed()) {
-                Log.i(
-                    TAG,
-                    "广告链路：当前播放状态未允许广告，本轮跳过，reason=${AdPlaybackAvailability.currentReason()}"
-                )
-                Hq008ConsentLogReporter.report(
-                    eventType = "FLOATING_FLOW_SKIPPED",
-                    eventMessage = "reason=external_playback_denied,adType=$adType"
-                )
-                return
-            }
-            val flowToken = Hq008FloatingFlowGuard.tryEnter(channel.value)
-            if (flowToken == null) {
-                Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${channel.value}")
-                Hq008ConsentLogReporter.report(
-                    eventType = "FLOATING_FLOW_SKIPPED",
-                    eventMessage = "reason=in_flight,adType=$adType"
-                )
-                return
-            }
-            val flavorTag = BuildConfig.FLAVOR
+        if (!BuildFlavor.isHq008Family() || !hasOverlayPermission()) {
+            Log.i(TAG, "悬浮广告未启用或缺少悬浮窗权限，本轮不请求广告流程")
+            return
+        }
+        if (!AdPlaybackAvailability.isPlaybackAllowed()) {
             Log.i(
                 TAG,
-                "广告链路：$flavorTag 先走 flow-control，再根据服务端 skip_cmp 决定是否跳过 CMP，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
+                "广告链路：当前播放状态未允许广告，本轮跳过，reason=${AdPlaybackAvailability.currentReason()}"
             )
             Hq008ConsentLogReporter.report(
-                eventType = "CMP_GATE_START",
-                eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()},skipCmp=false,skipCmpSource=flow_control"
+                eventType = "FLOATING_FLOW_SKIPPED",
+                eventMessage = "reason=external_playback_denied,adType=$adType"
             )
-            Hq008SdkFlowControlClient.request(
-                context = appContext,
-                channelId = channel.value
-            ) { dto, error ->
-                if (!canContinueHq008FloatingFlow(flowToken, "flow_control_callback")) {
-                    return@request
-                }
-                val enabled = dto?.enabled == true
-                if (error != null) {
-                    Log.w(TAG, "广告链路：flow-control 请求失败，按关闭处理，error=$error")
-                    Hq008ConsentLogReporter.report(
-                        eventType = "CMP_GATE_STOP",
-                        eventMessage = "reason=flow_control_fail"
-                    )
-                    finishHq008FloatingFlow(flowToken, "flow_control_fail")
-                    return@request
-                }
-                if (!enabled) {
-                    Log.i(
-                        TAG,
-                        "广告链路：客户SDK总开关关闭，本轮跳过CMP/授权/广告全链路"
-                    )
-                    Hq008ConsentLogReporter.report(
-                        eventType = "CMP_GATE_STOP",
-                        eventMessage = "reason=flow_control_disabled"
-                    )
-                    finishHq008FloatingFlow(flowToken, "flow_control_disabled")
-                    return@request
-                }
+            return
+        }
+        val entry = Hq008FloatingFlowGuard.tryEnterWithExpiry(channel.value)
+        if (entry == null) {
+            Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${channel.value}")
+            Hq008ConsentLogReporter.report(
+                eventType = "FLOATING_FLOW_SKIPPED",
+                eventMessage = "reason=in_flight,adType=$adType"
+            )
+            return
+        }
+        val flowToken = entry.token
+        entry.expiredToken?.let { expired ->
+            Hq008ConsentLogReporter.finishActiveFlow("flow_expired", expired.requestId)
+            AdRenderer.stopFloatingAd("flow_expired")
+            AdManagerImpl.destroyAd(expired.requestId)
+        }
+        val flavorTag = BuildConfig.FLAVOR
+        Log.i(
+            TAG,
+            "广告链路：$flavorTag 先走 flow-control，再根据服务端 skip_cmp 决定是否跳过 CMP，adType=$adType，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}"
+        )
+        Hq008ConsentLogReporter.report(
+            eventType = "CMP_GATE_START",
+            eventMessage = "adType=$adType,hidden=${AdDisplayConfig.isHiddenMode()},skipCmp=false,skipCmpSource=flow_control"
+        )
+        flowToken.requestId = Hq008ConsentLogReporter.activeRequestId()
+        Hq008SdkFlowControlClient.request(
+            context = appContext,
+            channelId = channel.value,
+            requestId = flowToken.requestId.orEmpty()
+        ) { dto, error ->
+            if (!canContinueHq008FloatingFlow(flowToken, "flow_control_callback")) {
+                return@request
+            }
+            val enabled = dto?.enabled == true
+            if (error != null) {
+                Log.w(TAG, "广告链路：flow-control 请求失败，按关闭处理，error=$error")
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_GATE_STOP",
+                    eventMessage = "reason=flow_control_fail"
+                )
+                finishHq008FloatingFlow(flowToken, "flow_control_fail")
+                return@request
+            }
+            if (!enabled) {
+                Log.i(
+                    TAG,
+                    "广告链路：客户SDK总开关关闭，本轮跳过CMP/授权/广告全链路"
+                )
+                Hq008ConsentLogReporter.report(
+                    eventType = "CMP_GATE_STOP",
+                    eventMessage = "reason=flow_control_disabled"
+                )
+                finishHq008FloatingFlow(flowToken, "flow_control_disabled")
+                return@request
+            }
 
-                val skipCmp = dto?.skip_cmp == true
+            val skipCmp = dto?.skip_cmp == true
+            Hq008ConsentLogReporter.report(
+                eventType = "CMP_GATE_READY",
+                eventMessage = "skipCmp=$skipCmp,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+            )
+            if (skipCmp) {
+                Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=true，本轮跳过 CMP，直接请求授权接口")
+                requestHq008Authorize(flowToken)
+                return@request
+            }
+
+            Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=false，开始进入 CMP/授权/广告流程")
+            Hq008CmpManager.runWhenConsentStateReady {
+                if (!canContinueHq008FloatingFlow(flowToken, "cmp_state_ready")) {
+                    return@runWhenConsentStateReady
+                }
                 Hq008ConsentLogReporter.report(
                     eventType = "CMP_GATE_READY",
-                    eventMessage = "skipCmp=$skipCmp,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                    eventMessage = "skipCmp=false,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
                 )
-                if (skipCmp) {
-                    Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=true，本轮跳过 CMP，直接请求授权接口")
-                    requestHq008Authorize(flowToken)
-                    return@request
-                }
-
-                Log.i(TAG, "广告链路：flow-control 允许继续，服务端 skip_cmp=false，开始进入 CMP/授权/广告流程")
-                Hq008CmpManager.runWhenConsentStateReady {
-                    if (!canContinueHq008FloatingFlow(flowToken, "cmp_state_ready")) {
-                        return@runWhenConsentStateReady
+                Log.i(
+                    TAG,
+                    "广告链路：CMP 初始状态已就绪，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始检查远端 CMP 决策"
+                )
+                Hq008CmpManager.applyRemoteCmpDecisionIfNeeded(appContext) {
+                    if (!canContinueHq008FloatingFlow(flowToken, "cmp_decision_callback")) {
+                        return@applyRemoteCmpDecisionIfNeeded
                     }
                     Hq008ConsentLogReporter.report(
-                        eventType = "CMP_GATE_READY",
-                        eventMessage = "skipCmp=false,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                        eventType = "CMP_GATE_FINISH",
+                        eventMessage = "consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
                     )
-                    Log.i(
-                        TAG,
-                        "广告链路：CMP 初始状态已就绪，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始检查远端 CMP 决策"
-                    )
-                    Hq008CmpManager.applyRemoteCmpDecisionIfNeeded(appContext) {
-                        if (!canContinueHq008FloatingFlow(flowToken, "cmp_decision_callback")) {
-                            return@applyRemoteCmpDecisionIfNeeded
-                        }
-                        Hq008ConsentLogReporter.report(
-                            eventType = "CMP_GATE_FINISH",
-                            eventMessage = "consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
-                        )
-                        if (!Hq008CmpManager.canContinueAfterRemoteDecision()) {
-                            Log.i(
-                                TAG,
-                                "广告链路：CMP/UMP 决策结果要求本轮停止，跳过授权与广告请求"
-                            )
-                            Hq008ConsentLogReporter.report(
-                                eventType = "CMP_GATE_STOP",
-                                eventMessage = "reason=decision_blocked,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
-                            )
-                            finishHq008FloatingFlow(flowToken, "cmp_decision_blocked")
-                            return@applyRemoteCmpDecisionIfNeeded
-                        }
+                    if (!Hq008CmpManager.canContinueAfterRemoteDecision()) {
                         Log.i(
                             TAG,
-                            "广告链路：CMP 决策流程已结束，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始请求授权接口"
+                            "广告链路：CMP/UMP 决策结果要求本轮停止，跳过授权与广告请求"
                         )
-                        requestHq008Authorize(flowToken)
+                        Hq008ConsentLogReporter.report(
+                            eventType = "CMP_GATE_STOP",
+                            eventMessage = "reason=decision_blocked,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
+                        )
+                        finishHq008FloatingFlow(flowToken, "cmp_decision_blocked")
+                        return@applyRemoteCmpDecisionIfNeeded
                     }
+                    Log.i(
+                        TAG,
+                        "广告链路：CMP 决策流程已结束，consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}，开始请求授权接口"
+                    )
+                    requestHq008Authorize(flowToken)
                 }
             }
-            return
-        }
-
-        // 只有悬浮窗广告才校验权限
-        if (adType == AdType.FLOATING && !hasOverlayPermission()) {
-            Log.w(TAG, "Skip FLOATING request: overlay permission missing.")
-           "没有悬浮窗权限，跳过 FLOATING 广告请求".adDebugPrintLog()
-            return
-        }
-
-        val url = "${BuildConfig.AD_FLOW_BASE_URL}api/v2/ad/delivery"
-        NetworkHelper.makeRequest<AdConfigDto>(
-            url,
-            RequestMethod.POST,
-            buildMap {
-                put("packageName", appContext.packageName)
-                put("channel", channel.value)
-                put("macAddress", getMacAddress() ?: "")
-                put("adType", adType.value)
-                if (BuildFlavor.isHq008Family()) {
-                    put("ad_version", BuildConfig.VERSION_CODE)
-                }
-            },
-            isEncryted = false
-        ) { dto, error ->
-            if (error != null) {
-                Log.e(TAG, "Ad request failed for $adType: ${error.message}", error)
-               "广告请求失败: ${error.message}".adDebugPrintLog()
-                return@makeRequest
-            }
-
-            if (dto?.adId.isNullOrEmpty()) {
-                Log.w(TAG, "No available ad for $adType.")
-                "无可用广告".adDebugPrintLog()
-                return@makeRequest
-            }
-
-            Log.i(
-                TAG,
-                "Ad request success adType=$adType adId=${dto?.adId} position=${dto?.position} size=${dto?.floatingWidth}x${dto?.floatingHeight}"
-            )
-            setCurrentAdId(dto.adId!!)
-            dispatchAd(adType, dto)
-        }
-    }
-
-
-    private fun dispatchAd(
-        adType: AdType,
-        dto: AdConfigDto,
-        onFloatingFlowFinished: (() -> Unit)? = null
-    ) {
-        Log.i(TAG, "dispatchAd adType=$adType adId=${dto.adId} hidden=${AdDisplayConfig.isHiddenMode()}")
-        when (adType) {
-            AdType.SPLASH -> AdRenderer.showSplashAd(dto)
-            AdType.FLOATING -> AdRenderer.showFloatingAd(dto, onFloatingFlowFinished)
         }
     }
 
@@ -328,7 +277,8 @@ object AdConfigManager {
         }
         Hq008SdkAuthorizeClient.request(
             context = appContext,
-            channelId = flowToken.channelId
+            channelId = flowToken.channelId,
+            requestId = flowToken.requestId.orEmpty()
         ) { dto, error ->
             if (!canContinueHq008FloatingFlow(flowToken, "authorize_callback")) {
                 return@request
@@ -351,6 +301,7 @@ object AdConfigManager {
                 return@request
             }
 
+            flowToken.requestId = dto.request_id
             val effectiveAuthorized = dto.authorized
             val effectiveHiddenMode = dto.hidden_mode
             val effectiveSoundEnabled = dto.sound_mode == true
@@ -412,8 +363,10 @@ object AdConfigManager {
                 return@request
             }
 
-            dispatchAd(
-                AdType.FLOATING,
+            Hq008FloatingFlowGuard.extendForPlayback(
+                flowToken, AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)
+            )
+            AdRenderer.showFloatingAd(
                 buildHq008FloatingAdConfig(dto),
                 onFloatingFlowFinished = {
                     finishHq008FloatingFlow(flowToken, "floating_ad_finished")
@@ -447,8 +400,9 @@ object AdConfigManager {
     }
 
     private fun finishHq008FloatingFlow(flowToken: Hq008FloatingFlowGuard.Token, reason: String) {
+        if (!Hq008FloatingFlowGuard.isActive(flowToken)) return
         Log.i(TAG, "广告链路：hq008 悬浮广告流程结束，reason=$reason")
-        Hq008ConsentLogReporter.finishActiveFlow(reason)
+        Hq008ConsentLogReporter.finishActiveFlow(reason, flowToken.requestId)
         Hq008FloatingFlowGuard.finish(flowToken, reason)
     }
 
@@ -475,41 +429,4 @@ object AdConfigManager {
         )
     }
 
-    fun setCurrentAdId(adId: String) {
-        currentAdId = adId
-    }
-
-    fun reportAdStatus(statusStr: String, errorInfo: String, adId: String? = null) {
-        val resolvedAdId = adId ?: currentAdId ?: run {
-            "adId 为空，上报失败".adDebugPrintLog()
-            return
-        }
-
-        "上报广告状态".adDebugPrintLog()
-        val url = "${BuildConfig.AD_FLOW_BASE_URL}api/v2/ad/task/report"
-        NetworkHelper.makeRequest<EmptyData>(
-            url,
-            RequestMethod.POST,
-            buildMap {
-                put("packageName", appContext.packageName)
-                put("channel", AdChannelResolver.currentChannel())
-                put("macAddress", getMacAddress() ?: "")
-                put("status", statusStr)
-                put("result", errorInfo)
-                put("adId", resolvedAdId)
-                if (BuildFlavor.isHq008Family()) {
-                    put("ad_version", BuildConfig.VERSION_CODE)
-                }
-            },
-            isEncryted = false
-        ) { _, error ->
-            if (error != null) {
-                Log.e(TAG, "reportAdStatus failed status=$statusStr adId=$resolvedAdId error=${error.message}", error)
-                "请求失败".adDebugPrintLog()
-            } else {
-                Log.i(TAG, "reportAdStatus success status=$statusStr adId=$resolvedAdId result=$errorInfo")
-                "请求成功-${statusStr}, ${errorInfo}".adDebugPrintLog()
-            }
-        }
-    }
 }

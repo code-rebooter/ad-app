@@ -20,7 +20,8 @@ internal object Hq008ApiRequestFields {
 
     internal fun fields(flavor: String, versionName: String, androidId: () -> String?): Map<String, Any> =
         linkedMapOf<String, Any>("androidid" to runCatching(androidId).getOrNull().orEmpty()).apply {
-            if (BuildFlavor.isGoogleAd(flavor)) {
+            // These HQ008-family channels execute ads with TCL; LSAP uses a separate SDK.
+            if (BuildFlavor.isHq008Family(flavor) && !BuildFlavor.isHaierLsap(flavor)) {
                 put("ad_version_name", versionName)
                 put("sdk_version", TCL_SDK_VERSION)
             }

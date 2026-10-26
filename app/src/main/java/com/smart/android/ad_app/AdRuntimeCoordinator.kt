@@ -39,12 +39,6 @@ object AdRuntimeCoordinator {
                 }
 
                 Log.i(TAG, "正式链路：运行协调器进入主流程，flavor=${BuildConfig.FLAVOR}，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}")
-                ForegroundAppWatcher.start(appContext) { packageName ->
-                    Log.i(TAG, "正式链路：监听到前台目标应用变化，packageName=$packageName，准备请求开屏广告")
-                    "当前打开的应用包名: $packageName".adDebugPrintLog()
-                    AdConfigManager.getAdConfig(AdType.SPLASH)
-                }
-
                 val initialDelayMs = ScheduleManagerImpl.handlerInitialDelayTime().coerceAtLeast(0)
                 if (initialDelayMs > 0) {
                     Log.i(TAG, "正式链路：在启动定时调度前先等待 ${initialDelayMs}ms，避免进程刚启动就立刻请求广告")

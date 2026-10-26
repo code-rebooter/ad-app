@@ -28,4 +28,6 @@ interface IAdManager {
     ) = showAd(flRoot, adId, soundEnabled, callbackTimeoutMs, adStart, adError, adComplete)
 
     fun destroyAd()
+    /** Release only the session owned by this window/request. Null is an explicit global stop. */
+    fun destroyAd(requestId: String?)
 }

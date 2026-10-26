@@ -127,8 +127,9 @@ class HaierLsapDebugEntryActivity : Activity() {
         HaierAarAuditUploader.beginFlow(requestId)
         Hq008ConsentLogReporter.report(
             eventType = "CMP_GATE_START",
-            eventMessage = "source=haier_lsap_debug,requestId=$requestId"
+            eventMessage = "source=haier_lsap_debug"
         )
+        Hq008ConsentLogReporter.bindAuthorizationRequestId(Hq008ConsentLogReporter.activeRequestId(), requestId)
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_START",
             eventMessage = "requestId=$requestId,hidden=false,adType=FLOATING"

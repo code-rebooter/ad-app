@@ -24,6 +24,8 @@ class TvAdFloatingWindow(
     private val adChannelId: String? = null
 ) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
+    private val playbackRequestId = adId?.takeIf { it.isNotBlank() } ?: "window-${java.util.UUID.randomUUID()}"
+    private var isClosing = false
     private var isCountdownFinished = false // 倒计时是否完成
     private lateinit var countdownTimer: CountDownTimer // 倒计时器
     private var hasDispatchedFlowFinished = false
@@ -37,7 +39,7 @@ class TvAdFloatingWindow(
         installTouchClickOverlayIfNeeded()
         AdManagerImpl.showAd(
             binding.flAdcontainer,
-            adId = adId,
+            adId = playbackRequestId,
             soundEnabled = soundEnabled,
             callbackTimeoutMs = callbackTimeoutMs,
             gamConfig = gamConfig,
@@ -52,17 +54,11 @@ class TvAdFloatingWindow(
             },
             adError = {
                 "广告播放错误".adDebugPrintLog()
-                stopSignalStatusMonitor()
-                disableTouchClick()
-                hide()
-                dispatchFlowFinishedOnce()
+                closeAfterPlayback()
             }
         ) {
             "广告播放完成".adDebugPrintLog()
-            stopSignalStatusMonitor()
-            disableTouchClick()
-            hide()
-            dispatchFlowFinishedOnce()
+            closeAfterPlayback()
         }
     }
 
@@ -90,13 +86,12 @@ class TvAdFloatingWindow(
                     val reason = "external_playback_denied:${Hq002SignalStatusGate.currentReason()}"
                     Log.i("Hq002SignalStatus", "停止当前广告并移除窗口：reason=$reason")
                     stopSignalStatusMonitor()
-                    Hq008FloatingFlowGuard.cancelActive(reason)
                     // Release decoding resources before removing the window, without a fade-out.
                     try {
-                        AdManagerImpl.destroyAd()
+                        AdManagerImpl.destroyAd(playbackRequestId)
                     } finally {
                         destroy()
-                        Hq008ConsentLogReporter.finishActiveFlow(reason)
+                        Hq008ConsentLogReporter.finishActiveFlow(reason, playbackRequestId)
                     }
                     return
                 }
@@ -116,11 +111,12 @@ class TvAdFloatingWindow(
         stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
-        AdManagerImpl.destroyAd()
+        AdManagerImpl.destroyAd(playbackRequestId)
         dispatchFlowFinishedOnce()
     }
 
     override fun onWindowDestroyed() {
+        AdManagerImpl.destroyAd(playbackRequestId)
         stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
@@ -128,7 +124,18 @@ class TvAdFloatingWindow(
     }
 
     override fun onPermissionDenied() {
-        dispatchFlowFinishedOnce()
+        destroy()
+    }
+
+    private fun closeAfterPlayback() {
+        if (isClosing) return
+        isClosing = true
+        stopSignalStatusMonitor()
+        disableTouchClick()
+        // Allow createView/show to finish even if the player fails synchronously.
+        signalStatusHandler.post {
+            if (isShowing()) hide() else destroy()
+        }
     }
 
     /**
@@ -199,10 +206,9 @@ class TvAdFloatingWindow(
         "广告区域收到触摸点击，立即停止广告".adDebugPrintLog()
         AdTouchClickReporter.reportHq008TouchClick(adId)
         cancelCountdown()
-        AdManagerImpl.destroyAd()
+        AdManagerImpl.destroyAd(playbackRequestId)
         binding.root.isVisible = false
-        hide()
-        dispatchFlowFinishedOnce()
+        closeAfterPlayback()
     }
 
     private fun cancelCountdown() {

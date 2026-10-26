@@ -90,6 +90,28 @@ class Hq008FloatingFlowGuardTest {
         )
     }
 
+    @Test
+    fun `expired entry exposes old request for cleanup without letting its finish unlock replacement`() {
+        val first = Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 1_000L, 1_000L)!!
+        first.token.requestId = "server-old"
+        val next = Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 2_001L, 1_000L)!!
+        org.junit.Assert.assertSame(first.token, next.expiredToken)
+        org.junit.Assert.assertEquals("server-old", next.expiredToken?.requestId)
+        Hq008FloatingFlowGuard.finish(first.token, "old_window_hidden")
+        assertTrue(Hq008FloatingFlowGuard.isActive(next.token))
+    }
+
+    @Test
+    fun `maximum playback timeout plus prior cmp time must not expire the active guard`() {
+        val first = Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 1_000L)!!
+        Hq008FloatingFlowGuard.extendForPlayback(first.token, 600_000L, 121_000L)
+        assertNull(Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 721_000L))
+        val replacement = Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 727_000L)!!
+        Hq008FloatingFlowGuard.extendForPlayback(first.token, 600_000L, 800_000L)
+        assertTrue(Hq008FloatingFlowGuard.isActive(replacement.token))
+        assertNotNull(Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 1_328_000L))
+    }
+
     private fun invokeIsActive(token: Hq008FloatingFlowGuard.Token): Boolean {
         val method = Hq008FloatingFlowGuard::class.java.getMethod(
             "isActive",

@@ -17,9 +17,9 @@ class Hq008ConsentLogReporterContractTest {
         assertTrue("非终态事件不应立即触发网络上报", source.contains("uploadPayload == null"))
         assertTrue("终态上报内容应包含完整 steps 时间线", source.contains("\"steps\" to stepsForUpload.map"))
         assertTrue("整轮 trace 应继续保留广告阶段单独汇总，方便排查卡点", source.contains("private fun buildAdFlowSummaryStep("))
-        assertTrue("flow-control 结果应能更新 popup log 开关", source.contains("fun updatePopupLogEnabled(enabled: Boolean)"))
+        assertTrue("flow-control 结果应能更新 popup log 开关", source.contains("fun updatePopupLogEnabled(enabled: Boolean, requestId: String? = null)"))
         assertTrue("终态发送前应检查 popup log 开关", source.contains("if (!payload.popupLogEnabled)"))
-        assertTrue("流程结束后应重置 popup log 开关，避免污染下一轮", source.contains("traceSession.resetPopupLogEnabled()"))
+        assertTrue("流程结束后应重置 popup log 开关，避免污染下一轮", readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentTraceSession.kt").contains("popupLogEnabled = true"))
         assertTrue("gdpr consent 注入日志应被视为关键 adLog 事件", source.contains("\"AD_GDPR_CONSENT_ATTACHED\""))
     }
 

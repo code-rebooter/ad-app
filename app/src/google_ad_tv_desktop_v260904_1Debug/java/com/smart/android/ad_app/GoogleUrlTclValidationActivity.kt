@@ -66,6 +66,9 @@ class GoogleUrlTclValidationActivity : Activity() {
             if (!intent.getBooleanExtra("url_only", false)) {
                 Hq008ConsentLogReporter.updatePopupLogEnabled(true)
                 Hq008ConsentLogReporter.report("CMP_GATE_START", "validation=true")
+                Hq008ConsentLogReporter.bindAuthorizationRequestId(
+                    Hq008ConsentLogReporter.activeRequestId(), validationRequestId
+                )
                 Hq008ConsentLogReporter.report("AD_PHASE_START", "requestId=$validationRequestId,hidden=false")
             }
             when (intent.getStringExtra("mode")) {

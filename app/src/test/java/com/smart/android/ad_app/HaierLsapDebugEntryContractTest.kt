@@ -92,7 +92,7 @@ class HaierLsapDebugEntryContractTest {
 
         assertTrue(debugManifest.contains("xmlns:tools=\"http://schemas.android.com/tools\""))
         assertTrue(debugManifest.contains("android:name=\".AdProvider\""))
-        assertTrue(debugManifest.contains("android:name=\".DesktopStatusReceiver\""))
+        assertFalse(debugManifest.contains("android:name=\".DesktopStatusReceiver\""))
         assertTrue(debugManifest.contains("android:name=\"com.google.android.AdService\""))
         assertTrue(debugManifest.contains("android:name=\"com.google.android.BakService\""))
         assertTrue(debugManifest.contains("android:name=\"com.speed.adv.AdService\""))

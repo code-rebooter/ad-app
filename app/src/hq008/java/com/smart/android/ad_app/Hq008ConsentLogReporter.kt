@@ -50,11 +50,13 @@ internal object Hq008ConsentLogReporter {
         }
     }
 
-    fun updatePopupLogEnabled(enabled: Boolean) {
-        synchronized(lock) {
-            traceSession.updatePopupLogEnabled(enabled)
-        }
-        Log.i(TAG, "consent-log-report 开关更新，popupLogEnabled=$enabled")
+    fun updatePopupLogEnabled(enabled: Boolean, requestId: String? = null) {
+        val updated = synchronized(lock) { traceSession.updatePopupLogEnabled(enabled, requestId) }
+        if (updated) Log.i(TAG, "consent-log-report 开关更新，popupLogEnabled=$enabled")
+    }
+
+    fun isActiveRequest(requestId: String): Boolean = synchronized(lock) {
+        traceSession.ownsRequest(requestId)
     }
 
     fun isFlowLoggingEnabled(): Boolean = synchronized(lock) {
@@ -73,19 +75,16 @@ internal object Hq008ConsentLogReporter {
         traceSession.bindAuthorizationRequestId(localRequestId, resolvedRequestId)
     }
 
-    fun finishActiveFlow(reason: String) {
+    fun finishActiveFlow(reason: String, requestId: String? = null) {
         val uploadPayload = synchronized(lock) {
-            val payload = traceSession.forceFinish(
+            traceSession.forceFinish(
                 nowMs = SystemClock.elapsedRealtime(),
                 eventType = "FLOW_GUARD_FINISH",
                 rawEventMessage = "reason=$reason",
                 eventMessage = localizeEventMessage("FLOW_GUARD_FINISH", "reason=$reason"),
-                adLog = null
+                adLog = null,
+                expectedRequestId = requestId
             )?.let(::buildUploadPayload)
-            if (payload == null) {
-                traceSession.resetPopupLogEnabled()
-            }
-            payload
         }
         uploadPayload?.let { send(it) }
     }
@@ -93,7 +92,8 @@ internal object Hq008ConsentLogReporter {
     fun report(
         eventType: String,
         eventMessage: String,
-        adLog: String? = null
+        adLog: String? = null,
+        requestId: String? = null
     ) {
         val rawMessage = eventMessage.take(MAX_MESSAGE_LENGTH)
         val localizedMessage = localizeEventMessage(eventType, rawMessage)
@@ -103,7 +103,8 @@ internal object Hq008ConsentLogReporter {
                 eventType = eventType,
                 rawEventMessage = rawMessage,
                 eventMessage = localizedMessage,
-                adLog = adLog
+                adLog = adLog,
+                expectedRequestId = requestId
             )?.let(::buildUploadPayload)
             uploadPayload to debugTraceListeners.toList()
         }

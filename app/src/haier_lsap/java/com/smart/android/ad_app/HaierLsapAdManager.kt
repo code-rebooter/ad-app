@@ -38,9 +38,8 @@ object HaierLsapAdManager : IAdManager {
         )
     }
 
-    override fun destroyAd() {
-        HaierLsapFormalAd.destroyAd()
-    }
+    override fun destroyAd() = HaierLsapFormalAd.destroyAd()
+    override fun destroyAd(requestId: String?) = HaierLsapFormalAd.destroyAd(requestId)
 }
 
 private object HaierLsapFormalAd {
@@ -84,6 +83,8 @@ private object HaierLsapFormalAd {
             adError = adError,
             adComplete = adComplete
         )
+        destroyAd()
+        currentRequest = request
         HaierAarRequestContext.set(requestId)
         HaierAarAuditUploader.beginFlow(requestId)
         HaierAarPlaybackDiagnostics.begin(requestId)
@@ -127,7 +128,8 @@ private object HaierLsapFormalAd {
         }
     }
 
-    fun destroyAd() {
+    fun destroyAd(requestId: String? = null) {
+        if (requestId != null && currentRequest?.requestId != requestId) return
         currentRequest
             ?.takeUnless { it.isTerminal() }
             ?.let { request ->
@@ -171,6 +173,7 @@ private object HaierLsapFormalAd {
     }
 
     private fun startAd(request: PendingShowRequest) {
+        if (currentRequest !== request || request.isTerminal()) return
         val container = request.containerRef.get()
         if (container == null) {
             failRequest(

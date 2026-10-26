@@ -13,7 +13,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.GET_TASKS" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -40,14 +39,6 @@
                 android:name="android.content.ContactDirectory"
                 android:value="true" />
         </provider>
-
-        <receiver
-            android:name=".DesktopStatusReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="io.permission.DESKTOP_STATUS" />
-            </intent-filter>
-        </receiver>
 
     </application>
 

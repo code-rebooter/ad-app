@@ -24,12 +24,12 @@ internal object Hq008CmpDecisionClient {
             eventMessage = "consent_expired=${Hq008CmpManager.isConsentExpired(context)}"
         )
         val channelId = AdChannelResolver.currentChannel()
-        val requestBody = linkedMapOf(
+        val requestBody = linkedMapOf<String, Any>(
             "channel_id" to channelId,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "consent_expired" to Hq008CmpManager.isConsentExpired(context)
-        )
+        ).apply { Hq008ApiRequestFields.appendTo(this, context) }
 
         Log.i(
             TAG,
@@ -75,13 +75,13 @@ internal object Hq008CmpDecisionClient {
             eventMessage = "action=$consentAction"
         )
         val channelId = AdChannelResolver.currentChannel()
-        val requestBody = linkedMapOf(
+        val requestBody = linkedMapOf<String, Any>(
             "channel_id" to channelId,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "android_sdk_version" to Build.VERSION.SDK_INT,
             "consent_action" to consentAction
-        )
+        ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
 
         Log.i(
             TAG,

@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.util.Locale
 
 private val aarUaParameterNames = setOf(
     "ua",
@@ -155,7 +156,7 @@ internal fun normalizeAarUrlUa(
     effectiveBuildId: String = HaierAarRuntimeBridge.getAndroidBuildId()
 ): String {
     val queryMarker = rawUrl.indexOf('?')
-    if (queryMarker < 0) return rawUrl
+    if (queryMarker < 0 || rawUrl.indexOf('#').let { it >= 0 && it < queryMarker }) return rawUrl
     val fragmentMarker = rawUrl.indexOf('#', queryMarker + 1)
         .takeIf { it >= 0 }
         ?: rawUrl.length
@@ -192,7 +193,7 @@ internal fun normalizeAarPayloadUa(
         effectiveDeviceModel = effectiveDeviceModel,
         effectiveBuildId = effectiveBuildId
     )
-    val type = contentType.orEmpty().lowercase()
+    val type = contentType.orEmpty().lowercase(Locale.ROOT)
     if (type.contains("json") || raw.trimStart().startsWith('{') || raw.trimStart().startsWith('[')) {
         return runCatching {
             val root = JsonParser.parseString(raw)
@@ -254,9 +255,8 @@ private fun normalizeEncodedParameters(
     if (raw.isEmpty()) return raw
     return raw.split('&').joinToString("&") { parameter ->
         val equals = parameter.indexOf('=')
-        if (equals < 0) return@joinToString parameter
-        val encodedName = parameter.substring(0, equals)
-        val encodedValue = parameter.substring(equals + 1)
+        val encodedName = if (equals < 0) parameter else parameter.substring(0, equals)
+        val encodedValue = if (equals < 0) "" else parameter.substring(equals + 1)
         val decodedName = runCatching {
             URLDecoder.decode(encodedName, Charsets.UTF_8.name())
         }.getOrDefault(encodedName)
@@ -328,47 +328,47 @@ private fun normalizeJsonValue(
 }
 
 private fun isAarUaParameter(name: String): Boolean {
-    return aarUaParameterNames.contains(name.trim().lowercase())
+    return aarUaParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarDeviceModelParameter(name: String): Boolean {
-    return aarDeviceModelParameterNames.contains(name.trim().lowercase())
+    return aarDeviceModelParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarLooseDeviceModelParameter(name: String): Boolean {
-    return aarLooseDeviceModelParameterNames.contains(name.trim().lowercase())
+    return aarLooseDeviceModelParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarAndroidVersionParameter(name: String): Boolean {
-    return aarAndroidVersionParameterNames.contains(name.trim().lowercase())
+    return aarAndroidVersionParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarSdkIntParameter(name: String): Boolean {
-    return aarSdkIntParameterNames.contains(name.trim().lowercase())
+    return aarSdkIntParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarSystemVersionLabelParameter(name: String): Boolean {
-    return aarSystemVersionLabelParameterNames.contains(name.trim().lowercase())
+    return aarSystemVersionLabelParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarBuildIdParameter(name: String): Boolean {
-    return aarBuildIdParameterNames.contains(name.trim().lowercase())
+    return aarBuildIdParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarBrandParameter(name: String): Boolean {
-    return aarBrandParameterNames.contains(name.trim().lowercase())
+    return aarBrandParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarManufacturerParameter(name: String): Boolean {
-    return aarManufacturerParameterNames.contains(name.trim().lowercase())
+    return aarManufacturerParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarDeviceCodeParameter(name: String): Boolean {
-    return aarDeviceCodeParameterNames.contains(name.trim().lowercase())
+    return aarDeviceCodeParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isAarProductParameter(name: String): Boolean {
-    return aarProductParameterNames.contains(name.trim().lowercase())
+    return aarProductParameterNames.contains(name.trim().lowercase(Locale.ROOT))
 }
 
 private fun isDeviceReleaseParameter(name: String, insideDeviceObject: Boolean): Boolean {

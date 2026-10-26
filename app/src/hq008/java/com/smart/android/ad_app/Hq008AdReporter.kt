@@ -164,7 +164,7 @@ internal object Hq008AdReporter {
             "model" to HaierBuildIdentityNormalizer.model(),
             "message" to message,
             "diagnostic_info" to diagnosticInfo
-        )
+        ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
 
         resolveLocalIp()?.let { params["local_ip"] = it }
         val requestJson = gson.toJson(params)

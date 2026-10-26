@@ -28,7 +28,9 @@ object AdRenderer {
             context = appContext,
             adId = dto.adId,
             soundEnabled = dto.soundEnabled,
-            callbackTimeoutMs = dto.callbackTimeoutMs
+            callbackTimeoutMs = dto.callbackTimeoutMs,
+            adChannelId = dto.adChannelId,
+            gamConfig = dto.gamConfig
         )
         val renderConfig = resolveRenderConfig(
             defaultWidth = MATCH_PARENT,
@@ -66,6 +68,8 @@ object AdRenderer {
             adId = dto.adId,
             soundEnabled = dto.soundEnabled,
             callbackTimeoutMs = dto.callbackTimeoutMs,
+            adChannelId = dto.adChannelId,
+            gamConfig = dto.gamConfig,
             onFloatingFlowFinished = {
                 clearActiveFloatingWindow(windowRef)
                 onFloatingFlowFinished?.invoke()

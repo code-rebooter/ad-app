@@ -4,6 +4,12 @@ import android.os.Build
 import java.lang.reflect.Method
 import java.util.Locale
 
+internal data class HaierUaIdentity(
+    val androidVersion: String,
+    val model: String,
+    val buildId: String
+)
+
 internal object HaierBuildIdentityNormalizer {
     const val FIXED_BRAND = "X96"
     const val FIXED_MANUFACTURER = "X96"
@@ -25,6 +31,20 @@ internal object HaierBuildIdentityNormalizer {
 
     fun model(): String = normalizeModel(Build.MODEL)
 
+    fun userAgentIdentity(sdkInt: Int = Build.VERSION.SDK_INT): HaierUaIdentity =
+        normalizeUserAgentIdentity(Build.VERSION.RELEASE, Build.MODEL, Build.ID, sdkInt)
+
+    fun normalizeUserAgentIdentity(
+        rawAndroidVersion: String?,
+        rawModel: String?,
+        rawBuildId: String?,
+        sdkInt: Int
+    ): HaierUaIdentity = HaierUaIdentity(
+        androidVersion = normalizeAndroidVersion(rawAndroidVersion, sdkInt),
+        model = normalizeModel(rawModel),
+        buildId = normalizeBuildId(rawBuildId, sdkInt)
+    )
+
     fun brand(): String = normalizeBrand(Build.BRAND)
 
     fun manufacturer(): String = normalizeManufacturer(Build.MANUFACTURER)
@@ -32,6 +52,59 @@ internal object HaierBuildIdentityNormalizer {
     fun device(): String = normalizeDevice(Build.DEVICE)
 
     fun product(): String = normalizeProduct(Build.PRODUCT)
+
+    fun hardware(): String = normalizeHardware(Build.HARDWARE)
+
+    private val fingerprintFormat = Regex(
+        "^([^/:\\s]+)/([^/:\\s]+)/([^/:\\s]+):([^/:\\s]+)/([^/:\\s]+)/([^/:\\s]+):([^/:\\s]+)/([^/:\\s]+)$"
+    )
+    private val fingerprintPropertyNames = setOf(
+        "ro.build.fingerprint", "ro.system.build.fingerprint", "ro.system_ext.build.fingerprint",
+        "ro.product.build.fingerprint", "ro.vendor.build.fingerprint", "ro.odm.build.fingerprint",
+        "ro.bootimage.build.fingerprint"
+    )
+    private val emulatorHardwareMarkers = setOf("generic", "emulator", "ranchu", "goldfish")
+
+    fun fingerprint(): String = correctFingerprint(Build.FINGERPRINT)
+
+    fun correctFingerprint(raw: String?): String = normalizeFingerprint(
+        raw, brand(), product(), device(), androidVersion(), buildId(),
+        Build.VERSION.INCREMENTAL, Build.TYPE, Build.TAGS
+    )
+
+    /** Rebuild a missing/malformed value from native build components, as AOSP does.
+     * A complete original retains its incremental/type/tags; no labels are invented.
+     * An unusable source fails explicitly instead of returning inconsistent input.
+     */
+    internal fun normalizeFingerprint(
+        raw: String?, brand: String, product: String, device: String, release: String, buildId: String,
+        nativeIncremental: String? = null, nativeType: String? = null, nativeTags: String? = null
+    ): String {
+        val parts = fingerprintFormat.matchEntire(raw.orEmpty())?.groupValues
+        val incremental = parts?.get(6)?.takeIf(::isFingerprintComponent) ?: nativeIncremental
+        val type = parts?.get(7)?.takeIf(::isFingerprintComponent) ?: nativeType
+        val tags = parts?.get(8)?.takeIf(::isFingerprintComponent) ?: nativeTags
+        val components = linkedMapOf(
+            "brand" to brand, "product" to product, "device" to device, "release" to release,
+            "build_id" to buildId, "incremental" to incremental, "type" to type, "tags" to tags
+        )
+        components.forEach { (name, value) ->
+            check(isFingerprintComponent(value)) { "firmware_fingerprint_source_unavailable:$name" }
+        }
+        return "$brand/$product/$device:$release/$buildId/$incremental:$type/$tags"
+    }
+
+    private fun isFingerprintComponent(value: String?): Boolean =
+        !value.isNullOrEmpty() && !value.equals("unknown", ignoreCase = true) && value.none {
+            it.isWhitespace() || it.isISOControl() || it == '/' || it == ':'
+        }
+
+    fun isFingerprintProperty(name: String?): Boolean =
+        name?.trim()?.lowercase(Locale.ROOT) in fingerprintPropertyNames
+
+    /** Google callers rebuild missing property values from the same native components. */
+    fun correctFingerprintProperty(name: String?, value: String?): String? =
+        if (isFingerprintProperty(name)) correctFingerprint(value) else value
 
     fun normalizeModel(raw: String?): String = normalizeIdentityValue(
         raw,
@@ -45,6 +118,18 @@ internal object HaierBuildIdentityNormalizer {
     fun normalizeDevice(raw: String?): String = normalizeIdentityValue(raw, FIXED_DEVICE)
 
     fun normalizeProduct(raw: String?): String = normalizeIdentityValue(raw, FIXED_PRODUCT)
+
+    internal fun normalizeHardware(raw: String?): String {
+        val value = raw?.trim().orEmpty()
+        val normalized = value.lowercase(Locale.ROOT)
+        return if (value.isBlank() || value.any { it.code < 32 || it.code == 127 } ||
+            HaierDeviceModelNormalizer.isGeneric(value) ||
+            emulatorHardwareMarkers.any(normalized::contains)) {
+            FIXED_DEVICE
+        } else {
+            value
+        }
+    }
 
     fun normalizeAndroidVersion(raw: String?, sdkInt: Int): String {
         val value = raw?.trim().orEmpty()
@@ -73,41 +158,39 @@ internal object HaierBuildIdentityNormalizer {
         return readActualSystemProperty(key, defaultValue) ?: defaultValue
     }
 
-    private fun canonicalSystemPropertyValue(name: String): String? {
-        val actual = readActualSystemProperty(name, null)
-        return when (name.lowercase(Locale.ROOT)) {
-            "ro.product.model",
-            "ro.product.cust.model",
-            "ro.product.vendor.model",
-            "ro.product.system.model" -> normalizeModel(actual)
+    private fun canonicalSystemPropertyValue(name: String): String? =
+        correctedSystemPropertyValue(
+            name, readActualSystemProperty(name, null),
+            androidVersion(), sdkInt(), model(), buildId(), brand(), manufacturer(), device(), product()
+        )
 
-            "ro.product.name",
-            "ro.build.product" -> normalizeProduct(actual)
-
-            "ro.product.device",
-            "ro.product.system.device",
-            "ro.product.vendor.device" -> normalizeDevice(actual)
-
-            "ro.product.brand",
-            "ro.product.system.brand",
-            "ro.product.vendor.brand" -> normalizeBrand(actual)
-
-            "ro.product.manufacturer",
-            "ro.product.system.manufacturer",
-            "ro.product.vendor.manufacturer" -> normalizeManufacturer(actual)
-
-            "ro.build.version.release" -> androidVersion()
-            "ro.build.version.sdk",
-            "ro.system.build.version.sdk",
-            "ro.vendor.build.version.sdk" -> sdkInt().toString()
-
-            "ro.build.version.incremental",
-            "ro.build.id",
-            "ro.build.display.id",
-            "ro.software.version_id" -> normalizeBuildId(actual, sdkInt())
-
-            else -> null
-        }
+    /** Known aliases expose the same app-facing identity as the Build getters. */
+    internal fun correctedSystemPropertyValue(
+        name: String,
+        actual: String?,
+        release: String,
+        sdk: Int,
+        model: String,
+        buildId: String,
+        brand: String,
+        manufacturer: String,
+        device: String,
+        product: String
+    ): String? = when (name.lowercase(Locale.ROOT)) {
+        "ro.product.model", "ro.product.cust.model", "ro.product.vendor.model",
+        "ro.product.system.model" -> model
+        "ro.product.name", "ro.build.product" -> product
+        "ro.product.device", "ro.product.system.device", "ro.product.vendor.device" -> device
+        "ro.product.brand", "ro.product.system.brand", "ro.product.vendor.brand" -> brand
+        "ro.product.manufacturer", "ro.product.system.manufacturer",
+        "ro.product.vendor.manufacturer" -> manufacturer
+        "ro.build.version.release" -> release
+        "ro.build.version.sdk", "ro.system.build.version.sdk", "ro.vendor.build.version.sdk" -> sdk.toString()
+        "ro.build.id" -> buildId
+        // Incremental/display/software labels are distinct fields, not aliases of Build.ID.
+        "ro.build.version.incremental", "ro.build.display.id", "ro.software.version_id" ->
+            normalizeBuildId(actual, sdk)
+        else -> null
     }
 
     private fun normalizeIdentityValue(raw: String?, fallback: String): String {

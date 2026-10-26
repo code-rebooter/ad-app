@@ -1,5 +1,7 @@
 # IMA → TCL：最终 URL 日志与 FILLED 状态
 
+2026-10-23 当前说明：完整 URL 取后台 google-gam/patch 的返回结果，旧开关字段已删除；仍在 AD_SDK_REQUEST.adLog.final_url 中记录，随终态一次汇总。后面的原开关示例仅为历史记录，当前流程见 [patch 协议](google_gam_patch_api.md)。
+
 适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。
 
 沿用现有接口补充以下两项，不增加逐阶段日志请求。
@@ -58,4 +60,6 @@ FILLED 代表“广告响应已返回视频素材链接”，不代表 TCL 已�
 - 本次观察到的 FILLED 状态请求及汇总日志请求，接口回调均成功。
 - 15 项针对性测试通过，包括大于 512 字符的完整 URL、日志压缩后 URL 保留、一个终态收口、空/跳转响应不报填充、重复/取消响应隔离。
 
-证据位于工作区 artifacts/google-ima-tcl-filled-20261017。Release 构建/静态校验与交付包信息以该目录 validation-summary.json 和交付目录为准；本轮模拟器运行验证使用 Debug 包。
+原始证据已迁移至仓库外研究归档。Release 构建、静态校验、交付包及本轮模拟器 Debug 验证记录均不纳入版本控制。
+
+2026-10-23：最终 URL 现取 google-gam/patch 成功返回的 data.ad_tag_url，记录到原 AD_SDK_REQUEST.adLog.final_url；旧 ima_tcl_url_patch 日志字段已移除。仍在原终态一次汇总上传，FILLED 观察与状态上报时机不变。完整协议见 [后台 patch](google_gam_patch_api.md)。

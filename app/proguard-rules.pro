@@ -273,3 +273,10 @@
 -keep class com.smart.android.ad_app.GoogleAdTvDesktopAdManager { *; }
 -keep class com.smart.android.ad_app.google.** { *; }
 -dontwarn com.google.ads.interactivemedia.v3.**
+
+# UMP WebView identity normalization uses these optional Google-flavor APIs by reflection.
+-keep class androidx.webkit.WebViewFeature { public *; }
+-keep class androidx.webkit.WebViewCompat { public *; }
+-keep class androidx.webkit.WebSettingsCompat { public *; }
+-keep class androidx.webkit.UserAgentMetadata { public *; }
+-keep class androidx.webkit.UserAgentMetadata$Builder { public *; }

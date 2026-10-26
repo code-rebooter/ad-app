@@ -49,15 +49,17 @@ if (kaneShortSigningPropertiesFile.exists()) {
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
-def googleImaPatchInput = configurations.maybeCreate("googleImaPatchInput")
-googleImaPatchInput.canBeConsumed = false
-googleImaPatchInput.canBeResolved = true
-dependencies.add(
-        googleImaPatchInput.name,
-        dependencies.create("com.google.ads.interactivemedia.v3:interactivemedia:3.35.1") {
-            transitive = false
-        }
-)
+// Keep only the disabled IMA 3.35.1 coordinate for future SDK/Core comparisons.
+// Decompiled sources and analysis outputs belong in the external research workspace.
+// def googleImaPatchInput = configurations.maybeCreate("googleImaPatchInput")
+// googleImaPatchInput.canBeConsumed = false
+// googleImaPatchInput.canBeResolved = true
+// dependencies.add(
+//         googleImaPatchInput.name,
+//         dependencies.create("com.google.ads.interactivemedia.v3:interactivemedia:3.35.1") {
+//             transitive = false
+//         }
+// )
 
 def googleUmpPatchInput = configurations.maybeCreate("googleUmpPatchInput")
 googleUmpPatchInput.canBeConsumed = false
@@ -68,6 +70,25 @@ dependencies.add(
             transitive = false
         }
 )
+
+// Google channel identity is independent of the shared IMA-to-TCL execution path.
+ext.googleAdFlavors = [
+        'google_ad_tv_desktop',
+        'google_ad_tv_desktop_jm',
+        'google_ad_tv_desktop_ytx',
+        'google_ad_tv_desktop_007',
+        'google_ad_tv_desktop_v260904_1',
+        'google_ad_tv_desktop_v260904_x98k',
+        'google_ad_tv_desktop_localcalendar',
+        'google_ad_tv_desktop_kaneshort',
+        'google_ad_tv_desktop_tpmaotai1935',
+        'google_ad_tv_lockscreen',
+        'google_ad_tv_lockscreen_hq002',
+        'google_ad_tv_desktop_tcl_test'
+]
+def googleAdCommonImplementation = configurations.maybeCreate('googleAdCommonImplementation')
+googleAdCommonImplementation.canBeConsumed = false
+googleAdCommonImplementation.canBeResolved = false
 
 android {
     namespace 'com.smart.android.ad_app'
@@ -203,166 +224,6 @@ android {
             manifest.srcFile 'src/haier_lsapDebug/AndroidManifest.xml'
             java.srcDirs = ['src/haier_lsapDebug/java']
             res.srcDirs = ['src/haier_lsapDebug/res']
-        }
-
-        google_ad_tv_desktop_tcl_test {
-            // Materialize the existing business sources without the replaced SDK/CMP files.
-            // Kotlin and lint both see the same directory, with no old SDK sources in their inputs.
-            java.srcDirs = [layout.buildDirectory.dir('generated/googleTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_tcl_test/java']
-            kotlin.srcDirs = java.srcDirs
-        }
-
-        google_ad_tv_desktop_v260904_x98k {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
-            kotlin.srcDirs = java.srcDirs
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-        }
-
-        google_ad_tv_desktop_localcalendar {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
-            kotlin.srcDirs = java.srcDirs
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-        }
-
-        google_ad_tv_desktop_kaneshort {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
-            kotlin.srcDirs = java.srcDirs
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-        }
-
-        google_ad_tv_desktop {
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_desktop_jm {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_desktop_ytx {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_desktop_007 {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_desktop_v260904_1 {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = [layout.buildDirectory.dir('generated/googleImaTclBusiness/java').get().asFile, 'src/google_ad_tv_desktop_v260904_1/java']
-            kotlin.srcDirs = java.srcDirs
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-        }
-
-        google_ad_tv_desktop_tpmaotai1935 {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_lockscreen {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-        }
-
-        google_ad_tv_lockscreen_hq002 {
-            manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
-            java.srcDirs = ['src/hq008/java', 'src/google_ad_tv_desktop/java']
-            res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
-            kotlin.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            kotlin.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008AdSdkDebugCapture.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpDebugActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpManager.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSdkEntryTestActivity.kt'
-            java.exclude 'com/smart/android/ad_app/Hq008CmpSilentEntryTestActivity.kt'
         }
 
         tcl_poly {
@@ -888,10 +749,13 @@ android {
                     cType               : "GOOGLE_AD_TV_DESKTOP_V260904_1",
                     model               : "GOOGLE_AD_TV_DESKTOP_V260904_1",
                     backupDomain        : "https://api.bcytua.cc/",
-                    manifestPlaceholders: [share_uid: ""]
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
             ])
-            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
         google_ad_tv_desktop_v260904_x98k {
@@ -911,8 +775,6 @@ android {
                             ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
-            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
-            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
@@ -922,8 +784,8 @@ android {
                     applicationId       : "com.localcalendar.tv",
                     minSdk              : 24,
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 3,
-                    versionName         : "1.0.1",
+                    versionCode         : 5,
+                    versionName         : "1.0.3",
                     signingConfig       : signingConfigs.localCalendarRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR",
@@ -935,8 +797,6 @@ android {
                             ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
-            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
-            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
@@ -958,8 +818,6 @@ android {
                             ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
-            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
-            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
@@ -1052,8 +910,8 @@ android {
             applyCommonFlavorConfig(delegate, [
                     applicationId       : "com.localvideoplayer.tv",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 12,
-                    versionName         : "1.0.11",
+                    versionCode         : 13,
+                    versionName         : "1.0.12",
                     signingConfig       : signingConfigs.localVideoPlayerRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_V260904_1",
@@ -1065,8 +923,6 @@ android {
                             ump_app_id: "ca-app-pub-3199037222330432~8403613512"
                     ]
             ])
-            proguardFile 'src/google_ad_tv_desktop_tcl_test/proguard-rules.pro'
-            proguardFile 'src/google_ad_tv_desktop_v260904_1/proguard-rules.pro'
             buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
@@ -1170,7 +1026,8 @@ android.applicationVariants.configureEach { variant ->
     }
     variant.outputs.configureEach { output ->
         def flavorName = variant.flavorName ?: "main"
-        outputFileName = "app-${flavorName}-${variant.buildType.name}-${timestamp}.apk"
+        def engineSuffix = googleAdFlavors.contains(flavorName) ? "-independent" : ""
+        outputFileName = "app-${flavorName}${engineSuffix}-${variant.buildType.name}-${timestamp}.apk"
     }
 }
 
@@ -1257,27 +1114,25 @@ hq008XhsxAarSpecs.each { spec ->
     }
 }
 
-def googleImaOriginalAar = googleImaPatchInput.incoming.artifactView {}.files.elements.map { locations ->
-    if (locations.size() != 1) {
-        throw new GradleException(
-                "Expected one Google IMA 3.35.1 AAR, found ${locations.size()}"
-        )
-    }
-    locations.iterator().next().asFile
-}
-
-def googleImaPatchTask = tasks.register("patchGoogleImaAar", com.smart.lsap.Hq008AarPatchTask) {
-    inputAar.set(layout.file(googleImaOriginalAar))
-    outputAar.set(layout.buildDirectory.file(
-            "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
-    ))
-    expectedSha256.set("8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64")
-    targetFlavor.set("google_ima")
-}
-def googleImaPatchedAar = files(layout.buildDirectory.file(
-        "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
-))
-googleImaPatchedAar.builtBy(googleImaPatchTask)
+// Disabled IMA patch recipe. No active flavor resolves or packages this dependency.
+// def googleImaOriginalAar = googleImaPatchInput.incoming.artifactView {}.files.elements.map { locations ->
+//     if (locations.size() != 1) {
+//         throw new GradleException("Expected one Google IMA 3.35.1 AAR, found ${locations.size()}")
+//     }
+//     locations.iterator().next().asFile
+// }
+// def googleImaPatchTask = tasks.register("patchGoogleImaAar", com.smart.lsap.Hq008AarPatchTask) {
+//     inputAar.set(layout.file(googleImaOriginalAar))
+//     outputAar.set(layout.buildDirectory.file(
+//             "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
+//     ))
+//     expectedSha256.set("8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64")
+//     targetFlavor.set("google_ima")
+// }
+// def googleImaPatchedAar = files(layout.buildDirectory.file(
+//         "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
+// ))
+// googleImaPatchedAar.builtBy(googleImaPatchTask)
 
 def googleUmpOriginalAar = googleUmpPatchInput.incoming.artifactView {}.files.elements.map { locations ->
     if (locations.size() != 1) {
@@ -1409,23 +1264,7 @@ tasks.matching {
             it.name == "compileAddy_hq1002DebugKotlin" ||
             it.name == "compileAddy_hq1002ReleaseKotlin" ||
             it.name == "compileAddy_jamsDebugKotlin" ||
-            it.name == "compileAddy_jamsReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktopDebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktopReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_jmDebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_jmReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_ytxDebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_ytxReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_007DebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_007ReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_v260904_1DebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_v260904_1ReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_tpmaotai1935DebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_desktop_tpmaotai1935ReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_lockscreenDebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_lockscreenReleaseKotlin" ||
-            it.name == "compileGoogle_ad_tv_lockscreen_hq002DebugKotlin" ||
-            it.name == "compileGoogle_ad_tv_lockscreen_hq002ReleaseKotlin"
+            it.name == "compileAddy_jamsReleaseKotlin"
 }.configureEach { task ->
     task.exclude { element ->
         haierLsapExcludedHq008SourcePaths.contains(element.file.absolutePath)
@@ -1443,60 +1282,32 @@ dependencies {
   //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
     implementation files('libs/lib_autorun-release-202608191720.aar')
 
-    google_ad_tv_desktop_tcl_testImplementation project(':ad-sdk-tcl')
-    google_ad_tv_desktop_tcl_testImplementation 'androidx.leanback:leanback:1.0.0'
-    google_ad_tv_desktop_tcl_testImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    google_ad_tv_desktop_tcl_testImplementation 'com.github.bumptech.glide:glide:4.11.0'
-
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktopImplementation googleImaPatchedAar
-    google_ad_tv_desktopImplementation googleUmpPatchedAar
-    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_jmImplementation googleImaPatchedAar
-    google_ad_tv_desktop_jmImplementation googleUmpPatchedAar
-    google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-exoplayer:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_ytxImplementation googleImaPatchedAar
-    google_ad_tv_desktop_ytxImplementation googleUmpPatchedAar
-    google_ad_tv_desktop_007Implementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_007Implementation googleImaPatchedAar
-    google_ad_tv_desktop_007Implementation googleUmpPatchedAar
-    google_ad_tv_desktop_v260904_1Implementation project(':ad-sdk-tcl')
-    google_ad_tv_desktop_v260904_1Implementation googleImaPatchedAar
-    google_ad_tv_desktop_v260904_1Implementation googleUmpPatchedAar
-    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-ui:1.8.0"
-    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer:1.8.0"
-    google_ad_tv_desktop_tpmaotai1935Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_desktop_tpmaotai1935Implementation googleImaPatchedAar
-    google_ad_tv_desktop_tpmaotai1935Implementation googleUmpPatchedAar
-    google_ad_tv_lockscreenImplementation "androidx.media3:media3-ui:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer:1.8.0"
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_lockscreenImplementation googleImaPatchedAar
-    google_ad_tv_lockscreenImplementation googleUmpPatchedAar
-    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-ui:1.8.0"
-    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer:1.8.0"
-    google_ad_tv_lockscreen_hq002Implementation "androidx.media3:media3-exoplayer-ima:1.8.0"
-    google_ad_tv_lockscreen_hq002Implementation googleImaPatchedAar
-    google_ad_tv_lockscreen_hq002Implementation googleUmpPatchedAar
+    add(googleAdCommonImplementation.name, project(':ad-sdk-tcl'))
+    add(googleAdCommonImplementation.name,
+            files('libs/google-url-independent/independent-google-tv-url-local-identity-20261025.aar'))
+    // UMP 4.0.0 declares basement as its only GMS runtime dependency.
+    add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-basement:18.9.0') {
+        version { strictly('18.9.0') }
+    }
+    // Offline IMA comparison dependencies; not resolved or packaged by any flavor.
+    // add(googleAdCommonImplementation.name, googleImaPatchedAar)
+    // add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-base:18.5.0')
+    // add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-tasks:18.2.0')
+    // add(googleAdCommonImplementation.name, 'com.google.android.tv:tv-ads:1.0.0')
+    // add(googleAdCommonImplementation.name,
+    //         dependencies.create('com.google.android.gms:play-services-pal:20.0.1') {
+    //             transitive = false
+    //         })
+    add(googleAdCommonImplementation.name, googleUmpPatchedAar)
+    add(googleAdCommonImplementation.name, 'com.google.guava:guava:31.1-android')
+    add(googleAdCommonImplementation.name, 'androidx.appcompat:appcompat:1.7.1')
+    add(googleAdCommonImplementation.name, 'androidx.leanback:leanback:1.0.0')
+    add(googleAdCommonImplementation.name, 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7')
+    add(googleAdCommonImplementation.name, 'com.github.bumptech.glide:glide:4.11.0')
+    add(googleAdCommonImplementation.name, 'com.iabtcf:iabtcf-encoder:2.0.10')
+    add(googleAdCommonImplementation.name, 'com.thoughtworks.xstream:xstream:1.4.18') {
+        exclude group: 'xmlpull', module: 'xmlpull'
+    }
 
     //noinspection UseTomlInstead
     hq008Implementation 'com.google.guava:guava:31.1-android'
@@ -1520,21 +1331,6 @@ dependencies {
     addy_hq1002Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     addy_jamsImplementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'com.google.guava:guava:31.1-android'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'com.google.guava:guava:31.1-android'
-    google_ad_tv_lockscreen_hq002Implementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.google.guava:guava:31.1-android'
     //noinspection UseTomlInstead
@@ -1560,21 +1356,6 @@ dependencies {
     //noinspection UseTomlInstead
     addy_jamsImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'androidx.appcompat:appcompat:1.7.1'
-    google_ad_tv_lockscreen_hq002Implementation 'androidx.appcompat:appcompat:1.7.1'
-    //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.appcompat:appcompat:1.7.1'
     //noinspection UseTomlInstead
     hq008Implementation 'androidx.leanback:leanback:1.0.0'
@@ -1598,21 +1379,6 @@ dependencies {
     addy_hq1002Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     addy_jamsImplementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.leanback:leanback:1.0.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'androidx.leanback:leanback:1.0.0'
-    google_ad_tv_lockscreen_hq002Implementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.leanback:leanback:1.0.0'
     //noinspection UseTomlInstead
@@ -1638,21 +1404,6 @@ dependencies {
     //noinspection UseTomlInstead
     addy_jamsImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    google_ad_tv_lockscreen_hq002Implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    //noinspection UseTomlInstead
     tcl_polyImplementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     //noinspection UseTomlInstead
     hq008Implementation 'com.github.bumptech.glide:glide:4.11.0'
@@ -1677,21 +1428,6 @@ dependencies {
     //noinspection UseTomlInstead
     addy_jamsImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'com.github.bumptech.glide:glide:4.11.0'
-    google_ad_tv_lockscreen_hq002Implementation 'com.github.bumptech.glide:glide:4.11.0'
-    //noinspection UseTomlInstead
     tcl_polyImplementation 'com.github.bumptech.glide:glide:4.11.0'
     //noinspection UseTomlInstead
     hq008Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
@@ -1715,21 +1451,6 @@ dependencies {
     addy_hq1002Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     addy_jamsImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
-    google_ad_tv_lockscreen_hq002Implementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
     tcl_polyImplementation 'com.iabtcf:iabtcf-encoder:2.0.10'
     //noinspection UseTomlInstead
@@ -1767,37 +1488,6 @@ dependencies {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
     //noinspection UseTomlInstead
-    google_ad_tv_desktopImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_jmImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_ytxImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_007Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_v260904_1Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_desktop_tpmaotai1935Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
-    google_ad_tv_lockscreenImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    google_ad_tv_lockscreen_hq002Implementation('com.thoughtworks.xstream:xstream:1.4.18') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
-    //noinspection UseTomlInstead
     tcl_polyImplementation('com.thoughtworks.xstream:xstream:1.4.18') {
         exclude group: 'xmlpull', module: 'xmlpull'
     }
@@ -1829,25 +1519,16 @@ dependencies {
 
 }
 
-// Customer channels inherit the complete latest IMA-to-TCL dependency set,
-// including patched IMA/UMP AARs and their declared runtime dependencies.
-['google_ad_tv_desktop_v260904_x98k', 'google_ad_tv_desktop_localcalendar',
-        'google_ad_tv_desktop_kaneshort'].each { flavorName ->
-    configurations.named("${flavorName}Implementation").configure {
-        extendsFrom configurations.getByName('google_ad_tv_desktop_v260904_1Implementation')
+// Every Google flavor uses the same dependencies; customer channels no longer
+// inherit another customer's configuration or select a legacy execution scheme.
+def googleAdConfigurationNames = googleAdFlavors.collect { "${it}Implementation".toString() } as Set
+googleAdConfigurationNames.each { configurationName ->
+    configurations.named(configurationName).configure {
+        extendsFrom googleAdCommonImplementation
+        exclude group: 'com.google.android.gms', module: 'play-services-ads-identifier'
+        exclude group: 'com.google.android.gms', module: 'play-services-appset'
     }
 }
-
-def googleAdConfigurationNames = [
-        'google_ad_tv_desktopImplementation',
-        'google_ad_tv_desktop_jmImplementation',
-        'google_ad_tv_desktop_ytxImplementation',
-        'google_ad_tv_desktop_007Implementation',
-        'google_ad_tv_desktop_v260904_1Implementation',
-        'google_ad_tv_desktop_tpmaotai1935Implementation',
-        'google_ad_tv_lockscreenImplementation',
-        'google_ad_tv_lockscreen_hq002Implementation'
-] as Set
 
 // File dependencies do not carry the original modules' Maven POM metadata.
 // Keep their declared runtime dependencies while replacing only the SDK AARs.
@@ -1855,21 +1536,10 @@ def googlePatchedSdkRuntimeDependencies = [
         'androidx.annotation:annotation:1.6.0',
         'androidx.browser:browser:1.5.0',
         'androidx.preference:preference:1.1.1',
-        'androidx.webkit:webkit:1.6.1',
-        'com.google.android.gms:play-services-ads-identifier:18.0.1',
-        'com.google.android.gms:play-services-appset:16.0.2',
-        'com.google.android.gms:play-services-base:18.5.0',
-        'com.google.android.gms:play-services-basement:18.4.0',
-        'com.google.android.gms:play-services-pal:20.0.1',
-        'com.google.android.gms:play-services-tasks:18.2.0',
-        'com.google.android.tv:tv-ads:1.0.0',
-        'androidx.annotation:annotation:1.0.0',
-        'com.google.android.gms:play-services-basement:18.9.0'
+        'androidx.webkit:webkit:1.9.0'
 ]
-googleAdConfigurationNames.each { configurationName ->
-    googlePatchedSdkRuntimeDependencies.each { coordinate ->
-        dependencies.add(configurationName, coordinate)
-    }
+googlePatchedSdkRuntimeDependencies.each { coordinate ->
+    dependencies.add(googleAdCommonImplementation.name, coordinate)
 }
 
 configurations.configureEach { configuration ->
@@ -1891,6 +1561,4 @@ configurations.configureEach { configuration ->
     }
 }
 
-apply from: file("gradle/google-tcl-experiment.gradle")
-
-apply from: file("gradle/google-ima-tcl.gradle")
+apply from: file("gradle/google-url-tcl.gradle")

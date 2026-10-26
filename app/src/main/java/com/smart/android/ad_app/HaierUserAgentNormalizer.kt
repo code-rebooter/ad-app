@@ -8,6 +8,7 @@ internal enum class HaierUaNormalizationReason {
     REPLACED_VERSION_MISMATCH,
     REPLACED_GENERIC_MODEL,
     REPLACED_BUILD_MISMATCH,
+    REPLACED_IDENTITY_MISMATCH,
     UNCHANGED_UNSUPPORTED_SDK
 }
 
@@ -52,55 +53,52 @@ internal object HaierUserAgentNormalizer {
         36 to HaierUaProfile("16", "BP2A.250605.031.A2", setOf("16"))
     )
 
-    fun normalize(rawUa: String?, sdkInt: Int): HaierUaNormalizationResult {
+    fun normalize(rawUa: String?, sdkInt: Int): HaierUaNormalizationResult =
+        normalize(rawUa, sdkInt, null)
+
+    /** Runtime callers supply the same native identity used by the individual Build getters. */
+    fun normalize(
+        rawUa: String?,
+        sdkInt: Int,
+        identity: HaierUaIdentity?
+    ): HaierUaNormalizationResult {
         val original = rawUa.orEmpty()
-        val profile = profiles[sdkInt]
-            ?: return unchanged(original, HaierUaNormalizationReason.UNCHANGED_UNSUPPORTED_SDK)
-
-        if (original.isBlank()) {
-            return replaced(original, profile, HaierUaNormalizationReason.REPLACED_BLANK)
-        }
-        if (original.any { it.code < 32 || it.code == 127 }) {
-            return replaced(
-                original,
-                profile,
-                HaierUaNormalizationReason.REPLACED_UNSAFE_CHARACTERS
-            )
+        if (sdkInt !in profiles) {
+            return unchanged(original, HaierUaNormalizationReason.UNCHANGED_UNSUPPORTED_SDK)
         }
 
-        val match = userAgentPattern.matchEntire(original)
-            ?: return replaced(
-                original,
-                profile,
-                HaierUaNormalizationReason.REPLACED_UNPARSEABLE
-            )
-        val androidVersion = match.groupValues[2].trim()
-        val model = match.groupValues[3].trim()
-        val buildId = match.groupValues[4].trim()
-
-        if (androidVersion !in profile.acceptedVersions) {
-            return replaced(
-                original,
-                profile,
+        val unsafe = original.any { it.code < 32 || it.code == 127 }
+        val match = if (unsafe) null else userAgentPattern.matchEntire(original)
+        val androidVersion = match?.groupValues?.get(2)?.trim()
+        val model = match?.groupValues?.get(3)?.trim()
+        val buildId = match?.groupValues?.get(4)?.trim()
+        val effectiveIdentity = identity ?: HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+            androidVersion, model, buildId, sdkInt
+        )
+        val reason = when {
+            original.isBlank() -> HaierUaNormalizationReason.REPLACED_BLANK
+            unsafe -> HaierUaNormalizationReason.REPLACED_UNSAFE_CHARACTERS
+            match == null -> HaierUaNormalizationReason.REPLACED_UNPARSEABLE
+            !isCompatibleAndroidVersion(androidVersion, sdkInt) ->
                 HaierUaNormalizationReason.REPLACED_VERSION_MISMATCH
-            )
-        }
-        if (HaierDeviceModelNormalizer.isGeneric(model)) {
-            return replaced(
-                original,
-                profile,
+            HaierDeviceModelNormalizer.isGeneric(model) ->
                 HaierUaNormalizationReason.REPLACED_GENERIC_MODEL
-            )
-        }
-        if (!safeBuildIdPattern.matches(buildId) || !isRecognizedBuildCompatible(buildId, sdkInt)) {
-            return replaced(
-                original,
-                profile,
+            !isCompatibleBuildId(buildId, sdkInt) ->
                 HaierUaNormalizationReason.REPLACED_BUILD_MISMATCH
-            )
+            androidVersion != effectiveIdentity.androidVersion ||
+                model != effectiveIdentity.model || buildId != effectiveIdentity.buildId ->
+                HaierUaNormalizationReason.REPLACED_IDENTITY_MISMATCH
+            else -> return unchanged(original, HaierUaNormalizationReason.UNCHANGED_VALID)
         }
-
-        return unchanged(original, HaierUaNormalizationReason.UNCHANGED_VALID)
+        val dalvikVersion = match?.groupValues?.get(1) ?: "2.1.0"
+        val effectiveUa = "Dalvik/$dalvikVersion (Linux; U; Android " +
+            "${effectiveIdentity.androidVersion}; ${effectiveIdentity.model} Build/${effectiveIdentity.buildId})"
+        return HaierUaNormalizationResult(
+            originalUa = original,
+            effectiveUa = effectiveUa,
+            changed = original != effectiveUa,
+            reason = reason
+        )
     }
 
     fun canonicalUserAgentFor(sdkInt: Int): String? {
@@ -161,19 +159,6 @@ internal object HaierUserAgentNormalizer {
             }
         }
         return null
-    }
-
-    private fun replaced(
-        original: String,
-        profile: HaierUaProfile,
-        reason: HaierUaNormalizationReason
-    ): HaierUaNormalizationResult {
-        return HaierUaNormalizationResult(
-            originalUa = original,
-            effectiveUa = buildCanonicalUserAgent(profile),
-            changed = true,
-            reason = reason
-        )
     }
 
     private fun unchanged(

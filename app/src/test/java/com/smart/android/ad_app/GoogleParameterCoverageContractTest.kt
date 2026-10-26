@@ -18,6 +18,7 @@ class GoogleParameterCoverageContractTest {
             "Build.DEVICE",
             "Build.PRODUCT",
             "Build.ID",
+            "Build.FINGERPRINT",
             "Build.VERSION.RELEASE"
         )
 
@@ -55,8 +56,28 @@ class GoogleParameterCoverageContractTest {
         val umpRunner = readProjectFile(
             "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleUmpSilentConsentFormRunner.kt"
         )
-        assertTrue(umpRunner.contains("Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()"))
-        assertTrue(umpRunner.contains("webView.settings.userAgentString"))
+        assertTrue(umpRunner.contains("Hq008XhsxAarRuntimeBridge.prepareWebViewIdentity(webView)"))
+        assertFalse(umpRunner.contains("webView.settings.userAgentString"))
+
+        val bridge = readProjectFile(
+            "app/src/main/java/com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge.kt"
+        )
+        assertTrue(bridge.contains("readUserAgentMetadata(settings)"))
+        assertTrue(bridge.contains("addDocumentStartJavaScript(webView, script)"))
+        assertTrue(bridge.contains("WebViewIdentityBootstrap.prependToHtml"))
+        assertTrue(bridge.contains("\"USER_AGENT_METADATA\""))
+        assertTrue(bridge.contains("\"DOCUMENT_START_SCRIPT\""))
+
+        val bootstrap = readProjectFile(
+            "app/src/main/java/com/smart/android/ad_app/WebViewIdentityBootstrap.kt"
+        )
+        assertTrue(bootstrap.contains("navigator.userAgentData"))
+        assertTrue(bootstrap.contains("getHighEntropyValues"))
+        assertTrue(bootstrap.contains("corrected.model = fixedModel"))
+        assertTrue(bootstrap.contains("corrected.platformVersion = fixedPlatformVersion"))
+
+        val buildGradle = readProjectFile("app/build.gradle")
+        assertTrue(buildGradle.contains("'androidx.webkit:webkit:1.9.0'"))
     }
 
     @Test
@@ -77,7 +98,8 @@ class GoogleParameterCoverageContractTest {
         return sequenceOf(
             "app/src/main/java",
             "app/src/hq008/java",
-            "app/src/google_ad_tv_desktop/java"
+            "app/src/google_ad_tv_desktop/java",
+            "app/src/googleUrlIndependent/java"
         ).flatMap { relativeRoot ->
             File(root, relativeRoot)
                 .walkTopDown()

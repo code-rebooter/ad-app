@@ -21,12 +21,12 @@ internal object Hq008SdkFlowControlClient {
             eventType = "FLOW_CONTROL_START",
             eventMessage = "channelId=$channelId"
         )
-        val requestBody = linkedMapOf(
+        val requestBody = linkedMapOf<String, Any>(
             "channel_id" to channelId,
             "mac" to safeMacAddress().orEmpty(),
             "ad_version" to BuildConfig.VERSION_CODE,
             "android_sdk_version" to android.os.Build.VERSION.SDK_INT
-        )
+        ).apply { Hq008ApiRequestFields.appendTo(this, context) }
 
         Log.i(
             TAG,

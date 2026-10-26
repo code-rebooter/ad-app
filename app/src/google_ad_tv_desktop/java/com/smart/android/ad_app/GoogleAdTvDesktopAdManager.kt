@@ -4,20 +4,45 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.ViewGroup
-import androidx.annotation.Keep
-import androidx.annotation.OptIn
-import androidx.media3.common.util.UnstableApi
 import com.smart.android.ad_app.AdLocalLog as Log
-import com.smart.android.ad_app.google.GoogleGamAdConfigClient
-import com.smart.android.ad_app.google.GoogleAdTvDesktopVastConfig
-import com.smart.android.ad_app.google.GoogleAdVastPlayerView
+import androidx.annotation.Keep
+import com.google.gson.JsonElement
+import com.smart.android.ad_app.google.GoogleGamAdConfigParser
 import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
+import com.smart.android.ad_app.google.GoogleGamPatchClient
+import com.speed.ext.getMacAddress
+import okhttp3.Call
+import com.smart.android.ad_app.google.GoogleAdUrlBridge
+import com.smart.android.ad_app.google.GoogleTclFillBridge
+import com.smart.android.ad_app.google.GoogleTclFinalUrlLog
+import com.smart.android.tclad.Ad
+import com.smart.android.tclad.AdStatusListener
+import com.smart.android.tclad.AdType
+import com.smart.android.tclad.Controller
+import com.smart.android.tclad.Initialization
+import com.smart.android.tclad.MediaAdInitListener
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicInteger
 
+/** A compile-time URL generator feeds the shared backend-patch/TCL execution path. */
 @Keep
 object GoogleAdTvDesktopAdManager : IAdManager {
+    private const val TAG = "GoogleUrlTclAd"
+    private const val SDK_NAME = "tcl_2.8.02"
+    private val SDK_ENTRY = "${GoogleAdUrlBridge.engine}_url_to_original_tcl_uniplayer"
+    private val main = Handler(Looper.getMainLooper())
+    @Volatile private var current: Session? = null
+
     override fun init() {
-        GoogleAdTvDesktopFormalAd.init()
+        Initialization.init(appContext, null, object : MediaAdInitListener {
+            override fun onInitComplete() {
+                Log.i(TAG, "TCL 原厂初始化完成，广告处理入口=$SDK_ENTRY")
+            }
+            override fun onInitError(code: Int) {
+                Log.e(TAG, "TCL 原厂初始化失败，errorCode=$code")
+            }
+        })
+        Log.i(TAG, "Google URL 生成 / TCL 播放渠道开始初始化，广告处理入口=$SDK_ENTRY")
     }
 
     override fun showAd(
@@ -28,612 +53,296 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
-    ) {
-        GoogleAdTvDesktopFormalAd.showAd(
-            flRoot = flRoot,
-            adId = adId,
-            soundEnabled = soundEnabled,
-            callbackTimeoutMs = callbackTimeoutMs,
-            adStart = adStart,
-            adError = adError,
-            adComplete = adComplete
-        )
-    }
+    ) = showAd(flRoot, adId, soundEnabled, callbackTimeoutMs, null, null, adStart, adError, adComplete)
 
-    override fun destroyAd() {
-        GoogleAdTvDesktopFormalAd.destroyAd()
-    }
-}
-
-private object GoogleAdTvDesktopFormalAd {
-    private const val TAG = "GoogleAdTvDesktopAd"
-    private const val SDK_NAME = "google_ad_tv_desktop"
-    private const val SDK_ENTRY = "media3_ima_vast"
-
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private var currentPlayer: GoogleAdVastPlayerView? = null
-    private var currentContainerRef: WeakReference<ViewGroup>? = null
-    private var currentRequest: PendingShowRequest? = null
-    private var timeoutRunnable: Runnable? = null
-
-    fun init() {
-        Log.i(TAG, "正式链路：Google VAST 广告渠道初始化完成")
-    }
-
-    fun showAd(
+    override fun showAd(
         flRoot: ViewGroup,
         adId: String?,
         soundEnabled: Boolean,
         callbackTimeoutMs: Long?,
+        gamConfig: JsonElement?,
+        channelId: String?,
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        val requestId = Hq008ReportRequestIdResolver.resolve(adId)
-        val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
+        destroyAd()
+        val session = Session(
+            Hq008ReportRequestIdResolver.resolve(adId), adId,
+            channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel(), soundEnabled,
+            callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS,
+            WeakReference(flRoot), adStart, adError, adComplete
+        )
+        current = session
+        session.timeout = Runnable { if (isActive(session)) fail(session, "host_callback_timeout") }
+        main.postDelayed(session.timeout!!, session.timeoutMs)
         flRoot.alpha = 0f
-        val request = PendingShowRequest(
-            requestId = requestId,
-            adId = adId,
-            soundEnabled = soundEnabled,
-            callbackTimeoutMs = effectiveCallbackTimeoutMs,
-            requestCreatedAtMs = SystemClock.elapsedRealtime(),
-            containerRef = WeakReference(flRoot),
-            adStart = adStart,
-            adError = adError,
-            adComplete = adComplete
-        )
-
-        Log.i(
-            TAG,
-            "正式链路：开始请求 Google VAST 广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
-        )
-        Hq008AdReporter.reportRequested(
-            requestId = requestId,
-            adId = adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            containerWidth = flRoot.width,
-            containerHeight = flRoot.height,
-            extra = mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "requestCreatedAtMs" to request.requestCreatedAtMs,
-                "callbackTimeoutMs" to request.callbackTimeoutMs
-            )
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_REQUESTED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=${request.callbackTimeoutMs},containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
-        )
-
-        currentRequest
-            ?.takeUnless { it.isTerminal() }
-            ?.markTerminal()
-        currentRequest = request
-        currentContainerRef = WeakReference(flRoot)
-
+        Hq008AdReporter.reportRequested(session.id, adId, AdDisplayConfig.isHiddenMode(), flRoot.width, flRoot.height, session.diagnostics())
+        trace(session, "AD_REQUESTED", "soundEnabled=$soundEnabled,callbackTimeoutMs=${session.timeoutMs}")
+        // Freeze only this authorization's payload; no process-wide last-config cache.
+        val authorizedConfig = GoogleGamAdConfigParser.parse(gamConfig)
         flRoot.post {
-            resolveAdConfig(request)
+            if (!isActive(session) || !checkSignal(session, "before_gam_config")) return@post
+            if (authorizedConfig == null) {
+                fail(session, "gam_config_unavailable", "authorize response has no usable GAM tag", skipped = true)
+            } else {
+                buildUrl(session, authorizedConfig)
+            }
         }
     }
 
-    fun destroyAd() {
-        currentRequest
-            ?.takeUnless { it.isTerminal() }
-            ?.let { request ->
-                request.markTerminal()
-                Hq008ConsentLogReporter.report(
-                    eventType = "AD_PHASE_CANCELLED",
-                    eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=window_destroy,reason=window_hidden"
-                )
+    private fun buildUrl(session: Session, response: GoogleGamAdPlaybackConfig) {
+        if (!checkSignal(session, "before_${GoogleAdUrlBridge.engine}_url_build")) return
+        val container = session.container.get() ?: run { fail(session, "container_released"); return }
+        session.sourceAdurl = response.adTagUrl
+        trace(session, "AD_INDEPENDENT_URL_BUILD", "urlLoadTimeoutMs=${response.adLoadTimeoutMs}")
+        val remainingMs = (session.timeoutMs - (SystemClock.elapsedRealtime() - session.createdAt)).coerceAtLeast(1L)
+        session.urlRequest = GoogleAdUrlBridge.buildFinalUrl(
+            container = container,
+            adTagUrl = response.adTagUrl,
+            soundEnabled = session.soundEnabled,
+            timeoutMs = minOf(response.adLoadTimeoutMs.toLong(), remainingMs)
+        ) { result, error ->
+            if (isActive(session)) {
+                session.urlRequest = null
+                if (result == null) {
+                    fail(session, "${GoogleAdUrlBridge.engine}_url_build_failed", error)
+                } else {
+                    session.urlBuiltAt = SystemClock.elapsedRealtime()
+                    session.localAdurl = result.url
+                    session.generatedAdurl = result.generatedUrl
+                    session.generatorDiagnostics = result.diagnostics
+                    session.beforeCommonPatchAdurl = result.beforeCommonPatchUrl
+                    session.commonPatchChanged = result.commonPatchChanged
+                    trace(session, "AD_INDEPENDENT_URL_READY", "urlHash=${AdPrivacySanitizer.shortHash(result.url)},urlLength=${result.url.length},commonPatchChanged=${result.commonPatchChanged}")
+                    requestBackendPatch(session, response)
+                }
             }
-        clearTimeout()
-        releaseCurrentPlayer()
-        currentRequest = null
+        }
     }
 
-    private fun resolveAdConfig(request: PendingShowRequest) {
-        if (!canContinueWithSignalStatus(request, "before_gam_config")) return
-        val container = request.containerRef.get()
-        if (container == null) {
-            failRequest(
-                request = request,
-                stage = "config_container_prepare",
-                reporterMessage = Hq008AdReporter.Message.CONTAINER_RELEASED,
-                reason = "container_released"
-            )
+    private fun requestBackendPatch(session: Session, response: GoogleGamAdPlaybackConfig) {
+        if (!isActive(session) || !checkSignal(session, "before_gam_patch")) return
+        val remainingMs = session.timeoutMs - (SystemClock.elapsedRealtime() - session.createdAt)
+        if (remainingMs <= 0) {
+            fail(session, "host_callback_timeout")
             return
         }
+        try {
+            val parameters = linkedMapOf<String, Any>(
+                "request_id" to session.id,
+                "channel_id" to session.channelId,
+                "ad_tag_url" to session.localAdurl,
+                "mac" to (runCatching { getMacAddress() }.getOrNull()?.takeIf { it.isNotBlank() }
+                    ?: "00:00:00:00:00:00"),
+                "ad_version" to BuildConfig.VERSION_CODE
+            ).apply {
+                // rdid is the existing local UID, independent of the URL's advertising ID.
+                Hq008ApiRequestFields.appendTo(this, appContext, googleAuthorization = true)
+            }
+            session.patchStartedAt = SystemClock.elapsedRealtime()
+            trace(session, "AD_GAM_PATCH_REQUEST", "urlHash=${AdPrivacySanitizer.shortHash(session.localAdurl)},urlLength=${session.localAdurl.length}")
+            session.patchRequest = GoogleGamPatchClient.shared.request(parameters, remainingMs) { url, error ->
+                onMain {
+                    if (!isActive(session)) return@onMain
+                    session.patchRequest = null
+                    if (url == null) {
+                        fail(session, "gam_patch_failed", error)
+                    } else {
+                        session.patchReadyAt = SystemClock.elapsedRealtime()
+                        session.adurl = url
+                        trace(session, "AD_GAM_PATCH_READY", "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
+                        // No local URL correction may follow the backend's final result.
+                        enterOriginal(session, response.copy(adTagUrl = url))
+                    }
+                }
+            }
+        } catch (error: RuntimeException) {
+            fail(session, "gam_patch_failed", error.message)
+        }
+    }
 
-        currentRequest
-            ?.takeUnless { it === request || it.isTerminal() }
-            ?.markTerminal()
-        clearTimeout()
-        releaseCurrentPlayer()
-        currentRequest = request
-        currentContainerRef = WeakReference(container)
+    private fun enterOriginal(session: Session, response: GoogleGamAdPlaybackConfig) {
+        if (!checkSignal(session, "before_original_start")) return
+        val container = session.container.get() ?: run { fail(session, "container_released"); return }
+        session.adurl = response.adTagUrl
         container.removeAllViews()
-        container.alpha = 0f
+        container.alpha = if (AdDisplayConfig.isHiddenMode()) 0f else 1f
+        trace(session, "AD_SDK_REQUEST", "sdkInternalTimeoutSource=original_configuration,backendLoadTimeoutMs=${response.adLoadTimeoutMs},backendStartupTimeoutMs=${response.adStartupTimeoutMs}",
+            GoogleTclFinalUrlLog.json(session.id, response.adTagUrl))
+        session.fillWatch = GoogleTclFillBridge.watch(response.adTagUrl) { evidence ->
+            synchronized(session) {
+                if (!isActive(session) || session.filledAt != null) return@watch
+                session.filledAt = SystemClock.elapsedRealtime()
+            }
+            Hq008AdReporter.reportFilled(session.id, session.adId, AdDisplayConfig.isHiddenMode(),
+                session.diagnostics() + mapOf("fillSource" to "vast_response_before_tcl_parse",
+                    "nativeRequestId" to evidence.nativeRequestId, "vastResponseLength" to evidence.responseLength))
+            trace(session, "AD_FILLED", "source=vast_response_before_tcl_parse")
+        }
+        try {
+            session.controller = Ad.get().begin(appContext).lazyLoad()
+                .setAdType(AdType.WATERFALL).setPlayerType(0).setPlayerViewType(1)
+                .setVolume(if (session.soundEnabled) 1f else 0f)
+                .setVastUrl(response.adTagUrl)
+                .listen(object : AdStatusListener {
+                    override fun onAdLoaded(controller: Controller) {
+                        rawCallback(session, "onAdLoaded")
+                        onMain {
+                            if (!isActive(session)) return@onMain
+                            session.controller = controller
+                            session.loadedAt = SystemClock.elapsedRealtime()
+                            Hq008AdReporter.reportLoaded(session.id, session.adId, AdDisplayConfig.isHiddenMode(), session.diagnostics())
+                            trace(session, "AD_LOADED")
+                            val target = session.container.get()
+                            if (target == null) fail(session, "container_released")
+                            else try { controller.start(target) }
+                            catch (error: RuntimeException) { fail(session, "controller_start_failed", error.toString()) }
+                        }
+                    }
+                    override fun onAdStartPlay() = nativeStarted(session, null)
+                    override fun onAdStartPlay(seconds: Double) = nativeStarted(session, seconds)
+                    override fun onAdFinished() {
+                        rawCallback(session, "onAdFinished")
+                        // Let the complete native callback stack finish before host window cleanup/release.
+                        main.post {
+                            if (!isActive(session)) return@post
+                            session.finishAt = SystemClock.elapsedRealtime()
+                            Hq008AdReporter.reportCompleted(session.id, session.adId, AdDisplayConfig.isHiddenMode(), session.diagnostics())
+                            trace(session, "AD_PHASE_COMPLETED", "finishReason=original_callback")
+                            close(session)
+                            session.onComplete()
+                        }
+                    }
+                    override fun onAdError(code: Int) {
+                        rawCallback(session, "onAdError", "errorCode=$code")
+                        main.post { if (isActive(session)) fail(session, "original_error", errorCode = code) }
+                    }
+                    override fun onContainerSizeError() {
+                        rawCallback(session, "onContainerSizeError")
+                        main.post { if (isActive(session)) fail(session, "container_size_error") }
+                    }
+                }).start()
+        } catch (error: RuntimeException) {
+            fail(session, "original_start_failed", error.toString())
+        }
+    }
 
-        Log.i(TAG, "正式链路：开始解析 Google GAM 广告配置，requestId=${request.requestId}")
-        GoogleGamAdConfigClient.request { config, error ->
-            container.post {
-                if (request.isTerminal() || currentRequest !== request) {
-                    return@post
-                }
-                when {
-                    error != null -> skipRequest(
-                        request = request,
-                        reason = "gam_config_network_failed",
-                        error = error
-                    )
-                    config == null -> skipRequest(
-                        request = request,
-                        reason = "gam_config_unavailable"
-                    )
-                    else -> applyResolvedConfigAndStart(request, config)
-                }
+    private fun nativeStarted(session: Session, seconds: Double?) {
+        rawCallback(session, if (seconds == null) "onAdStartPlay()" else "onAdStartPlay(double)", "durationSeconds=$seconds")
+        onMain {
+            if (!isActive(session)) return@onMain
+            if (session.startedAt == null) session.startedAt = SystemClock.elapsedRealtime()
+            Hq008AdReporter.reportStarted(session.id, session.adId, AdDisplayConfig.isHiddenMode(), seconds, session.diagnostics())
+            trace(session, "AD_STARTED", "durationSeconds=$seconds")
+            // This only controls the existing host countdown, not native callbacks or XML tracking.
+            if (!session.hostStartDelivered) {
+                session.hostStartDelivered = true
+                session.onStart?.invoke()
             }
         }
     }
 
-    private fun applyResolvedConfigAndStart(
-        request: PendingShowRequest,
-        config: GoogleGamAdPlaybackConfig
-    ) {
-        request.adTagUrl = config.adTagUrl
-        request.adLoadTimeoutMs = config.adLoadTimeoutMs
-        request.adStartupTimeoutMs = config.adStartupTimeoutMs
-        Log.i(
-            TAG,
-            "正式链路：Google GAM 配置解析成功，requestId=${request.requestId}，adLoadTimeoutMs=${request.adLoadTimeoutMs}，adStartupTimeoutMs=${request.adStartupTimeoutMs}"
-        )
-        startAd(request)
+    private fun rawCallback(session: Session, name: String, details: String = "") {
+        val index = session.callbackCount.incrementAndGet()
+        trace(session, "AD_TCL_CALLBACK", "callback=$name,callbackIndex=$index,$details")
+        Log.i(TAG, "原厂回调：requestId=${session.id},callback=$name,callbackIndex=$index,$details")
     }
 
-    @OptIn(UnstableApi::class)
-    private fun startAd(request: PendingShowRequest) {
-        if (!canContinueWithSignalStatus(request, "before_player_create")) return
-        val container = request.containerRef.get()
-        if (container == null) {
-            failRequest(
-                request = request,
-                stage = "container_prepare",
-                reporterMessage = Hq008AdReporter.Message.CONTAINER_RELEASED,
-                reason = "container_released"
-            )
-            return
-        }
-
-        clearTimeout()
-        releaseCurrentPlayer()
-        currentRequest = request
-        currentContainerRef = WeakReference(container)
-
-        runCatching {
-            val hiddenMode = AdDisplayConfig.isHiddenMode()
-            container.removeAllViews()
-            container.alpha = 0f
-
-            val playerView = GoogleAdVastPlayerView(container.context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                onAdLoaded = {
-                    container.post {
-                        notifyLoaded(request)
-                    }
-                }
-                onAdStarted = {
-                    container.post {
-                        notifyStarted(request, container)
-                    }
-                }
-                onAdFirstFrameRendered = {
-                    container.post {
-                        revealContainerWhenReady(request, container)
-                    }
-                }
-                onAdFinished = { terminalEvent ->
-                    container.post {
-                        finishRequest(request, terminalEvent)
-                    }
-                }
-                onAdSkipped = { terminalEvent ->
-                    container.post {
-                        skipPlaybackRequest(request, terminalEvent)
-                    }
-                }
-                onAdFailed = { message ->
-                    container.post {
-                        failRequest(
-                            request = request,
-                            stage = "vast_player",
-                            reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-                            reason = "vast_player_failed",
-                            error = RuntimeException(message)
-                        )
-                    }
-                }
-            }
-
-            container.addView(playerView)
-            currentPlayer = playerView
-
-            Log.i(
-                TAG,
-                "正式链路：Google VAST 广告容器已准备，requestId=${request.requestId}，hidden=$hiddenMode，soundEnabled=${request.soundEnabled}，alpha=${container.alpha}，container=${container.width}x${container.height}"
-            )
-            Hq008ConsentLogReporter.report(
-                eventType = "AD_SDK_REQUEST",
-                eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=$hiddenMode,soundEnabled=${request.soundEnabled},${request.adTagTraceMessage()}"
-            )
-            if (!canContinueWithSignalStatus(request, "before_player_start")) return@runCatching
-            playerView.play(
-                adTagUrl = request.adTagUrl,
-                soundEnabled = request.soundEnabled,
-                adLoadTimeoutMs = request.adLoadTimeoutMs,
-                adStartupTimeoutMs = request.adStartupTimeoutMs
-            )
-            armTimeout(request)
-        }.onFailure { error ->
-            failRequest(
-                request = request,
-                stage = "request_ad",
-                reporterMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-                reason = "request_ad_failed",
-                error = error
-            )
-        }
-    }
-
-    private fun notifyLoaded(request: PendingShowRequest) {
-        if (request.isTerminal() || request.loadedAtMs != null) {
-            return
-        }
-        request.loadedAtMs = SystemClock.elapsedRealtime()
-        Log.i(TAG, "正式链路：Google VAST 广告已加载，requestId=${request.requestId}，requestToLoadDurationMs=${request.requestToLoadDurationMs()}")
-        Hq008AdReporter.reportLoaded(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            extra = request.buildProgressDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY
-            ) + request.buildAdTagDiagnostics()
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_LOADED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},requestToLoadDurationMs=${request.requestToLoadDurationMs()}"
-        )
-    }
-
-    private fun notifyStarted(request: PendingShowRequest, container: ViewGroup) {
-        if (!canContinueWithSignalStatus(request, "ad_started")) return
-        if (request.isTerminal() || request.startedAtMs != null) {
-            return
-        }
-        if (request.loadedAtMs == null) {
-            notifyLoaded(request)
-        }
-        request.markStarted()
-        Log.i(
-            TAG,
-            "正式链路：Google VAST 广告开始播放，requestId=${request.requestId}，childCount=${container.childCount}，requestToStartDurationMs=${request.requestToStartDurationMs()}"
-        )
-        Hq008AdReporter.reportStarted(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            startProgress = null,
-            extra = request.buildProgressDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "childCount" to container.childCount
-            ) + request.buildAdTagDiagnostics()
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_STARTED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},childCount=${container.childCount},requestToStartDurationMs=${request.requestToStartDurationMs()}"
-        )
-        request.adStart?.invoke()
-    }
-
-    private fun revealContainerWhenReady(request: PendingShowRequest, container: ViewGroup) {
-        if (!canContinueWithSignalStatus(request, "before_first_frame_show")) return
-        if (request.isTerminal() || AdDisplayConfig.isHiddenMode()) {
-            return
-        }
-        container.animate().cancel()
-        container.animate().alpha(1f).setDuration(150L).start()
-        Log.i(
-            TAG,
-            "正式链路：Google VAST 广告首帧已渲染，显示广告容器，requestId=${request.requestId}"
-        )
-    }
-
-    private fun canContinueWithSignalStatus(request: PendingShowRequest, stage: String): Boolean {
-        if (!Hq002SignalStatusGate.isEnabled()) return true
-        if (request.isTerminal() || currentRequest !== request) return false
-        if (Hq002SignalStatusGate.isPlaybackAllowed()) return true
-
-        skipRequest(
-            request = request,
-            reason = "external_playback_denied:$stage:${Hq002SignalStatusGate.currentReason()}"
-        )
+    private fun checkSignal(session: Session, stage: String): Boolean {
+        if (!Hq002SignalStatusGate.isEnabled() || Hq002SignalStatusGate.isPlaybackAllowed()) return true
+        fail(session, "external_playback_denied:$stage:${Hq002SignalStatusGate.currentReason()}", skipped = true)
         return false
     }
 
-    private fun finishRequest(
-        request: PendingShowRequest,
-        terminalEvent: String
-    ) {
-        if (!request.markTerminal()) {
-            return
-        }
-        clearTimeout()
-        completeRequest(request, terminalEvent)
-    }
-
-    private fun completeRequest(
-        request: PendingShowRequest,
-        terminalEvent: String
-    ) {
-        Log.i(
-            TAG,
-            "正式链路：Google VAST 广告播放完成，requestId=${request.requestId}，adId=${request.adId}，playbackDurationMs=${request.playbackDurationMs()}，imaTerminalEvent=$terminalEvent"
-        )
-        Hq008AdReporter.reportCompleted(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "finishReason" to "vast_finished",
-                "imaTerminalEvent" to terminalEvent
-            ) + request.buildAdTagDiagnostics()
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_PHASE_COMPLETED",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},playbackDurationMs=${request.playbackDurationMs()},requestTotalDurationMs=${request.requestTotalDurationMs()},finishReason=vast_finished,imaTerminalEvent=$terminalEvent"
-        )
-        releaseCurrentPlayer()
-        currentRequest = null
-        request.adComplete.invoke()
-    }
-
-    private fun skipPlaybackRequest(
-        request: PendingShowRequest,
-        terminalEvent: String
-    ) {
-        if (!request.markTerminal()) {
-            return
-        }
-        clearTimeout()
-        Log.w(
-            TAG,
-            "正式链路：Google VAST 广告被跳过，requestId=${request.requestId}，adId=${request.adId}，imaTerminalEvent=$terminalEvent"
-        )
+    private fun fail(session: Session, reason: String, error: String? = null, errorCode: Int? = null, skipped: Boolean = false) {
+        if (!isActive(session)) return
+        session.finishAt = SystemClock.elapsedRealtime()
         Hq008AdReporter.reportError(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            errorCode = null,
-            errorMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-            extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "stage" to "vast_player",
-                "reason" to "ima_ad_skipped",
-                "error" to terminalEvent,
-                "imaTerminalEvent" to terminalEvent
-            ) + request.buildAdTagDiagnostics()
+            session.id, session.adId, AdDisplayConfig.isHiddenMode(), errorCode,
+            if (reason == "host_callback_timeout") Hq008AdReporter.Message.TIMEOUT else Hq008AdReporter.Message.REQUEST_ERROR,
+            session.diagnostics() + mapOf("reason" to reason, "error" to error)
         )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=vast_player,reason=ima_ad_skipped,imaTerminalEvent=$terminalEvent"
-        )
-        releaseCurrentPlayer()
-        currentRequest = null
-        request.adError?.invoke()
+        trace(session, if (skipped) "AD_PHASE_SKIPPED" else "AD_PHASE_ERROR", "reason=$reason,error=${error.orEmpty()},errorCode=$errorCode")
+        close(session)
+        if (skipped) session.onComplete() else session.onError?.invoke()
     }
 
-    private fun skipRequest(
-        request: PendingShowRequest,
-        reason: String,
-        error: String? = null
+    override fun destroyAd() {
+        val session = current ?: return
+        if (session.active) trace(session, "AD_PHASE_CANCELLED", "reason=window_destroy")
+        close(session)
+    }
+
+    private fun close(session: Session) {
+        session.active = false
+        session.timeout?.let(main::removeCallbacks)
+        session.timeout = null
+        session.urlRequest?.cancel()
+        session.urlRequest = null
+        session.patchRequest?.cancel()
+        session.patchRequest = null
+        session.fillWatch?.cancel()
+        session.fillWatch = null
+        val controller = session.controller
+        session.controller = null
+        try { controller?.release() }
+        catch (error: RuntimeException) { Log.e(TAG, "原厂 release 失败，requestId=${session.id}", error) }
+        session.container.get()?.removeAllViews()
+        if (current === session) current = null
+    }
+
+    private fun isActive(session: Session) = current === session && session.active
+    private fun onMain(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action() else main.post(action)
+    }
+    private fun trace(session: Session, event: String, details: String = "", adLog: String? = null) {
+        Hq008ConsentLogReporter.report(event, "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,urlEngine=${GoogleAdUrlBridge.engine},requestId=${session.id},adId=${session.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},$details", adLog)
+    }
+
+    private class Session(
+        val id: String, val adId: String?, val channelId: String, val soundEnabled: Boolean, val timeoutMs: Long,
+        val container: WeakReference<ViewGroup>, val onStart: (() -> Unit)?, val onError: (() -> Unit)?, val onComplete: () -> Unit
     ) {
-        if (!request.markTerminal()) {
-            return
-        }
-        clearTimeout()
-        Log.w(
-            TAG,
-            "正式链路：跳过 Google VAST 广告，requestId=${request.requestId}，reason=$reason，error=${error.orEmpty()}"
-        )
-        Hq008AdReporter.reportError(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            errorCode = null,
-            errorMessage = Hq008AdReporter.Message.REQUEST_ERROR,
-            extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "stage" to "gam_config_resolve",
-                "finishReason" to reason,
-                "reason" to reason,
-                "error" to error.orEmpty()
-            )
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=gam_config_resolve,reason=$reason,error=${error.orEmpty()}"
-        )
-        releaseCurrentPlayer()
-        currentRequest = null
-        request.adError?.invoke()
-    }
-
-    private fun failRequest(
-        request: PendingShowRequest,
-        stage: String,
-        reporterMessage: String,
-        reason: String,
-        error: Throwable? = null,
-        releasePlayer: Boolean = true
-    ) {
-        if (!request.markTerminal()) {
-            return
-        }
-        clearTimeout()
-        val errorText = error?.message ?: "unknown"
-        Log.e(
-            TAG,
-            "正式链路：Google VAST 广告流程失败，stage=$stage，requestId=${request.requestId}，adId=${request.adId}，reason=$reason，error=$errorText",
-            error
-        )
-        Hq008AdReporter.reportError(
-            requestId = request.requestId,
-            adId = request.adId,
-            hiddenMode = AdDisplayConfig.isHiddenMode(),
-            errorCode = null,
-            errorMessage = reporterMessage,
-            extra = request.buildCompletionDiagnostics() + mapOf(
-                "sdk" to SDK_NAME,
-                "sdkEntry" to SDK_ENTRY,
-                "stage" to stage,
-                "reason" to reason,
-                "error" to errorText
-            ) + request.buildAdTagDiagnostics()
-        )
-        Hq008ConsentLogReporter.report(
-            eventType = "AD_PHASE_ERROR",
-            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${request.requestId},adId=${request.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},stage=$stage,reason=$reason,callbackTimeoutMs=${request.callbackTimeoutMs},error=$errorText"
-        )
-        if (releasePlayer) {
-            releaseCurrentPlayer()
-        }
-        currentRequest = null
-        request.adError?.invoke()
-    }
-
-    private fun armTimeout(request: PendingShowRequest) {
-        clearTimeout()
-        timeoutRunnable = Runnable {
-            failRequest(
-                request = request,
-                stage = "request_timeout",
-                reporterMessage = Hq008AdReporter.Message.TIMEOUT,
-                reason = "request_timeout"
-            )
-        }
-        mainHandler.postDelayed(timeoutRunnable!!, request.callbackTimeoutMs)
-    }
-
-    private fun releaseCurrentPlayer() {
-        val player = currentPlayer
-        val container = currentContainerRef?.get()
-
-        runCatching {
-            player?.release()
-        }.onFailure { error ->
-            Log.w(TAG, "正式链路：释放 Google VAST 广告播放器失败，error=${error.message}", error)
-        }
-
-        container?.removeAllViews()
-        currentPlayer = null
-        currentContainerRef?.clear()
-        currentContainerRef = null
-    }
-
-    private fun clearTimeout() {
-        timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        timeoutRunnable = null
-    }
-
-    private data class PendingShowRequest(
-        val requestId: String,
-        val adId: String?,
-        val soundEnabled: Boolean,
-        val callbackTimeoutMs: Long,
-        val requestCreatedAtMs: Long,
-        val containerRef: WeakReference<ViewGroup>,
-        val adStart: (() -> Unit)?,
-        val adError: (() -> Unit)?,
-        val adComplete: () -> Unit,
-        var adTagUrl: String = "",
-        var adLoadTimeoutMs: Int = GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS,
-        var adStartupTimeoutMs: Long = GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS,
-        var loadedAtMs: Long? = null,
-        var startedAtMs: Long? = null,
-        var finishedAtMs: Long? = null
-    ) {
-        fun isTerminal(): Boolean {
-            return finishedAtMs != null
-        }
-
-        fun markStarted() {
-            if (startedAtMs == null) {
-                startedAtMs = SystemClock.elapsedRealtime()
-            }
-        }
-
-        fun markTerminal(finishedAtMs: Long = SystemClock.elapsedRealtime()): Boolean {
-            if (this.finishedAtMs != null) {
-                return false
-            }
-            this.finishedAtMs = finishedAtMs
-            return true
-        }
-
-        fun requestToLoadDurationMs(): Long? {
-            return loadedAtMs?.minus(requestCreatedAtMs)
-        }
-
-        fun requestToStartDurationMs(): Long? {
-            return startedAtMs?.minus(requestCreatedAtMs)
-        }
-
-        fun playbackDurationMs(): Long? {
-            val start = startedAtMs ?: return null
-            val finish = finishedAtMs ?: return null
-            return finish - start
-        }
-
-        fun requestTotalDurationMs(): Long? {
-            val finish = finishedAtMs ?: return null
-            return finish - requestCreatedAtMs
-        }
-
-        fun buildProgressDiagnostics(): Map<String, Any?> {
-            return mapOf(
-                "requestCreatedAtMs" to requestCreatedAtMs,
-                "callbackTimeoutMs" to callbackTimeoutMs,
-                "loadedAtMs" to loadedAtMs,
-                "startedAtMs" to startedAtMs,
-                "requestToLoadDurationMs" to requestToLoadDurationMs(),
-                "requestToStartDurationMs" to requestToStartDurationMs()
-            )
-        }
-
-        fun buildCompletionDiagnostics(): Map<String, Any?> {
-            return buildProgressDiagnostics() + mapOf(
-                "finishedAtMs" to finishedAtMs,
-                "playbackDurationMs" to playbackDurationMs(),
-                "requestTotalDurationMs" to requestTotalDurationMs()
-            )
-        }
-
-        fun buildAdTagDiagnostics(): Map<String, Any> {
-            return AdPrivacySanitizer.buildDiagnostics("adTagUrl", adTagUrl)
-        }
-
-        fun adTagTraceMessage(): String {
-            return "adTagUrlHash=${AdPrivacySanitizer.shortHash(adTagUrl)}," +
-                "adTagUrlLength=${AdPrivacySanitizer.length(adTagUrl)}"
-        }
+        val createdAt = SystemClock.elapsedRealtime()
+        val callbackCount = AtomicInteger()
+        var urlRequest: GoogleAdUrlBridge.RequestHandle? = null
+        var sourceAdurl = ""
+        var generatedAdurl = ""
+        var generatorDiagnostics: Map<String, String> = emptyMap()
+        var beforeCommonPatchAdurl = ""
+        var commonPatchChanged = false
+        var urlBuiltAt: Long? = null
+        var localAdurl = ""
+        var patchRequest: Call? = null
+        var patchStartedAt: Long? = null
+        var patchReadyAt: Long? = null
+        var controller: Controller? = null
+        var timeout: Runnable? = null
+        @Volatile var active = true
+        var fillWatch: GoogleTclFillBridge.Handle? = null
+        @Volatile var filledAt: Long? = null
+        var hostStartDelivered = false
+        var adurl = ""
+        var loadedAt: Long? = null
+        var startedAt: Long? = null
+        var finishAt: Long? = null
+        fun diagnostics(): Map<String, Any?> = mapOf(
+            "sdk" to SDK_NAME, "sdkEntry" to SDK_ENTRY, "urlEngine" to GoogleAdUrlBridge.engine, "requestCreatedAtMs" to createdAt,
+            "commonUrlPatchChanged" to commonPatchChanged,
+            "gamPatchStartedAtMs" to patchStartedAt, "gamPatchReadyAtMs" to patchReadyAt,
+            "gamPatchDurationMs" to patchStartedAt?.let { start -> patchReadyAt?.minus(start) },
+            "filled" to (filledAt != null), "filledAtMs" to filledAt,
+            "urlBuiltAtMs" to urlBuiltAt, "urlBuildDurationMs" to urlBuiltAt?.minus(createdAt),
+            "callbackTimeoutMs" to timeoutMs, "loadedAtMs" to loadedAt, "startedAtMs" to startedAt,
+            "finishedAtMs" to finishAt, "nativeCallbackCount" to callbackCount.get(),
+            "requestToLoadDurationMs" to loadedAt?.minus(createdAt), "requestToStartDurationMs" to startedAt?.minus(createdAt),
+            "playbackDurationMs" to startedAt?.let { start -> finishAt?.minus(start) },
+            "requestTotalDurationMs" to finishAt?.minus(createdAt)
+        ) + generatorDiagnostics + AdPrivacySanitizer.buildDiagnostics("sourceAdTagUrl", sourceAdurl) +
+            AdPrivacySanitizer.buildDiagnostics("generatedAdTagUrl", generatedAdurl) +
+            AdPrivacySanitizer.buildDiagnostics("beforeCommonPatchAdTagUrl", beforeCommonPatchAdurl) +
+            AdPrivacySanitizer.buildDiagnostics("localCorrectedAdTagUrl", localAdurl) +
+            AdPrivacySanitizer.buildDiagnostics("adTagUrl", adurl)
     }
 }

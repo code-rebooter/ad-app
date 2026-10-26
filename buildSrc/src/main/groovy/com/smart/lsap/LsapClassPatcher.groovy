@@ -1015,6 +1015,7 @@ final class LsapClassPatcher implements Opcodes {
 
     static byte[] patchGoogleUmpParameters(String entryName, byte[] bytes) {
         Set<String> normalizedEntries = [
+            'com/google/android/gms/internal/consent_sdk/zzp.class',
             'com/google/android/gms/internal/consent_sdk/zzco.class',
             'com/google/android/gms/internal/consent_sdk/zzw.class',
             'com/google/android/gms/internal/consent_sdk/zzcr.class',
@@ -1028,6 +1029,35 @@ final class LsapClassPatcher implements Opcodes {
         reader.accept(node, ClassReader.EXPAND_FRAMES)
         boolean changed = !Arrays.equals(bytes, normalizedBytes)
         String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+
+        // Keep the SDK's test-environment conditions while using the shared host identity inputs.
+        if (entryName == 'com/google/android/gms/internal/consent_sdk/zzdb.class') {
+            node.methods.each { MethodNode method ->
+                method.instructions.toArray().each { AbstractInsnNode instruction ->
+                    if (instruction instanceof FieldInsnNode && instruction.opcode == GETSTATIC &&
+                        instruction.owner == 'android/os/Build$VERSION' &&
+                        instruction.name == 'SDK_INT' && instruction.desc == 'I') {
+                        method.instructions.set(instruction,
+                            new MethodInsnNode(INVOKESTATIC, bridge, 'getAndroidSdkInt', '()I', false))
+                        changed = true
+                    }
+                    if (instruction instanceof FieldInsnNode && instruction.opcode == GETSTATIC &&
+                        instruction.owner == 'android/os/Build' &&
+                        instruction.desc == 'Ljava/lang/String;' &&
+                        ['FINGERPRINT', 'HARDWARE', 'DEVICE'].contains(instruction.name)) {
+                        String bridgeMethod = [
+                            FINGERPRINT : 'getAndroidBuildFingerprint',
+                            HARDWARE    : 'getAndroidHardware',
+                            DEVICE      : 'getAndroidDevice'
+                        ][instruction.name]
+                        method.instructions.set(instruction,
+                            new MethodInsnNode(INVOKESTATIC, bridge, bridgeMethod,
+                                '()Ljava/lang/String;', false))
+                        changed = true
+                    }
+                }
+            }
+        }
 
         if (entryName == 'com/google/android/gms/internal/consent_sdk/zzbe.class') {
             node.methods.each { MethodNode method ->
@@ -1856,6 +1886,65 @@ final class LsapClassPatcher implements Opcodes {
         return result
     }
 
+    static List<String> findResidualGooglePlatformIdentityReads(String entryName, byte[] bytes) {
+        List<String> result = []
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.each { instruction ->
+                if (instruction instanceof FieldInsnNode) {
+                    FieldInsnNode field = (FieldInsnNode) instruction
+                    if (field.opcode == GETSTATIC &&
+                        ['android/os/Build', 'android/os/Build$VERSION'].contains(field.owner)) {
+                        result << "${entryName}:${method.name}${method.desc}:field:${field.owner}.${field.name}:${field.desc}"
+                    }
+                } else if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction
+                    if (['android/os/Build', 'android/os/SystemProperties'].contains(call.owner) ||
+                        (call.owner == 'java/lang/System' &&
+                            ['getProperty', 'getProperties'].contains(call.name))) {
+                        result << "${entryName}:${method.name}${method.desc}:call:${call.owner}.${call.name}${call.desc}"
+                    }
+                } else if (instruction instanceof LdcInsnNode && instruction.cst instanceof String) {
+                    String value = ((String) instruction.cst).trim().toLowerCase(Locale.ROOT)
+                    if (value == 'android.os.build' || value == 'android.os.systemproperties' ||
+                        value == 'http.agent' || value.startsWith('ro.build.') ||
+                        value.startsWith('ro.product.') || value.startsWith('ro.system.') ||
+                        value.startsWith('ro.vendor.') || value.startsWith('ro.odm.') ||
+                        value.startsWith('ro.bootimage.')) {
+                        result << "${entryName}:${method.name}${method.desc}:string:${instruction.cst}"
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    static List<String> findResidualGoogleUmpIdentityTransportCalls(String entryName, byte[] bytes) {
+        List<String> result = []
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.findAll { it instanceof MethodInsnNode }?.each {
+                MethodInsnNode call = (MethodInsnNode) it
+                boolean rawUa = call.owner == 'android/webkit/WebSettings' &&
+                    ['getDefaultUserAgent', 'getUserAgentString', 'setUserAgentString'].contains(call.name)
+                boolean rawWebViewNavigation =
+                    ['android/webkit/WebView', 'com/google/android/gms/internal/consent_sdk/zzbx']
+                        .contains(call.owner) &&
+                    ['loadUrl', 'postUrl', 'loadData', 'loadDataWithBaseURL'].contains(call.name)
+                boolean rawConnectionOpen = call.owner == 'java/net/URL' &&
+                    call.name == 'openConnection'
+                boolean rawConnectionMutation = URL_CONNECTION_OWNERS.contains(call.owner) &&
+                    ['setRequestProperty', 'addRequestProperty', 'setRequestMethod'].contains(call.name)
+                if (rawUa || rawWebViewNavigation || rawConnectionOpen || rawConnectionMutation) {
+                    result << "${entryName}:${method.name}${method.desc}:${call.owner}.${call.name}${call.desc}"
+                }
+            }
+        }
+        return result
+    }
+
     static int countMethodCalls(
         byte[] bytes,
         String owner,
@@ -1869,6 +1958,27 @@ final class LsapClassPatcher implements Opcodes {
             method.instructions?.toArray()?.findAll { it instanceof MethodInsnNode }?.each {
                 MethodInsnNode call = (MethodInsnNode) it
                 if (call.owner == owner && call.name == name && call.desc == desc) {
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
+    static int countStaticFieldReads(
+        byte[] bytes,
+        String owner,
+        String name,
+        String desc
+    ) {
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        int count = 0
+        node.methods.each { MethodNode method ->
+            method.instructions?.toArray()?.findAll { it instanceof FieldInsnNode }?.each {
+                FieldInsnNode field = (FieldInsnNode) it
+                if (field.opcode == GETSTATIC && field.owner == owner &&
+                    field.name == name && field.desc == desc) {
                     count++
                 }
             }

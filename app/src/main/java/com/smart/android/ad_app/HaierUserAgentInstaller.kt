@@ -65,6 +65,7 @@ internal object HaierUserAgentInstaller {
     internal fun installForProcess(
         flavor: String,
         sdkInt: Int,
+        identity: HaierUaIdentity = HaierBuildIdentityNormalizer.userAgentIdentity(sdkInt),
         logger: (String) -> Unit
     ): HaierUaNormalizationResult? {
         if (!supportsFlavor(flavor)) {
@@ -74,7 +75,8 @@ internal object HaierUserAgentInstaller {
 
         val result = HaierUserAgentNormalizer.normalize(
             rawUa = System.getProperty(HTTP_AGENT_PROPERTY),
-            sdkInt = sdkInt
+            sdkInt = sdkInt,
+            identity = identity
         )
         if (result.changed) {
             System.setProperty(HTTP_AGENT_PROPERTY, result.effectiveUa)
@@ -112,7 +114,8 @@ internal object HaierUserAgentInstaller {
     @Synchronized
     fun ensureEffectiveForCurrentProcess(
         flavor: String = BuildConfig.FLAVOR,
-        sdkInt: Int = Build.VERSION.SDK_INT
+        sdkInt: Int = Build.VERSION.SDK_INT,
+        identity: HaierUaIdentity = HaierBuildIdentityNormalizer.userAgentIdentity(sdkInt)
     ): HaierUaRuntimeCheck {
         val observed = System.getProperty(HTTP_AGENT_PROPERTY).orEmpty()
         if (!supportsFlavor(flavor)) {
@@ -125,7 +128,7 @@ internal object HaierUserAgentInstaller {
             )
         }
 
-        val normalized = HaierUserAgentNormalizer.normalize(observed, sdkInt)
+        val normalized = HaierUserAgentNormalizer.normalize(observed, sdkInt, identity)
         if (normalized.changed) {
             System.setProperty(HTTP_AGENT_PROPERTY, normalized.effectiveUa)
         }

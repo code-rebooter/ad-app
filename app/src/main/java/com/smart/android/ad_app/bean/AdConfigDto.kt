@@ -1,4 +1,7 @@
 package com.smart.android.ad_app.bean
+
+import com.google.gson.JsonElement
+
 data class AdConfigDto(
     val adId: String?,
     val adType: Int?,
@@ -15,7 +18,9 @@ data class AdConfigDto(
     val position: Int?,
     val videoUrl: String?,
     val soundEnabled: Boolean = false,
-    val callbackTimeoutMs: Long? = null
+    val callbackTimeoutMs: Long? = null,
+    val gamConfig: JsonElement? = null,
+    val adChannelId: String? = null
 ){
     val positionEnum: Position get() = Position.fromInt(position?:0)
 }

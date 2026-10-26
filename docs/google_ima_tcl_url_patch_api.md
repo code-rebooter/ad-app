@@ -1,6 +1,8 @@
-# IMA → TCL 参数调整开关
+# 历史协议：IMA → TCL 参数调整开关
 
-适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。接口仍为 `POST /api/v2/ad/google-gam/resolve`，在现有 `data` 对象内新增 `ima_tcl_url_patch`。这是单个开关，不是后台规则列表。
+2026-10-23：此开关及客户端 TCL 专用调整已移除，当前使用 [后台 patch 协议](google_gam_patch_api.md)。以下仅保留历史说明；新客户端忽略旧开关值。
+
+适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。2026-10-23 起从 `POST /api/v2/ad/sdk/authorize` 的 `data.gam_config` 对象读取 `ima_tcl_url_patch`；本套客户端不再单独请求 `google-gam/resolve`。这是单个开关，不是后台规则列表。
 
 ## 返回类型与含义
 
@@ -17,7 +19,7 @@
 ## 执行顺序
 
 ```text
-后台 ad_tag_url → IMA Core 生成完整 URL（广告 HTTP 前拦截）
+授权 gam_config.ad_tag_url → IMA Core 生成完整 URL（广告 HTTP 前拦截）
                          ↓
                ima_tcl_url_patch 开关
              ┌───────────┴────────────┐
@@ -34,6 +36,8 @@
 
 开关关闭只跳过 TCL 专用调整；最后的公共参数修正始终执行。不存在绕过公共修正的分支。
 
+完整的授权合并协议见 [授权配置协议](google_ima_tcl_authorize_api.md)。未提供 `gam_config` 时仍兼容授权响应的平铺广告字段；显式 `gam_config` 不会回退平铺值。
+
 ## 后台返回示例
 
 关闭 TCL 调整，仍执行公共修正：
@@ -43,10 +47,14 @@
   "code": 100000,
   "msg": "success",
   "data": {
-    "ad_tag_url": "https://pubads.g.doubleclick.net/gampad/ads?iu=/your/ad_unit&output=vast&env=vp&gdfp_req=1&correlator=",
-    "ad_load_timeout_ms": 20000,
-    "ad_startup_timeout_ms": 35000,
-    "ima_tcl_url_patch": 0
+    "authorized": true,
+    "request_id": "this-request-id",
+    "gam_config": {
+      "ad_tag_url": "https://pubads.g.doubleclick.net/gampad/ads?iu=/your/ad_unit&output=vast&env=vp&gdfp_req=1&correlator=",
+      "ad_load_timeout_ms": 20000,
+      "ad_startup_timeout_ms": 35000,
+      "ima_tcl_url_patch": 0
+    }
   }
 }
 ```
@@ -57,7 +65,7 @@
 "ima_tcl_url_patch": 1
 ```
 
-每次 resolve 返回的开关只用于本次请求，既不持久化也不沿用上一轮值。下一次广告机会重新读取接口，所以后台从 1 改回 0 后，下一次请求即可切回；正在播放的广告不被中途改写。
+每次 authorize 返回的开关只用于本次请求，既不持久化也不沿用上一轮值。下一次广告机会重新读取授权接口，所以后台从 1 改回 0 后，下一次请求即可切回；正在播放的广告不被中途改写。
 
 ## 两层处理的区别
 

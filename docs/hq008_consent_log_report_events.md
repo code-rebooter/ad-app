@@ -573,4 +573,8 @@
 
 ## IMA → TCL 渠道最终 URL（2026-10-19 更新）
 
-适用于 `google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。这四个渠道在原 AD_SDK_REQUEST 步骤的 adLog 中追加 request_id、final_url、ima_tcl_url_patch。final_url 是开关及公共补丁修正后交给 TCL 的完整链接；在原有终态汇总日志中一起上传，不新增该步骤的单独日志请求。详见 [最终 URL 与 FILLED 状态](/Users/zy/Documents/Codex/ad-app/docs/google_ima_tcl_reporting.md)。填充状态走原 /api/v2/ad/report 的 AD_PROGRESS + FILLED，不是新增日志请求。
+适用于当前全部 Google 渠道。在原 AD_SDK_REQUEST 步骤的 adLog 中记录 request_id、final_url。final_url 是本地公共修正后经后台 patch 返回、实际交给 TCL 的完整链接；旧 ima_tcl_url_patch 字段和开关已删除；在原有终态汇总日志中一起上传，不新增该步骤的单独日志请求。详见 [最终 URL 与 FILLED 状态](google_ima_tcl_reporting.md)。填充状态走原 /api/v2/ad/report 的 AD_PROGRESS + FILLED，不是新增日志请求。
+
+## 2026-10-23 日志请求关联
+
+`consent-log-report` 顶层新增 `request_id` 和 `androidid`。request_id 来自本轮终态快照：通常与本次授权/广告状态的 request_id 一致，授权前终止则使用本地流程 ID；不会在发送时读取下一轮 ID。仍沿用原终态一次汇总上传及原日志开关。值来源和其他新增请求字段见 [应用接口字段同步](google-ad-backend-fields-20261023.md)。

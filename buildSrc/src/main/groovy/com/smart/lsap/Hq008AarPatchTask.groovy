@@ -124,10 +124,16 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             ]
         } else if (targetFlavor.get() == 'google_ump') {
             metadataLines = [
-                'patchVersion=google-ump-parameter-normalization-1',
+                'patchVersion=google-ump-parameter-normalization-6',
+                'identityRequestBuilders=zzco,zzp',
                 'consentPolicy=preserve',
-                'deviceIdentityPolicy=normalize-request-model-and-android-version',
-                'webViewUaPolicy=normalize-before-initial-html-load-and-navigation',
+                'deviceIdentityPolicy=normalize-request-model-android-version-and-test-environment-fields',
+                'environmentApiPolicy=common-getter-real-sdk-int',
+                'environmentClassificationPolicy=preserve-sdk-conditions-with-normalized-fingerprint-hardware-and-device',
+                'explicitTestDeviceIdPolicy=preserve-android-id-hash-match',
+                'wholeAarIdentityPolicy=reject-residual-build-system-property-and-identity-transport-reads',
+                'webViewIdentityPolicy=normalize-ua-client-hints-and-document-start-script',
+                'dynamicScriptPolicy=document-start-bootstrap-with-html-prefix-fallback',
                 'nativeNetworkHeaderCoverage=http-url-connection',
                 "originalAarSha256=${actualHash}",
                 "patchedClassesJarSha256=${sha256(patchedClasses)}",
@@ -420,6 +426,47 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(requestPayload, bridge, 'getAndroidVersionRelease',
             '()Ljava/lang/String;', 1, 'UMP request Android version bridge')
 
+        byte[] alternatePayload = requireClass(
+            classEntries, 'com/google/android/gms/internal/consent_sdk/zzp.class'
+        )
+        requireCallCount(alternatePayload, bridge, 'getAndroidDeviceModel',
+            '()Ljava/lang/String;', 1, 'UMP alternate request model bridge')
+        requireCallCount(alternatePayload, bridge, 'getAndroidSdkInt',
+            '()I', 3, 'UMP alternate request API bridge')
+        List<String> residualIdentity = LsapClassPatcher.findResidualBuildIdentityReads(
+            'com/google/android/gms/internal/consent_sdk/zzp.class', alternatePayload
+        )
+        if (!residualIdentity.isEmpty()) {
+            throw new GradleException("Unpatched UMP alternate request identity reads: ${residualIdentity}")
+        }
+
+        byte[] environment = requireClass(
+            classEntries, 'com/google/android/gms/internal/consent_sdk/zzdb.class'
+        )
+        requireCallCount(environment, bridge, 'getAndroidSdkInt',
+            '()I', 1, 'UMP environment real API bridge')
+        requireCallCount(environment, bridge, 'getAndroidBuildFingerprint',
+            '()Ljava/lang/String;', 2, 'UMP environment fingerprint bridge')
+        requireCallCount(environment, bridge, 'getAndroidHardware',
+            '()Ljava/lang/String;', 1, 'UMP environment hardware bridge')
+        requireCallCount(environment, bridge, 'getAndroidDevice',
+            '()Ljava/lang/String;', 1, 'UMP environment device bridge')
+        requireStaticFieldReadCount(environment, 'android/os/Build$VERSION', 'SDK_INT', 'I',
+            0, 'UMP environment original API')
+        ['FINGERPRINT', 'HARDWARE', 'DEVICE'].each { fieldName ->
+            requireStaticFieldReadCount(environment, 'android/os/Build', fieldName,
+                'Ljava/lang/String;', 0, "UMP environment original ${fieldName.toLowerCase()}")
+        }
+        requireCallCount(environment, 'com/google/android/gms/internal/consent_sdk/zzdb',
+            'hostOriginalTestEnvironment', '(Z)Z', 0, 'no additional UMP environment guard')
+
+        byte[] testDeviceId = requireClass(
+            classEntries, 'com/google/android/gms/internal/consent_sdk/zzct.class'
+        )
+        requireCallCount(testDeviceId, 'android/provider/Settings$Secure', 'getString',
+            '(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;', 1,
+            'UMP explicit test-device Android ID hash source')
+
         [
             'com/google/android/gms/internal/consent_sdk/zzw.class': 'UMP consent request',
             'com/google/android/gms/internal/consent_sdk/zzcr.class': 'UMP metrics request'
@@ -462,6 +509,28 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(javascriptLoader, bridge, 'loadWebViewUrl',
             '(Landroid/webkit/WebView;Ljava/lang/String;)V', 1,
             'UMP fallback WebView navigation bridge')
+
+        List<String> residualWholeAarIdentity = []
+        List<String> residualTransport = []
+        classEntries.each { className, bytes ->
+            if (!className.endsWith('.class')) return
+            residualWholeAarIdentity.addAll(
+                LsapClassPatcher.findResidualGooglePlatformIdentityReads(className, bytes)
+            )
+            residualTransport.addAll(
+                LsapClassPatcher.findResidualGoogleUmpIdentityTransportCalls(className, bytes)
+            )
+        }
+        if (!residualWholeAarIdentity.isEmpty()) {
+            throw new GradleException(
+                "Unpatched UMP platform identity reads:\n${residualWholeAarIdentity.take(50).join('\n')}"
+            )
+        }
+        if (!residualTransport.isEmpty()) {
+            throw new GradleException(
+                "Unpatched UMP identity transport calls:\n${residualTransport.take(50).join('\n')}"
+            )
+        }
     }
 
     private static byte[] requireClass(Map<String, byte[]> classEntries, String name) {
@@ -493,6 +562,22 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         if (actual == 0) {
             throw new GradleException(
                 "Google IMA patch contract mismatch for ${label}: allocation missing"
+            )
+        }
+    }
+
+    private static void requireStaticFieldReadCount(
+        byte[] bytes,
+        String owner,
+        String name,
+        String desc,
+        int expected,
+        String label
+    ) {
+        int actual = LsapClassPatcher.countStaticFieldReads(bytes, owner, name, desc)
+        if (actual != expected) {
+            throw new GradleException(
+                "Google AAR patch contract mismatch for ${label}: expected ${expected}, found ${actual}"
             )
         }
     }

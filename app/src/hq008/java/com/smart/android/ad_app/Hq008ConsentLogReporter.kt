@@ -67,6 +67,12 @@ internal object Hq008ConsentLogReporter {
         }
     }
 
+    fun activeRequestId(): String = synchronized(lock) { traceSession.activeRequestId() }
+
+    fun bindAuthorizationRequestId(localRequestId: String, resolvedRequestId: String) = synchronized(lock) {
+        traceSession.bindAuthorizationRequestId(localRequestId, resolvedRequestId)
+    }
+
     fun finishActiveFlow(reason: String) {
         val uploadPayload = synchronized(lock) {
             val payload = traceSession.forceFinish(
@@ -132,8 +138,9 @@ internal object Hq008ConsentLogReporter {
             "ad_version" to BuildConfig.VERSION_CODE,
             "event_type" to payload.eventType,
             "event_message" to payload.eventMessage,
-            "ad_log" to payload.adLog
-        )
+            "ad_log" to payload.adLog,
+            "request_id" to payload.requestId
+        ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
         if (BuildConfig.DEBUG) debugUploadObserver?.invoke("request", params.toMap(), null)
         NetworkHelper.makeRequest<EmptyData>(
             url = consentLogUrl,
@@ -220,6 +227,7 @@ internal object Hq008ConsentLogReporter {
         }.take(MAX_MESSAGE_LENGTH)
 
         return ConsentLogUploadPayload(
+            requestId = snapshot.requestId,
             eventType = snapshot.finalEventType,
             eventMessage = summaryMessage,
             adLog = adLogPayload,
@@ -1016,6 +1024,7 @@ internal object Hq008ConsentLogReporter {
     )
 
     private data class ConsentLogUploadPayload(
+        val requestId: String,
         val eventType: String,
         val eventMessage: String,
         val adLog: String,

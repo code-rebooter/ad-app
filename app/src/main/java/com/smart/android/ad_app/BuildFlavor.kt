@@ -17,8 +17,7 @@ internal object BuildFlavor {
                 isTclPoly(flavor) ||
                 isHaierLsap(flavor) ||
                 isGoogleAdTvDesktop(flavor) ||
-                isGoogleAdTvLockscreen(flavor) ||
-                isGoogleTclExperiment(flavor)
+                isGoogleAdTvLockscreen(flavor)
     }
 
     fun isTclPoly(flavor: String = BuildConfig.FLAVOR): Boolean {
@@ -39,13 +38,10 @@ internal object BuildFlavor {
         return flavor == "addy_jams"
     }
 
-    fun isGoogleTclExperiment(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "google_ad_tv_desktop_tcl_test"
-    }
-
     fun isGoogleAdTvDesktop(flavor: String = BuildConfig.FLAVOR): Boolean {
         return flavor == "google_ad_tv_desktop" ||
                 flavor == "google_ad_tv_desktop_jm" ||
+                flavor == "google_ad_tv_desktop_tcl_test" ||
                 flavor == "google_ad_tv_desktop_ytx" ||
                 flavor == "google_ad_tv_desktop_007" ||
                 flavor == "google_ad_tv_desktop_v260904_1" ||
@@ -58,6 +54,10 @@ internal object BuildFlavor {
     fun isGoogleAdTvLockscreen(flavor: String = BuildConfig.FLAVOR): Boolean {
         return flavor == "google_ad_tv_lockscreen" ||
                 flavor == "google_ad_tv_lockscreen_hq002"
+    }
+
+    fun isGoogleAd(flavor: String = BuildConfig.FLAVOR): Boolean {
+        return isGoogleAdTvDesktop(flavor) || isGoogleAdTvLockscreen(flavor)
     }
 
     fun isHq008Family(flavor: String = BuildConfig.FLAVOR): Boolean {

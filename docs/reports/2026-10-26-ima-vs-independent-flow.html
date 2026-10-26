@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IMA取链与自拼方案对照</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f8;
+      --surface: #ffffff;
+      --text: #172126;
+      --muted: #607078;
+      --line: #ccd5d9;
+      --old: #b43a36;
+      --old-soft: #fff0ee;
+      --new: #16705b;
+      --new-soft: #eaf7f2;
+      --stage: #345264;
+      --stage-soft: #eef3f5;
+      --warn: #9a6700;
+      --warn-soft: #fff7df;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 36px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 600; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    .scope { color: var(--stage); font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .heads, .row { display: grid; grid-template-columns: minmax(0,1fr) 112px minmax(0,1fr); gap: 16px; }
+    .heads { margin-bottom: 10px; }
+    .head {
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .head.old { background: var(--old); }
+    .head.new { background: var(--new); }
+    .head small { display: block; margin-top: 3px; font-size: 12px; font-weight: 400; opacity: .9; }
+    .row { align-items: stretch; margin-bottom: 12px; }
+    .stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+      border-radius: 8px;
+      background: var(--stage-soft);
+      color: var(--stage);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .node {
+      min-height: 106px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    .node.old { border-left-color: var(--old); background: var(--old-soft); }
+    .node.new { border-left-color: var(--new); background: var(--new-soft); }
+    .node h2 { margin: 0 0 7px; font-size: 16px; font-weight: 600; }
+    .node p { margin: 0; font-size: 14px; line-height: 1.55; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+    .flag { margin-top: 9px; color: var(--old); font-size: 13px; font-weight: 600; }
+    .ok { margin-top: 9px; color: var(--new); font-size: 13px; font-weight: 600; }
+    .arrow {
+      width: 2px;
+      height: 18px;
+      margin: -6px auto 6px;
+      background: var(--line);
+      position: relative;
+    }
+    .arrow::after {
+      content: "";
+      position: absolute;
+      left: -4px;
+      bottom: -1px;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 7px solid var(--line);
+    }
+    .decision {
+      margin-top: 22px;
+      padding: 18px;
+      border: 1px solid #e0c16a;
+      border-radius: 8px;
+      background: var(--warn-soft);
+    }
+    .decision h2 { margin: 0 0 12px; font-size: 18px; }
+    .reasons { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+    .reason { padding-left: 12px; border-left: 3px solid var(--warn); }
+    .reason strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .reason span { color: #5f5140; font-size: 13px; line-height: 1.45; }
+    .foot { margin-top: 14px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 20px, 620px); padding-top: 18px; }
+      header { display: block; }
+      .scope { margin-top: 8px; }
+      .heads { grid-template-columns: 1fr 1fr; }
+      .heads .spacer { display: none; }
+      .row { grid-template-columns: 1fr; }
+      .stage { order: -1; min-height: 42px; }
+      .reasons { grid-template-columns: 1fr 1fr; }
+      .arrow { display: none; }
+    }
+    @media (max-width: 440px) {
+      h1 { font-size: 23px; }
+      .heads, .reasons { grid-template-columns: 1fr; }
+      .heads .head.new { margin-top: 6px; }
+    .notice {
+      margin: 0 0 18px;
+      padding: 12px 14px;
+      border-left: 4px solid #b42318;
+      background: #fff1f0;
+      color: #7a271a;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 0; }
+      .node { break-inside: avoid; }
+      .decision { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>改造前 IMA取链与最新自拼方案对照</h1>
+      <p class="subtitle">左列记录原始 IMA 风险，只比较从开始生成广告 URL 到取得最终 URL 的过程</p>
+    </div>
+    <div class="scope">当前自拼版本：2026-10-25 本地身份版</div>
+  </header>
+
+  <div class="notice"><strong>归档说明：</strong>左列不代表提交 <code>253e80c</code> 中已经本地化的 IMA 参考实现。2026-10-26 起正式 Google flavor 仅编译 independent；本图只用于说明最初的替换背景。</div>
+
+  <div class="heads">
+    <div class="head old">改造前原始 IMA取链<small>远程组件与多套读取入口</small></div>
+    <div class="spacer"></div>
+    <div class="head new">最新自拼方案<small>本地固定执行链与统一输入</small></div>
+  </div>
+
+  <section class="row">
+    <article class="node old">
+      <h2>下载并执行远程组件</h2>
+      <p>WebView请求 IMA loader、远程 Core和OM SDK脚本，请求中携带UA、包名和Client Hints。</p>
+      <div class="flag">取链完成前已向Google发送基础身份</div>
+    </article>
+    <div class="stage">加载阶段</div>
+    <article class="node new">
+      <h2>只执行本地固定代码</h2>
+      <p>库内不包含IMA SDK，不下载远程Core或OM脚本，本地WebView只执行随AAR交付的逻辑。</p>
+      <div class="ok">无远程脚本版本漂移</div>
+    </article>
+  </section>
+  <div class="arrow"></div>
+
+  <section class="row">
+    <article class="node old">
+      <h2><code>ms</code> 输入未统一</h2>
+      <p>动态VM/JNI直接或反射读取原始 <code>MODEL/BRAND/MANUFACTURER/DEVICE/PRODUCT/Build.ID/Android release</code>。</p>
+      <div class="flag">最终明文补丁无法回改已生成的ms</div>
+    </article>
+    <div class="stage">信号生成</div>
+    <article class="node new">
+      <h2><code>ms</code> 生成前统一输入</h2>
+      <p>直接读取、普通反射和嵌套反射全部先进入宿主修正入口，再按原有算法生成 <code>ms/nonce</code>。</p>
+      <div class="ok">计算源码和原生库保持不变</div>
+    </article>
+  </section>
+  <div class="arrow"></div>
+
+  <section class="row">
+    <article class="node old">
+      <h2><code>uach</code> 独立读取</h2>
+      <p>远程Core通过 <code>getHighEntropyValues()</code> 读取 <code>model/platformVersion</code>，未接入宿主修正规则。</p>
+      <div class="flag">UA修正不能代表UACH已修正</div>
+    </article>
+    <div class="stage">浏览器字段</div>
+    <article class="node new">
+      <h2><code>uach</code> 编码前修正</h2>
+      <p>型号和非空Android系统版本在编码前统一；浏览器版本、架构和位数继续保留真实结果。</p>
+      <div class="ok">只修补丁规定字段</div>
+    </article>
+  </section>
+  <div class="arrow"></div>
+
+  <section class="row">
+    <article class="node old">
+      <h2>指纹来源分裂</h2>
+      <p><code>atv_bfp</code>使用修正指纹，但GMS/GASS仍读取系统原始 <code>FINGERPRINT</code> 和Build字段。</p>
+      <div class="flag">同一请求内存在不同设备身份来源</div>
+    </article>
+    <div class="stage">指纹与TV参数</div>
+    <article class="node new">
+      <h2>指纹入口统一</h2>
+      <p>TV参数、直接/反射读取及7个指纹属性入口共用修正结果；残缺指纹按实际构建字段重建。</p>
+      <div class="ok">无法重建时在ms初始化前停止</div>
+    </article>
+  </section>
+  <div class="arrow"></div>
+
+  <section class="row">
+    <article class="node old">
+      <h2>GASS独立读取</h2>
+      <p>GASS位于Google Play services进程，应用补丁无法覆盖；刷新条件满足时通过 <code>create_lite</code> 发送原始字段。</p>
+      <div class="flag">成功样本未触发该POST，但接口保留</div>
+    </article>
+    <div class="stage">外部服务</div>
+    <article class="node new">
+      <h2>移除GASS/GKS依赖</h2>
+      <p>不调用GASS，不创建GKS客户端；原GASS摘要输入改为读取实际APK并在本地计算SHA-256。</p>
+      <div class="ok">取链输入和执行路径均可审计</div>
+    </article>
+  </section>
+
+  <section class="decision">
+    <h2>为什么替换成自拼方案</h2>
+    <div class="reasons">
+      <div class="reason"><strong>修正时机提前</strong><span>补丁在ms、uach、指纹生成前生效。</span></div>
+      <div class="reason"><strong>身份来源统一</strong><span>直接读取、反射、UA、UACH和TV参数共用一套结果。</span></div>
+      <div class="reason"><strong>移除远程变量</strong><span>不下载远程Core、OM脚本，不调用GASS/GKS。</span></div>
+      <div class="reason"><strong>版本可复现</strong><span>规则固定在本地AAR，可按版本和SHA核对。</span></div>
+    </div>
+  </section>
+
+  <div class="foot">自拼AAR：independent-google-tv-url-local-identity-20261025.aar · ms/nonce计算算法未修改</div>
+</main>
+</body>
+</html>

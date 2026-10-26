@@ -7,6 +7,8 @@ import android.util.DisplayMetrics
 import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.WindowManager
 import androidx.annotation.Keep
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 import com.speed.ext.getMacAddress
 import com.speed.net.NetworkHelper
@@ -26,7 +28,7 @@ internal object Hq008SdkAuthorizeClient {
         channelId: String,
         onResult: (dto: Hq008AuthorizeResponseData?, error: String?) -> Unit
     ) {
-        val requestId = generateRequestId()
+        val requestId = Hq008ConsentLogReporter.activeRequestId().ifBlank { generateRequestId() }
         Hq008ConsentLogReporter.report(
             eventType = "AUTHORIZE_START",
             eventMessage = "requestId=$requestId"
@@ -62,6 +64,8 @@ internal object Hq008SdkAuthorizeClient {
                 else -> response
             }
 
+            val boundResponse = resolvedResponse.copy(requestChannelId = channelId)
+            Hq008ConsentLogReporter.bindAuthorizationRequestId(requestId, boundResponse.request_id)
             Log.i(
                 TAG,
                 "authorize success request_id=${resolvedResponse.request_id} authorized=${resolvedResponse.authorized} hidden_mode=${resolvedResponse.hidden_mode} sound_mode=${resolvedResponse.sound_mode} next_request_seconds=${resolvedResponse.next_request_seconds} ad_callback_timeout_seconds=${resolvedResponse.ad_callback_timeout_seconds} client_ip=${resolvedResponse.client_ip}"
@@ -70,7 +74,7 @@ internal object Hq008SdkAuthorizeClient {
                 eventType = "AUTHORIZE_RESULT",
                 eventMessage = "requestId=${resolvedResponse.request_id},authorized=${resolvedResponse.authorized},hidden=${resolvedResponse.hidden_mode},configuredCallbackTimeoutSeconds=${resolvedResponse.ad_callback_timeout_seconds},effectiveCallbackTimeoutMs=${AdPlaybackPolicy.resolveCallbackTimeoutMs(resolvedResponse.ad_callback_timeout_seconds)}"
             )
-            onResult(resolvedResponse, null)
+            onResult(boundResponse, null)
         }
     }
 
@@ -97,6 +101,7 @@ internal object Hq008SdkAuthorizeClient {
             "app_name" to "hq008",
             "bundle" to context.packageName
         ).apply {
+            Hq008ApiRequestFields.appendTo(this, context, googleAuthorization = true)
             putAll(userAgentFields)
             put("ifa", getAndroidIdAsUuid(context))
             put("make", HaierBuildIdentityNormalizer.manufacturer())
@@ -197,5 +202,26 @@ internal data class Hq008AuthorizeResponseData(
     @field:SerializedName("sound_mode")
     val sound_mode: Boolean? = null,
     @field:SerializedName("request_id")
-    val request_id: String = ""
-)
+    val request_id: String = "",
+    @field:SerializedName("gam_config")
+    val gamConfig: JsonElement? = null,
+    // Match the universal SDK's previous flat authorize-response format.
+    @field:SerializedName("ad_tag_url")
+    val adTagUrl: JsonElement? = null,
+    @field:SerializedName("ad_load_timeout_ms")
+    val adLoadTimeoutMs: JsonElement? = null,
+    @field:SerializedName("ad_startup_timeout_ms")
+    val adStartupTimeoutMs: JsonElement? = null,
+    @Transient val requestChannelId: String? = null
+) {
+    /** Explicit gam_config owns every ad field, including null or invalid data. */
+    fun gamConfigForPlayback(): JsonElement? {
+        gamConfig?.let { return it.deepCopy() }
+        if (adTagUrl == null) return null
+        return JsonObject().apply {
+            add("ad_tag_url", adTagUrl.deepCopy())
+            adLoadTimeoutMs?.let { add("ad_load_timeout_ms", it.deepCopy()) }
+            adStartupTimeoutMs?.let { add("ad_startup_timeout_ms", it.deepCopy()) }
+        }
+    }
+}

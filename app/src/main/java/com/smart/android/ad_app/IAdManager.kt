@@ -1,8 +1,7 @@
 package com.smart.android.ad_app
 
-import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
+import com.google.gson.JsonElement
 
 interface IAdManager {
     fun init()
@@ -15,5 +14,18 @@ interface IAdManager {
         adError: (() -> Unit)? = null,
         adComplete: () -> Unit
     )
+    /** Per-request authorized GAM payload; other players retain their existing entry. */
+    fun showAd(
+        flRoot: ViewGroup,
+        adId: String?,
+        soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
+        gamConfig: JsonElement?,
+        channelId: String?,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit
+    ) = showAd(flRoot, adId, soundEnabled, callbackTimeoutMs, adStart, adError, adComplete)
+
     fun destroyAd()
 }

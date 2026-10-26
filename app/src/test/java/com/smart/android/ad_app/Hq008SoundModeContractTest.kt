@@ -45,32 +45,20 @@ class Hq008SoundModeContractTest {
     }
 
     @Test
-    fun `supported players should apply sound mode to volume without rewriting GAM URL`() {
+    fun `supported players should receive the current request sound mode`() {
         val tclManagerSource = readProjectFile(
             "app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt"
         )
         val googleManagerSource = readProjectFile(
             "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt"
         )
-        val googlePlayerSource = readProjectFile(
-            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleAdVastPlayerView.kt"
-        )
-        val googleGamConfigClientSource = readProjectFile(
-            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/google/GoogleGamAdConfigClient.kt"
-        )
         val lsapManagerSource = readProjectFile(
             "app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt"
         )
 
         assertTrue(tclManagerSource.contains(".setVolume(if (request.soundEnabled) 1f else 0f)"))
-        assertTrue(googleManagerSource.contains("adTagUrl = request.adTagUrl"))
-        assertTrue(googleManagerSource.contains("soundEnabled = request.soundEnabled"))
-        assertTrue(googleManagerSource.contains("\"adTagUrl\" to request.adTagUrl"))
-        assertTrue(googlePlayerSource.contains("soundEnabled: Boolean"))
-        assertTrue(googlePlayerSource.contains("volume = if (soundEnabled) 1f else 0f"))
-        assertFalse(googleManagerSource.contains("resolveAdTagUrl"))
-        assertFalse(googleGamConfigClientSource.contains("vpmute="))
-        assertFalse(googleGamConfigClientSource.contains("correlator="))
+        assertTrue(googleManagerSource.contains("soundEnabled = session.soundEnabled"))
+        assertTrue(googleManagerSource.contains(".setVolume(if (session.soundEnabled) 1f else 0f)"))
         assertTrue(lsapManagerSource.contains("UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)"))
     }
 
@@ -92,7 +80,7 @@ class Hq008SoundModeContractTest {
         assertTrue(authorizeSource.contains("sound_mode=\${resolvedResponse.sound_mode}"))
         assertTrue(configManagerSource.contains("effective_sound_mode=\$effectiveSoundEnabled"))
         assertTrue(tclManagerSource.contains("soundEnabled=\${request.soundEnabled}"))
-        assertTrue(googleManagerSource.contains("soundEnabled=\${request.soundEnabled}"))
+        assertTrue(googleManagerSource.contains("soundEnabled=\$soundEnabled"))
     }
 
     private fun readProjectFile(relativePath: String): String {

@@ -49,6 +49,9 @@ class HaierUserAgentInstallerTest {
             val result = HaierUserAgentInstaller.installForProcess(
                 flavor = "haier_lsap",
                 sdkInt = 30,
+                identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+                    "11.1", "TV BOX", "QP1A.191105.004", 30
+                ),
                 logger = {}
             )
 
@@ -72,12 +75,43 @@ class HaierUserAgentInstallerTest {
             val result = HaierUserAgentInstaller.installForProcess(
                 flavor = "addy_hq1002",
                 sdkInt = 30,
+                identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+                    "11", "Sony BRAVIA", "SONY_11_001", 30
+                ),
                 logger = {}
             )
 
             assertNotNull(result)
             assertFalse(result!!.changed)
             assertEquals(original, System.getProperty("http.agent"))
+        }
+    }
+
+    @Test
+    fun `installation and late property repair always use the same native identity`() {
+        withRestoredHttpAgent {
+            val identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+                "15", "mstar", "QP1A.191105.004", 29
+            )
+            val expected = "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.191105.004)"
+            System.setProperty("http.agent", "Dalvik/2.1.0 (Linux; U; Android 15; mstar Build/QP1A.191105.004)")
+            HaierUserAgentInstaller.installForProcess(
+                "google_ad_tv_desktop_localcalendar", 29, identity, logger = {}
+            )
+            assertEquals(expected, System.getProperty("http.agent"))
+            val stable = HaierUserAgentInstaller.ensureEffectiveForCurrentProcess(
+                "google_ad_tv_desktop_localcalendar", 29, identity
+            )
+            assertFalse(stable.repaired)
+            for (overwritten in listOf("bad", HaierUserAgentNormalizer.canonicalUserAgentFor(29)!!)) {
+                System.setProperty("http.agent", overwritten)
+                val repaired = HaierUserAgentInstaller.ensureEffectiveForCurrentProcess(
+                    "google_ad_tv_desktop_localcalendar", 29, identity
+                )
+                assertTrue(repaired.repaired)
+                assertEquals(expected, repaired.effectiveUa)
+                assertEquals(expected, System.getProperty("http.agent"))
+            }
         }
     }
 

@@ -1,0 +1,52 @@
+// All Google channels share the independent URL generator and TCL execution path.
+def googleFlavors = project.googleAdFlavors
+
+def businessSources = tasks.register('prepareGoogleAdBusinessSources', Sync) {
+    from('src/hq008/java') { spec ->
+        ['AdManagerImpl.kt', 'Hq008CmpManager.kt', 'Hq008AdSdkDebugCapture.kt',
+         'Hq008CmpDebugActivity.kt', 'Hq008CmpSdkEntryTestActivity.kt',
+         'Hq008CmpSilentEntryTestActivity.kt'].each { name ->
+            spec.exclude "com/smart/android/ad_app/${name}"
+        }
+    }
+    // Reuse the existing firmware URL/payload rules with the host runtime bridge.
+    from('src/haier_lsap/java') { spec ->
+        spec.include 'com/smart/android/ad_app/HaierAarUaPayloadNormalizer.kt'
+        spec.filter { line ->
+            line.replace('HaierAarRuntimeBridge.currentEffectiveUa()',
+                    'Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()')
+                .replace('HaierAarRuntimeBridge.', 'Hq008XhsxAarRuntimeBridge.')
+        }
+    }
+    into layout.buildDirectory.dir('generated/googleAdBusiness/java')
+}
+
+googleFlavors.each { flavorName ->
+    android.sourceSets.named(flavorName) {
+        manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
+        java.srcDirs = [layout.buildDirectory.dir('generated/googleAdBusiness/java').get().asFile,
+                        'src/google_ad_tv_desktop/java',
+                        'src/googleUrlIndependent/java']
+        kotlin.srcDirs = java.srcDirs
+        res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
+    }
+    android.productFlavors.named(flavorName) {
+        proguardFile 'src/google_ad_tv_desktop/proguard-rules.pro'
+    }
+    tasks.matching { task ->
+        task.name == "pre${flavorName.capitalize()}DebugBuild" ||
+                task.name == "pre${flavorName.capitalize()}ReleaseBuild"
+    }.configureEach {
+        dependsOn businessSources
+    }
+    androidComponents.onVariants(androidComponents.selector().withFlavor('ad', flavorName)) { variant ->
+        variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
+                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+        variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclTrackingVisitorFactory,
+                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+        variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclFillVisitorFactory,
+                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+        variant.instrumentation.setAsmFramesComputationMode(
+                com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+    }
+}

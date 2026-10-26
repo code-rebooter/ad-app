@@ -469,7 +469,9 @@ object AdConfigManager {
             position = dto.position ?: HQ008_DEFAULT_FLOATING_POSITION,
             videoUrl = null,
             soundEnabled = dto.sound_mode == true,
-            callbackTimeoutMs = AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)
+            callbackTimeoutMs = AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds),
+            gamConfig = dto.gamConfigForPlayback(),
+            adChannelId = dto.requestChannelId
         )
     }
 

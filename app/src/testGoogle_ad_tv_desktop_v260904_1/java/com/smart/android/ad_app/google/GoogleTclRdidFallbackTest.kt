@@ -24,11 +24,11 @@ class GoogleTclRdidFallbackTest {
         }
     }
 
-    @Test fun `explicit restrictions do not recreate withheld identity in either switch branch`() {
+    @Test fun `explicit restrictions do not recreate withheld identity`() {
         for (flag in listOf("is_lat=1", "is%5Flat=%31", "ltd=1", "tfcd=1", "tfua=1", "dnt=true")) {
-            for (enabled in listOf(false, true)) {
+            run {
                 val input = "https://a/ads?output=vast&rdid=&idtype=adid&$flag"
-                val result = GoogleImaTclUrlPipeline.apply(input, input, enabled, false, true, "app",
+                val result = GoogleUrlTclPipeline.apply(input,
                     fallbackUid = { error("must not generate UID for $flag") }, commonPatch = { it })
                 assertFalse(result.url.contains(uid))
             }
@@ -41,12 +41,12 @@ class GoogleTclRdidFallbackTest {
         assertEquals("https://a/ads?$raw&rdid=$uid&idtype=aaid#x?rdid=keep", result)
     }
 
-    @Test fun `fallback runs after common correction in both switch branches`() {
+    @Test fun `fallback runs after common correction`() {
         val input = "https://a/ads?output=vast&rdid=before-common&idtype=adid&is_lat=0"
-        for (enabled in listOf(false, true)) {
+        run {
             var commonRan = false
             var uidCalls = 0
-            val result = GoogleImaTclUrlPipeline.apply(input, input, enabled, false, true, "app",
+            val result = GoogleUrlTclPipeline.apply(input,
                 fallbackUid = { assertTrue(commonRan); uidCalls++; uid },
                 commonPatch = { commonRan = true; it.replace("rdid=before-common", "rdid=") })
             assertEquals(1, uidCalls)

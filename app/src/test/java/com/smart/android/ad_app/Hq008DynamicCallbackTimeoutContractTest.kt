@@ -26,9 +26,12 @@ class Hq008DynamicCallbackTimeoutContractTest {
     @Test
     fun `all hq008 playback channels should schedule the per-request callback timeout`() {
         val channelSources = listOf(
-            readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt"),
             readProjectFile("app/src/haier_lsap/java/com/smart/android/ad_app/HaierLsapAdManager.kt")
         )
+
+        val googleSource = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt")
+        assertTrue(googleSource.contains("callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))
+        assertTrue(googleSource.contains("main.postDelayed(session.timeout!!, session.timeoutMs)"))
 
         channelSources.forEach { source ->
             assertTrue(source.contains("val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS"))

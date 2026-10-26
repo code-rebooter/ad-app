@@ -2,6 +2,7 @@ package com.smart.android.ad_app
 
 import android.annotation.SuppressLint
 import android.content.Context
+import com.google.gson.JsonElement
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
@@ -18,7 +19,9 @@ class TvAdFloatingWindow(
     private val adId: String? = null,
     private val soundEnabled: Boolean = false,
     private val callbackTimeoutMs: Long? = null,
-    private val onFloatingFlowFinished: (() -> Unit)? = null
+    private val onFloatingFlowFinished: (() -> Unit)? = null,
+    private val gamConfig: JsonElement? = null,
+    private val adChannelId: String? = null
 ) : TvFloatingWindowBase<FloatAdBinding>(context) {
 
     private var isCountdownFinished = false // 倒计时是否完成
@@ -37,6 +40,8 @@ class TvAdFloatingWindow(
             adId = adId,
             soundEnabled = soundEnabled,
             callbackTimeoutMs = callbackTimeoutMs,
+            gamConfig = gamConfig,
+            channelId = adChannelId,
             adStart = {
                 "广告开始播放".adDebugPrintLog()
                 enableTouchClickIfNeeded()

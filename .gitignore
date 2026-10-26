@@ -15,6 +15,11 @@ local.properties
 /x88_*.txt
 /x88_*.err
 
+# Reverse-engineering and SDK comparison work must stay outside the repository.
+/app/src/googleUrlIma/
+/gradle/independent-url-maven/
+/app/libs/google-url-independent/independent-google-tv-url-202610*.aar
+
 # Python verification tool caches
 __pycache__/
 *.py[cod]

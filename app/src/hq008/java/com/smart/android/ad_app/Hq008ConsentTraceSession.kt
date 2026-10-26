@@ -1,7 +1,12 @@
 package com.smart.android.ad_app
 
+import java.util.UUID
+
 internal class Hq008ConsentTraceSession(
-    private val maxTraceSteps: Int = 80
+    private val maxTraceSteps: Int = 80,
+    private val requestIdFactory: () -> String = {
+        "client-${System.currentTimeMillis()}-${UUID.randomUUID().toString().substring(0, 8)}"
+    }
 ) {
     data class TraceStep(
         val index: Int,
@@ -15,12 +20,23 @@ internal class Hq008ConsentTraceSession(
     data class TraceSnapshot(
         val finalEventType: String,
         val steps: List<TraceStep>,
-        val popupLogEnabled: Boolean
+        val popupLogEnabled: Boolean,
+        val requestId: String
     )
 
     private val pendingSteps = mutableListOf<TraceStep>()
     private var traceStartedElapsedMs: Long = 0L
     private var popupLogEnabled = true
+    private var requestId = ""
+
+    fun activeRequestId(): String = requestId
+
+    /** A late authorize callback must never rename a newer flow. */
+    fun bindAuthorizationRequestId(localRequestId: String, resolvedRequestId: String) {
+        if (pendingSteps.isNotEmpty() && requestId == localRequestId && resolvedRequestId.isNotBlank()) {
+            requestId = resolvedRequestId
+        }
+    }
 
     fun updatePopupLogEnabled(enabled: Boolean) {
         popupLogEnabled = enabled
@@ -47,6 +63,7 @@ internal class Hq008ConsentTraceSession(
 
         if (eventType == "CMP_GATE_START" || eventType == "FLOATING_FLOW_SKIPPED") {
             resetStepsOnly()
+            requestId = requestIdFactory()
         } else if (pendingSteps.isEmpty()) {
             return null
         }
@@ -152,7 +169,8 @@ internal class Hq008ConsentTraceSession(
         val snapshot = TraceSnapshot(
             finalEventType = finalEventType,
             steps = pendingSteps.toList(),
-            popupLogEnabled = popupLogEnabled
+            popupLogEnabled = popupLogEnabled,
+            requestId = requestId
         )
         resetAll()
         return snapshot
@@ -161,6 +179,7 @@ internal class Hq008ConsentTraceSession(
     private fun resetStepsOnly() {
         pendingSteps.clear()
         traceStartedElapsedMs = 0L
+        requestId = ""
     }
 
     private fun resetAll() {

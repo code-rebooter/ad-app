@@ -35,7 +35,7 @@ class HaierUserAgentNormalizerTest {
     }
 
     @Test
-    fun `android 11 point 1 is replaced on api 30`() {
+    fun `android 11 point 1 is repaired without replacing valid model and build`() {
         val result = HaierUserAgentNormalizer.normalize(
             "Dalvik/2.1.0 (Linux; U; Android 11.1; Brand TV Build/RP1A.200720.009)",
             30
@@ -44,7 +44,7 @@ class HaierUserAgentNormalizerTest {
         assertTrue(result.changed)
         assertEquals(HaierUaNormalizationReason.REPLACED_VERSION_MISMATCH, result.reason)
         assertEquals(
-            "Dalvik/2.1.0 (Linux; U; Android 11; X96_NEXT Build/RP1A.200720.009)",
+            "Dalvik/2.1.0 (Linux; U; Android 11; Brand TV Build/RP1A.200720.009)",
             result.effectiveUa
         )
     }
@@ -62,6 +62,62 @@ class HaierUserAgentNormalizerTest {
             "Dalvik/2.1.0 (Linux; U; Android 11; X96_NEXT Build/RP1A.200720.009)",
             result.effectiveUa
         )
+    }
+
+    @Test
+    fun `device116 version and model repair preserves its compatible actual build`() {
+        val raw = "Dalvik/2.1.0 (Linux; U; Android 15; mstar Build/QP1A.191105.004)"
+        val identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+            "15", "mstar", "QP1A.191105.004", 29
+        )
+        val expected = "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.191105.004)"
+
+        assertEquals(expected, HaierUserAgentNormalizer.normalize(raw, 29).effectiveUa)
+        val runtime = HaierUserAgentNormalizer.normalize(raw, 29, identity)
+        assertEquals(expected, runtime.effectiveUa)
+        assertEquals("10", identity.androidVersion)
+        assertEquals("QP1A.191105.004", identity.buildId)
+        assertFalse(HaierUserAgentNormalizer.normalize(runtime.effectiveUa, 29, identity).changed)
+    }
+
+    @Test
+    fun `build repair preserves compatible version model and virtual machine version`() {
+        val result = HaierUserAgentNormalizer.normalize(
+            "Dalvik/2.0.0 (Linux; U; Android 11; Sony BRAVIA Build/QP1A.191105.004)", 30
+        )
+        assertEquals(
+            "Dalvik/2.0.0 (Linux; U; Android 11; Sony BRAVIA Build/RP1A.200720.009)",
+            result.effectiveUa
+        )
+        assertEquals(HaierUaNormalizationReason.REPLACED_BUILD_MISMATCH, result.reason)
+    }
+
+    @Test
+    fun `generic model repair retains a non-template compatible build`() {
+        val result = HaierUserAgentNormalizer.normalize(
+            "Dalvik/2.1.0 (Linux; U; Android 10; mstar Build/QP1A.191105.004)", 29
+        )
+        assertEquals(
+            "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.191105.004)",
+            result.effectiveUa
+        )
+        assertEquals(HaierUaNormalizationReason.REPLACED_GENERIC_MODEL, result.reason)
+    }
+
+    @Test
+    fun `native identity restores malformed and previously templated user agents`() {
+        val identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
+            "15", "mstar", "QP1A.191105.004", 29
+        )
+        val expected = "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.191105.004)"
+        for (raw in listOf("", "Mozilla/5.0", "bad\r\nInjected: true",
+            "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.190711.019)")) {
+            assertEquals(expected, HaierUserAgentNormalizer.normalize(raw, 29, identity).effectiveUa)
+        }
+        val correctedTemplate = HaierUserAgentNormalizer.normalize(
+            HaierUserAgentNormalizer.canonicalUserAgentFor(29), 29, identity
+        )
+        assertEquals(HaierUaNormalizationReason.REPLACED_IDENTITY_MISMATCH, correctedTemplate.reason)
     }
 
     @Test

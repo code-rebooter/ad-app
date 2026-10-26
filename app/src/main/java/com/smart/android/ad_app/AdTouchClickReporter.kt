@@ -52,7 +52,7 @@ internal object AdTouchClickReporter {
             "model" to HaierBuildIdentityNormalizer.model(),
             "message" to MESSAGE_CLICKED,
             "diagnostic_info" to diagnosticInfo
-        )
+        ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
 
         resolveLocalIp()?.let { params["local_ip"] = it }
 

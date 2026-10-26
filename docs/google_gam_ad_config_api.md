@@ -1,4 +1,6 @@
-# Google GAM 广告配置接口说明
+# Google GAM 旧 resolve 设计（已停用）
+
+2026-10-23：以下只保留旧接口设计记录，已不是当前应用实现。全部 Google 渠道已统一为 `authorize.data.gam_config → IMA 拼接 → 公共修正 → google-gam/patch → TCL`，不再请求 resolve，也没有旧 IMA/Media3 播放器或纯 TCL 实验分支。当前协议见 [授权配置](google_ima_tcl_authorize_api.md) 和 [patch](google_gam_patch_api.md)。
 
 ## 1. 文档目标
 
@@ -461,6 +463,10 @@ https://pubads.g.doubleclick.net/gampad/ads?iu=/23334778486/TVDesktop/video-1&de
 
 ## IMA → TCL 渠道补充：参数调整开关（2026-10-19 更新）
 
-以下四个渠道的客户端支持 `data.ima_tcl_url_patch`：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。后台协议使用整数 `0/1`，缺失默认 `0`；同时兼容字符串和布尔表示。`0` 保留 IMA 原始 URL，`1` 执行先前 TCL 参数适配；两个分支在交给 TCL 之前均统一执行现有公共 URL 参数修正。本字段不是规则列表。
+2026-10-23 更新：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort` 已改为从 sdk/authorize.data.gam_config 取链接，不再单独 resolve；本地公共修正后调用 google-gam/patch，再将后台结果原样交 TCL。旧 ima_tcl_url_patch 已停用，详见 [当前 patch 协议](google_gam_patch_api.md)。其他旧渠道仍沿用本文 resolve 协议。
 
-完整响应示例、兼容范围、执行顺序及后台接入说明见 [IMA → TCL 开关协议](/Users/zy/Documents/Codex/ad-app/docs/google_ima_tcl_url_patch_api.md)。其他未接入本套 IMA → TCL 实现的 Google 渠道不读取这个字段。
+完整响应示例、兼容范围、执行顺序及后台接入说明见 [IMA → TCL 开关协议](google_ima_tcl_url_patch_api.md)。其他未接入本套 IMA → TCL 实现的 Google 渠道不读取这个字段。
+
+2026-10-23：IMA → TCL 四个渠道的授权合并取链协议及返回示例见 [授权配置协议](google_ima_tcl_authorize_api.md)。本文件的旧 resolve 协议只作历史说明。
+
+2026-10-23 后续更新：上述四个 IMA → TCL 渠道已移除 ima_tcl_url_patch 和本地 TCL 专用调整；改为完整 URL 公共修正后请求 [google-gam/patch](google_gam_patch_api.md)，使用后台返回的最终 URL。当前 app 的全部 Google 渠道均已移除 resolve；其他独立 SDK 与已发布旧版本不在本次改动范围内。

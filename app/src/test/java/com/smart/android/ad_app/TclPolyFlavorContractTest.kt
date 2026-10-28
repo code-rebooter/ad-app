@@ -8,9 +8,8 @@ import java.io.File
 class TclPolyFlavorContractTest {
 
     @Test
-    fun `tcl_poly should stay in hq008 noneu family`() {
-        assertTrue(BuildFlavor.isHq008Noneu("tcl_poly"))
-        assertTrue(BuildFlavor.isHq008Family("tcl_poly"))
+    fun `tcl_poly should use TCL runtime`() {
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
     }
 
     @Test

@@ -74,8 +74,8 @@ class Hq008LocalSchedulePolicyTest {
             scheduleManagerSource.contains("Hq008LocalSchedulePolicy.pollingSeconds()")
         )
         assertTrue(
-            "ScheduleManagerImpl 应该对 hq008 family 做单独分支",
-            scheduleManagerSource.contains("BuildFlavor.isHq008Family()")
+            "ScheduleManagerImpl 应该对共享广告运行时做单独分支",
+            scheduleManagerSource.contains("BuildFlavor.usesSharedAdRuntime()")
         )
         assertTrue(
             "hq008 本地策略应持久化最近一次 floating 轮询时间",

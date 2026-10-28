@@ -22,8 +22,8 @@ class Hq008CmpDecisionClientContractTest {
         assertTrue(clientSource.contains("@field:SerializedName(\"consent_payload\")"))
 
         assertTrue(adConfigManagerSource.contains("Hq008CmpManager.setRemoteDecisionProvider"))
-        assertTrue("远端 CMP provider 应面向整个 hq008 family 注入", adConfigManagerSource.contains("if (BuildFlavor.isHq008Family())"))
-        assertFalse("远端 CMP provider 不应只对 hq008 单 flavor 生效", adConfigManagerSource.contains("if (BuildFlavor.isHq008())"))
+        assertTrue("远端 CMP provider 应面向共享广告运行时注入", adConfigManagerSource.contains("if (BuildFlavor.usesSharedAdRuntime())"))
+        assertFalse("远端 CMP provider 不应按 flavor 名称判断", adConfigManagerSource.contains("BuildFlavor.isHq008"))
         assertTrue(adConfigManagerSource.contains("Hq008CmpDecisionClient.request(appContext)"))
         assertTrue(adConfigManagerSource.contains("\"ACCEPT_ALL\" -> {"))
         assertTrue(adConfigManagerSource.contains("\"REJECT\" -> {"))

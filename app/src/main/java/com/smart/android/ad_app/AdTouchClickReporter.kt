@@ -23,7 +23,7 @@ internal object AdTouchClickReporter {
     private val gson = Gson()
 
     fun reportHq008TouchClick(adId: String?) {
-        if (!BuildFlavor.isHq008Family()) {
+        if (!BuildFlavor.usesSharedAdRuntime()) {
             return
         }
 

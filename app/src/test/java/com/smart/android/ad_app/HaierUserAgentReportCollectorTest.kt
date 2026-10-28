@@ -75,7 +75,7 @@ class HaierUserAgentReportCollectorTest {
     @Test
     fun `authorize fields wrap user agent diagnostics in ext for supported channels`() {
         val fields = HaierUserAgentAuthorizeFields.build(
-            flavor = "haier_lsap",
+            channelType = BuildFlavor.CHANNEL_TYPE_LSAP,
             fallbackEffectiveUa = "fallback"
         ) {
             HaierUserAgentReport(
@@ -116,7 +116,7 @@ class HaierUserAgentReportCollectorTest {
         var reportCollected = false
 
         val fields = HaierUserAgentAuthorizeFields.build(
-            flavor = "unsupported_flavor",
+            channelType = "OTHER",
             fallbackEffectiveUa = "existing-ua"
         ) {
             reportCollected = true
@@ -128,20 +128,24 @@ class HaierUserAgentReportCollectorTest {
     }
 
     @Test
-    fun `all three requested channels enable extended user agent reporting`() {
-        val supported = listOf("haier_lsap", "addy_hq1002", "addy_jams")
+    fun `all patched channel types enable extended user agent reporting`() {
+        val supported = listOf(
+            BuildFlavor.CHANNEL_TYPE_TCL,
+            BuildFlavor.CHANNEL_TYPE_LSAP,
+            BuildFlavor.CHANNEL_TYPE_GOOGLE
+        )
 
-        supported.forEach { flavor ->
-            val fields = HaierUserAgentAuthorizeFields.build(flavor, "fallback") {
+        supported.forEach { channelType ->
+            val fields = HaierUserAgentAuthorizeFields.build(channelType, "fallback") {
                 HaierUserAgentReport("original", "effective", "webview")
             }
-            val ext = fields["ext"] as? Map<*, *> ?: error("$flavor should report diagnostics in ext")
-            assertFalse("$flavor should not report original UA at top level", fields.containsKey("ua_original"))
-            assertFalse("$flavor should not report effective UA at top level", fields.containsKey("ua_effective"))
-            assertFalse("$flavor should not report WebView UA at top level", fields.containsKey("webview_ua"))
-            assertTrue("$flavor should report original UA in ext", ext.containsKey("ua_original"))
-            assertTrue("$flavor should report effective UA in ext", ext.containsKey("ua_effective"))
-            assertTrue("$flavor should report WebView UA in ext", ext.containsKey("webview_ua"))
+            val ext = fields["ext"] as? Map<*, *> ?: error("$channelType should report diagnostics in ext")
+            assertFalse("$channelType should not report original UA at top level", fields.containsKey("ua_original"))
+            assertFalse("$channelType should not report effective UA at top level", fields.containsKey("ua_effective"))
+            assertFalse("$channelType should not report WebView UA at top level", fields.containsKey("webview_ua"))
+            assertTrue("$channelType should report original UA in ext", ext.containsKey("ua_original"))
+            assertTrue("$channelType should report effective UA in ext", ext.containsKey("ua_effective"))
+            assertTrue("$channelType should report WebView UA in ext", ext.containsKey("webview_ua"))
         }
     }
 }

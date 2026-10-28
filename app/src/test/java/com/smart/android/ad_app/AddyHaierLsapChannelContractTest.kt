@@ -34,6 +34,7 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(sourceSetsBlock.contains("res.srcDirs = ['src/haier_lsapDebug/res']"))
 
         assertTrue(hq1002Block.contains("applicationId       : \"com.google.android.addyhq1002\""))
+        assertTrue(hq1002Block.contains("adChannelType      : adChannelTypeLsap"))
         assertTrue(hq1002Block.contains("versionCode         : 4"))
         assertTrue(hq1002Block.contains("versionName         : \"1.0.4\""))
         assertTrue(hq1002Block.contains("channel             : \"ADDY_HQ1002\""))
@@ -45,6 +46,7 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(hq1002Block.contains("lsapSdkName         : \"addy_hq1002\""))
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
+        assertTrue(jamsBlock.contains("adChannelType      : adChannelTypeLsap"))
         assertTrue(jamsBlock.contains("versionCode         : 9"))
         assertTrue(jamsBlock.contains("versionName         : \"1.0.9\""))
         assertTrue(jamsBlock.contains("channel             : \"ADDY_JAMS\""))
@@ -67,10 +69,7 @@ class AddyHaierLsapChannelContractTest {
         assertTrue(buildGradle.contains("addy_hq1002Implementation lsapPatchedAars.addy_hq1002"))
         assertTrue(buildGradle.contains("addy_jamsImplementation lsapPatchedAars.addy_jams"))
 
-        assertTrue(buildFlavorSource.contains("fun isAddyHq1002("))
-        assertTrue(buildFlavorSource.contains("fun isAddyJams("))
-        assertTrue(buildFlavorSource.contains("isAddyHq1002(flavor) ||"))
-        assertTrue(buildFlavorSource.contains("isAddyJams(flavor)"))
+        assertTrue(buildFlavorSource.contains("fun isLsap(channelType: String = BuildConfig.AD_CHANNEL_TYPE)"))
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_APP_KEY"))
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_TAG_ID"))
         assertTrue(managerSource.contains("BuildConfig.UNIFIED_AD_SDK_NAME"))

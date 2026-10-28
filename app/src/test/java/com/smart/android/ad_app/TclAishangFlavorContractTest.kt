@@ -8,16 +8,16 @@ import java.io.File
 class TclAishangFlavorContractTest {
 
     @Test
-    fun `tcl_aishang should stay in hq008 family with dedicated package signing and placeholders`() {
+    fun `tcl_aishang should use TCL runtime with dedicated package signing and placeholders`() {
         val buildGradle = readProjectFile("app/build.gradle")
         val productFlavorsBlock = extractBlock(buildGradle, "    productFlavors {")
         val flavorBlock = extractBlock(productFlavorsBlock, "        tcl_aishang {")
         val manifest = readProjectFile("app/src/tcl_aishang/AndroidManifest.xml")
         val buildFlavor = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
 
-        assertTrue(BuildFlavor.isHq008("tcl_aishang"))
-        assertTrue(BuildFlavor.isHq008Family("tcl_aishang"))
-        assertTrue(buildFlavor.contains("flavor == \"hq008\" || flavor == \"hq008XHSX\" || flavor == \"tcl_aishang\""))
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
+        assertTrue(buildFlavor.contains("BuildConfig.AD_CHANNEL_TYPE"))
+        assertTrue(flavorBlock.contains("adChannelType      : adChannelTypeTcl"))
 
         assertTrue(flavorBlock.contains("applicationId       : \"com.google.android.adais\"") || flavorBlock.contains("applicationId: \"com.google.android.adais\""))
         assertTrue(flavorBlock.contains("channel             : \"TCL_AISHANG\"") || flavorBlock.contains("channel               : \"TCL_AISHANG\""))

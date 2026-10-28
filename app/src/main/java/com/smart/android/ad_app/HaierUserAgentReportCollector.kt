@@ -81,11 +81,11 @@ internal class HaierUserAgentReportCollector {
 internal object HaierUserAgentAuthorizeFields {
 
     fun build(
-        flavor: String,
+        channelType: String,
         fallbackEffectiveUa: String?,
         reportProvider: () -> HaierUserAgentReport
     ): Map<String, Any> {
-        if (!HaierUserAgentInstaller.supportsFlavor(flavor)) {
+        if (!HaierUserAgentInstaller.supportsChannelType(channelType)) {
             return linkedMapOf("ua" to fallbackEffectiveUa.orEmpty())
         }
 

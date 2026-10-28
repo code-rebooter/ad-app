@@ -86,7 +86,7 @@ internal object Hq008SdkFlowControlClient {
         private const val HAIER_AAR_BRIDGE = "com.smart.android.ad_app.HaierAarRuntimeBridge"
 
         fun update(enabled: Boolean, source: String) {
-            if (!BuildFlavor.isHaierLsap()) {
+            if (!BuildFlavor.isLsap()) {
                 return
             }
             runCatching {

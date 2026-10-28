@@ -15,7 +15,8 @@ class AdYtx01JxFlavorContractTest {
         val sourceSets = extractBlock(buildGradle, "    sourceSets {")
         val sourceSet = extractBlock(sourceSets, "        ad_ytx01_jx {")
 
-        assertTrue(BuildFlavor.isHq008("ad_ytx01_jx"))
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
+        assertTrue(flavor.contains("adChannelType      : adChannelTypeTcl"))
         assertTrue(flavor.contains("applicationId       : \"com.google.android.adytx01\""))
         assertTrue(flavor.contains("versionCode         : 1"))
         assertTrue(flavor.contains("versionName         : \"1.0.1\""))
@@ -58,7 +59,7 @@ class AdYtx01JxFlavorContractTest {
         ).forEach { dependency ->
             assertTrue("极鑫渠道缺少依赖: $dependency", buildGradle.contains(dependency))
         }
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_jx"))
+        assertTrue(HaierUserAgentInstaller.supportsChannelType(BuildFlavor.CHANNEL_TYPE_TCL))
     }
 
     private fun projectFile(relativePath: String): File {

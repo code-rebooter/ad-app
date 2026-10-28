@@ -34,3 +34,7 @@ __pycache__/
 /app/signing_files/kaneshort-release.properties
 
 /app/signing_files/kaneshort-release.jks
+
+/app/signing_files/ambient-light-release.properties
+
+/app/signing_files/ambient-light-upload.jks

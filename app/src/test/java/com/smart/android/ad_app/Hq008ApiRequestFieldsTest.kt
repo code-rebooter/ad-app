@@ -4,13 +4,9 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class Hq008ApiRequestFieldsTest {
-    @Test fun `all Google flavors send real host version and the current execution SDK version`() {
-        for (flavor in listOf("google_ad_tv_desktop_v260904_1", "google_ad_tv_desktop_v260904_x98k",
-            "google_ad_tv_desktop_localcalendar", "google_ad_tv_desktop_kaneshort",
-            "google_ad_tv_desktop", "google_ad_tv_desktop_jm", "google_ad_tv_desktop_ytx",
-            "google_ad_tv_desktop_007", "google_ad_tv_desktop_tpmaotai1935",
-            "google_ad_tv_lockscreen", "google_ad_tv_lockscreen_hq002", "google_ad_tv_desktop_tcl_test")) {
-            val fields = Hq008ApiRequestFields.fields(flavor, "host-version") { "actual-android-id" }
+    @Test fun `Google channel types send host and execution SDK versions`() {
+        for (channelType in listOf(BuildFlavor.CHANNEL_TYPE_GOOGLE)) {
+            val fields = Hq008ApiRequestFields.fields(channelType, "host-version") { "actual-android-id" }
             assertEquals("actual-android-id", fields["androidid"])
             assertEquals("host-version", fields["ad_version_name"])
             assertEquals("2.8.02", fields["sdk_version"])
@@ -20,30 +16,28 @@ class Hq008ApiRequestFieldsTest {
     }
 
     @Test fun `all TCL flavors send the host version and actual TCL SDK version`() {
-        for (flavor in listOf("hq008", "hq008XHSX", "tcl_aishang", "ad_ytx01",
-            "ad_ytx01_sxk", "ad_ytx01_jx", "ad_album_101_001", "hq008Noneu",
-            "hq008Noneuc2", "tcl_poly")) {
-            assertEquals(flavor, mapOf(
+        for (channelType in listOf(BuildFlavor.CHANNEL_TYPE_TCL)) {
+            assertEquals(channelType, mapOf(
                 "androidid" to "actual-android-id",
                 "ad_version_name" to "1.0.4",
                 "sdk_version" to "2.8.02"
-            ), Hq008ApiRequestFields.fields(flavor, "1.0.4") { "actual-android-id" })
+            ), Hq008ApiRequestFields.fields(channelType, "1.0.4") { "actual-android-id" })
         }
     }
 
     @Test fun `unavailable android ID is sent as an empty string`() {
-        for (flavor in listOf("google_ad_tv_desktop_v260904_1", "hq008XHSX")) {
-            assertEquals("", Hq008ApiRequestFields.fields(flavor, "v") { null }["androidid"])
-            assertEquals("", Hq008ApiRequestFields.fields(flavor, "v") {
+        for (channelType in listOf(BuildFlavor.CHANNEL_TYPE_GOOGLE, BuildFlavor.CHANNEL_TYPE_TCL)) {
+            assertEquals("", Hq008ApiRequestFields.fields(channelType, "v") { null }["androidid"])
+            assertEquals("", Hq008ApiRequestFields.fields(channelType, "v") {
                 throw SecurityException("unavailable")
             }["androidid"])
         }
     }
 
     @Test fun `LSAP and unrelated flavors do not claim the TCL SDK version`() {
-        for (flavor in listOf("haier_lsap", "addy_hq1002", "addy_jams", "unrelated")) {
-            assertEquals(flavor, mapOf("androidid" to "actual-id"),
-                Hq008ApiRequestFields.fields(flavor, "v") { "actual-id" })
+        for (channelType in listOf(BuildFlavor.CHANNEL_TYPE_LSAP, "OTHER")) {
+            assertEquals(channelType, mapOf("androidid" to "actual-id"),
+                Hq008ApiRequestFields.fields(channelType, "v") { "actual-id" })
         }
     }
 

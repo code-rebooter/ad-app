@@ -12,30 +12,15 @@ import java.io.File
 class HaierUserAgentInstallerTest {
 
     @Test
-    fun `installer supports patched aar channels`() {
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008XHSX"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_aishang"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_sxk"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_jx"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_album_101_001"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneu"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("hq008Noneuc2"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("tcl_poly"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("haier_lsap"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_hq1002"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("addy_jams"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_jm"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_ytx"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_007"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_v260904_1"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_desktop_tpmaotai1935"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_lockscreen"))
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("google_ad_tv_lockscreen_hq002"))
-
-        assertFalse(HaierUserAgentInstaller.supportsFlavor("unsupported_flavor"))
+    fun `installer supports all patched channel types`() {
+        listOf(
+            BuildFlavor.CHANNEL_TYPE_TCL,
+            BuildFlavor.CHANNEL_TYPE_LSAP,
+            BuildFlavor.CHANNEL_TYPE_GOOGLE
+        ).forEach { channelType ->
+            assertTrue(HaierUserAgentInstaller.supportsChannelType(channelType))
+        }
+        assertFalse(HaierUserAgentInstaller.supportsChannelType("OTHER"))
     }
 
     @Test
@@ -47,7 +32,7 @@ class HaierUserAgentInstallerTest {
             )
 
             val result = HaierUserAgentInstaller.installForProcess(
-                flavor = "haier_lsap",
+                channelType = BuildFlavor.CHANNEL_TYPE_LSAP,
                 sdkInt = 30,
                 identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
                     "11.1", "TV BOX", "QP1A.191105.004", 30
@@ -73,7 +58,7 @@ class HaierUserAgentInstallerTest {
             System.setProperty("http.agent", original)
 
             val result = HaierUserAgentInstaller.installForProcess(
-                flavor = "addy_hq1002",
+                channelType = BuildFlavor.CHANNEL_TYPE_LSAP,
                 sdkInt = 30,
                 identity = HaierBuildIdentityNormalizer.normalizeUserAgentIdentity(
                     "11", "Sony BRAVIA", "SONY_11_001", 30
@@ -96,17 +81,17 @@ class HaierUserAgentInstallerTest {
             val expected = "Dalvik/2.1.0 (Linux; U; Android 10; X96_NEXT Build/QP1A.191105.004)"
             System.setProperty("http.agent", "Dalvik/2.1.0 (Linux; U; Android 15; mstar Build/QP1A.191105.004)")
             HaierUserAgentInstaller.installForProcess(
-                "google_ad_tv_desktop_localcalendar", 29, identity, logger = {}
+                BuildFlavor.CHANNEL_TYPE_GOOGLE, 29, identity, logger = {}
             )
             assertEquals(expected, System.getProperty("http.agent"))
             val stable = HaierUserAgentInstaller.ensureEffectiveForCurrentProcess(
-                "google_ad_tv_desktop_localcalendar", 29, identity
+                BuildFlavor.CHANNEL_TYPE_GOOGLE, 29, identity
             )
             assertFalse(stable.repaired)
             for (overwritten in listOf("bad", HaierUserAgentNormalizer.canonicalUserAgentFor(29)!!)) {
                 System.setProperty("http.agent", overwritten)
                 val repaired = HaierUserAgentInstaller.ensureEffectiveForCurrentProcess(
-                    "google_ad_tv_desktop_localcalendar", 29, identity
+                    BuildFlavor.CHANNEL_TYPE_GOOGLE, 29, identity
                 )
                 assertTrue(repaired.repaired)
                 assertEquals(expected, repaired.effectiveUa)
@@ -122,7 +107,7 @@ class HaierUserAgentInstallerTest {
             System.setProperty("http.agent", original)
 
             val result = HaierUserAgentInstaller.installForProcess(
-                flavor = "unsupported_flavor",
+                channelType = "OTHER",
                 sdkInt = 30,
                 logger = {}
             )
@@ -138,7 +123,7 @@ class HaierUserAgentInstallerTest {
         val source = readProjectFile("app/src/main/java/com/smart/android/ad_app/APP.kt")
         val methodIndex = source.indexOf("override fun attachBaseContext(base: Context)")
         val installIndex = source.indexOf(
-            "HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.FLAVOR)",
+            "HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.AD_CHANNEL_TYPE)",
             startIndex = methodIndex
         )
         val superIndex = source.indexOf("super.attachBaseContext(base)", startIndex = methodIndex)

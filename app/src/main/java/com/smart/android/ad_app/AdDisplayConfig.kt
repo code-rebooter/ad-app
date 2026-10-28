@@ -24,7 +24,7 @@ object AdDisplayConfig {
         if (prefs == null) {
             prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
-        if (BuildFlavor.isHq008Family()) {
+        if (BuildFlavor.usesSharedAdRuntime()) {
             prefs?.edit()
                 ?.putBoolean(KEY_LOCAL_HIDDEN, true)
                 ?.commit()
@@ -111,7 +111,7 @@ object AdDisplayConfig {
     }
 
     fun isHiddenMode(): Boolean {
-        if (BuildFlavor.isHq008Family()) {
+        if (BuildFlavor.usesSharedAdRuntime()) {
             return if (isRemoteConfigSet()) {
                 isRemoteHiddenMode()
             } else {

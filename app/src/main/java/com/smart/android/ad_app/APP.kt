@@ -14,7 +14,7 @@ import java.io.File
 class APP:Application() {
 
     override fun attachBaseContext(base: Context) {
-        HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.FLAVOR)
+        HaierUserAgentInstaller.installForCurrentProcess(BuildConfig.AD_CHANNEL_TYPE)
         super.attachBaseContext(base)
     }
 
@@ -45,12 +45,12 @@ class APP:Application() {
         val resolvedChannel = AdChannelResolver.resolve()
         Log.i(TAG, "应用初始化：渠道=${resolvedChannel.value}，来源=${resolvedChannel.source.label}，flavor=${BuildConfig.FLAVOR}")
 
-        if (BuildFlavor.isHaierLsap() && BuildConfig.DEBUG) {
+        if (BuildFlavor.isLsap() && BuildConfig.DEBUG) {
             Log.i(TAG, "skip startup ad bootstrap for haier_lsap debug manual test build")
             return
         }
 
-        if (BuildFlavor.isHaierLsap() && !isMainProcess()) {
+        if (BuildFlavor.isLsap() && !isMainProcess()) {
             Log.i(TAG, "skip AdManager init in non-main process for haier_lsap")
             Hq008CmpManager.init(this)
             return

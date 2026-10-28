@@ -9,41 +9,14 @@ internal object HaierUserAgentInstaller {
 
     private const val TAG = "HaierUaNormalizer"
     private const val HTTP_AGENT_PROPERTY = "http.agent"
-    private val supportedFlavors = setOf(
-        "hq008",
-        "hq008XHSX",
-        "tcl_aishang",
-        "ad_ytx01",
-        "ad_ytx01_sxk",
-        "ad_ytx01_jx",
-        "ad_album_101_001",
-        "hq008Noneu",
-        "hq008Noneuc2",
-        "tcl_poly",
-        "haier_lsap",
-        "addy_hq1002",
-        "addy_jams",
-        "google_ad_tv_desktop",
-        "google_ad_tv_desktop_jm",
-        "google_ad_tv_desktop_tcl_test",
-        "google_ad_tv_desktop_v260904_x98k",
-        "google_ad_tv_desktop_localcalendar",
-        "google_ad_tv_desktop_kaneshort",
-        "google_ad_tv_desktop_ytx",
-        "google_ad_tv_desktop_007",
-        "google_ad_tv_desktop_v260904_1",
-        "google_ad_tv_desktop_tpmaotai1935",
-        "google_ad_tv_lockscreen",
-        "google_ad_tv_lockscreen_hq002"
-    )
     @Volatile
     private var latestResult: HaierUaNormalizationResult? = null
 
     @Volatile
     private var latestRuntimeCheck: HaierUaRuntimeCheck? = null
 
-    fun supportsFlavor(flavor: String): Boolean {
-        return flavor in supportedFlavors
+    fun supportsChannelType(channelType: String): Boolean {
+        return BuildFlavor.needsIdentityPatch(channelType)
     }
 
     fun currentResult(): HaierUaNormalizationResult? {
@@ -54,21 +27,21 @@ internal object HaierUserAgentInstaller {
         return latestRuntimeCheck
     }
 
-    fun installForCurrentProcess(flavor: String) {
+    fun installForCurrentProcess(channelType: String = BuildConfig.AD_CHANNEL_TYPE) {
         installForProcess(
-            flavor = flavor,
+            channelType = channelType,
             sdkInt = Build.VERSION.SDK_INT,
             logger = { message -> Log.i(TAG, message) }
         )
     }
 
     internal fun installForProcess(
-        flavor: String,
+        channelType: String,
         sdkInt: Int,
         identity: HaierUaIdentity = HaierBuildIdentityNormalizer.userAgentIdentity(sdkInt),
         logger: (String) -> Unit
     ): HaierUaNormalizationResult? {
-        if (!supportsFlavor(flavor)) {
+        if (!supportsChannelType(channelType)) {
             latestResult = null
             return null
         }
@@ -92,8 +65,8 @@ internal object HaierUserAgentInstaller {
 
         logger(
             buildString {
-                append("UA规范化：flavor=")
-                append(flavor)
+                append("UA规范化：channelType=")
+                append(channelType)
                 append("，sdk=")
                 append(sdkInt)
                 append("，changed=")
@@ -113,12 +86,12 @@ internal object HaierUserAgentInstaller {
 
     @Synchronized
     fun ensureEffectiveForCurrentProcess(
-        flavor: String = BuildConfig.FLAVOR,
+        channelType: String = BuildConfig.AD_CHANNEL_TYPE,
         sdkInt: Int = Build.VERSION.SDK_INT,
         identity: HaierUaIdentity = HaierBuildIdentityNormalizer.userAgentIdentity(sdkInt)
     ): HaierUaRuntimeCheck {
         val observed = System.getProperty(HTTP_AGENT_PROPERTY).orEmpty()
-        if (!supportsFlavor(flavor)) {
+        if (!supportsChannelType(channelType)) {
             return HaierUaRuntimeCheck(
                 observedUa = observed,
                 effectiveUa = observed,

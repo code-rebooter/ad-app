@@ -58,11 +58,10 @@ class AdYtx01SxkFlavorContractTest {
     }
 
     @Test
-    fun `sxk flavor stays in hq008 family and owns all ytx01 dependencies`() {
+    fun `sxk flavor uses TCL runtime and owns all ytx01 dependencies`() {
         val buildGradle = readProjectFile("app/build.gradle")
 
-        assertTrue(BuildFlavor.isHq008("ad_ytx01_sxk"))
-        assertTrue(BuildFlavor.isHq008Family("ad_ytx01_sxk"))
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
         listOf(
             "ad_ytx01_sxkImplementation 'com.google.guava:guava:31.1-android'",
             "ad_ytx01_sxkImplementation 'androidx.appcompat:appcompat:1.7.1'",
@@ -76,7 +75,7 @@ class AdYtx01SxkFlavorContractTest {
             assertTrue("圣鑫科渠道缺少依赖: $dependency", buildGradle.contains(dependency))
         }
 
-        assertTrue(HaierUserAgentInstaller.supportsFlavor("ad_ytx01_sxk"))
+        assertTrue(HaierUserAgentInstaller.supportsChannelType(BuildFlavor.CHANNEL_TYPE_TCL))
         assertTrue(Hq008XhsxAarRuntimeBridge.isSxkPlaybackPatchFlavor("ad_ytx01_sxk"))
         assertFalse(Hq008XhsxAarRuntimeBridge.isSxkPlaybackPatchFlavor("ad_ytx01"))
     }

@@ -1,66 +1,35 @@
 package com.smart.android.ad_app
 
 internal object BuildFlavor {
-    fun isHq008(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008" ||
-                flavor == "hq008XHSX" ||
-                flavor == "tcl_aishang" ||
-                flavor == "ad_ytx01" ||
-                flavor == "ad_ytx01_sxk" ||
-                flavor == "ad_ytx01_jx" ||
-                flavor == "ad_album_101_001"
+    const val CHANNEL_TYPE_TCL = "TCL"
+    const val CHANNEL_TYPE_LSAP = "LSAP"
+    const val CHANNEL_TYPE_GOOGLE = "GOOGLE"
+
+    fun isGoogleAd(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return channelType == CHANNEL_TYPE_GOOGLE
     }
 
-    fun isHq008Noneu(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "hq008Noneu" ||
-                flavor == "hq008Noneuc2" ||
-                isTclPoly(flavor) ||
-                isHaierLsap(flavor) ||
-                isGoogleAdTvDesktop(flavor) ||
-                isGoogleAdTvLockscreen(flavor)
+    fun isLsap(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return channelType == CHANNEL_TYPE_LSAP
+    }
+
+    fun usesSharedAdRuntime(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return usesTclRuntime(channelType) || isLsap(channelType)
+    }
+
+    fun usesTclRuntime(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return channelType == CHANNEL_TYPE_TCL || isGoogleAd(channelType)
+    }
+
+    fun needsIdentityPatch(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return usesSharedAdRuntime(channelType)
+    }
+
+    fun usesGoogleConsent(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
+        return isGoogleAd(channelType)
     }
 
     fun isTclPoly(flavor: String = BuildConfig.FLAVOR): Boolean {
         return flavor == "tcl_poly"
-    }
-
-    fun isHaierLsap(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "haier_lsap" ||
-                isAddyHq1002(flavor) ||
-                isAddyJams(flavor)
-    }
-
-    fun isAddyHq1002(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "addy_hq1002"
-    }
-
-    fun isAddyJams(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "addy_jams"
-    }
-
-    fun isGoogleAdTvDesktop(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "google_ad_tv_desktop" ||
-                flavor == "google_ad_tv_desktop_jm" ||
-                flavor == "google_ad_tv_desktop_tcl_test" ||
-                flavor == "google_ad_tv_desktop_ytx" ||
-                flavor == "google_ad_tv_desktop_007" ||
-                flavor == "google_ad_tv_desktop_v260904_1" ||
-                flavor == "google_ad_tv_desktop_v260904_x98k" ||
-                flavor == "google_ad_tv_desktop_localcalendar" ||
-                flavor == "google_ad_tv_desktop_kaneshort" ||
-                flavor == "google_ad_tv_desktop_tpmaotai1935"
-    }
-
-    fun isGoogleAdTvLockscreen(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return flavor == "google_ad_tv_lockscreen" ||
-                flavor == "google_ad_tv_lockscreen_hq002"
-    }
-
-    fun isGoogleAd(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return isGoogleAdTvDesktop(flavor) || isGoogleAdTvLockscreen(flavor)
-    }
-
-    fun isHq008Family(flavor: String = BuildConfig.FLAVOR): Boolean {
-        return isHq008(flavor) || isHq008Noneu(flavor)
     }
 }

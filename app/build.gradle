@@ -46,6 +46,14 @@ if (kaneShortSigningPropertiesFile.exists()) {
     }
 }
 
+def ambientLightSigningPropertiesFile = file("signing_files/ambient-light-release.properties")
+def ambientLightSigningProperties = new Properties()
+if (ambientLightSigningPropertiesFile.exists()) {
+    ambientLightSigningPropertiesFile.withInputStream { stream ->
+        ambientLightSigningProperties.load(stream)
+    }
+}
+
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
@@ -71,21 +79,15 @@ dependencies.add(
         }
 )
 
-// Google channel identity is independent of the shared IMA-to-TCL execution path.
-ext.googleAdFlavors = [
-        'google_ad_tv_desktop',
-        'google_ad_tv_desktop_jm',
-        'google_ad_tv_desktop_ytx',
-        'google_ad_tv_desktop_007',
-        'google_ad_tv_desktop_v260904_1',
-        'google_ad_tv_desktop_v260904_x98k',
-        'google_ad_tv_desktop_localcalendar',
-        'google_ad_tv_desktop_kaneshort',
-        'google_ad_tv_desktop_tpmaotai1935',
-        'google_ad_tv_lockscreen',
-        'google_ad_tv_lockscreen_hq002',
-        'google_ad_tv_desktop_tcl_test'
-]
+def adChannelTypeTcl = 'TCL'
+def adChannelTypeLsap = 'LSAP'
+def adChannelTypeGoogle = 'GOOGLE'
+def supportedAdChannelTypes = [
+        adChannelTypeTcl,
+        adChannelTypeLsap,
+        adChannelTypeGoogle
+] as Set
+def adChannelTypesByFlavor = [:]
 def googleAdCommonImplementation = configurations.maybeCreate('googleAdCommonImplementation')
 googleAdCommonImplementation.canBeConsumed = false
 googleAdCommonImplementation.canBeResolved = false
@@ -380,6 +382,16 @@ android {
             }
         }
 
+        ambientLightRelease {
+            if (ambientLightSigningPropertiesFile.exists()) {
+                storeFile new File(ambientLightSigningPropertiesFile.parentFile, ambientLightSigningProperties.getProperty("storeFile"))
+                storePassword ambientLightSigningProperties.getProperty("storePassword")
+                keyAlias ambientLightSigningProperties.getProperty("keyAlias")
+                keyPassword ambientLightSigningProperties.getProperty("keyPassword")
+                storeType ambientLightSigningProperties.getProperty("storeType", "JKS")
+            }
+        }
+
     }
 
     buildTypes {
@@ -439,7 +451,14 @@ android {
                         "Flavor '${flavor.name}' must explicitly define adFlowBaseUrl as an HTTPS URL ending with '/'"
                 )
             }
+            def adChannelType = overrides.adChannelType
+            if (!(adChannelType instanceof String) || !supportedAdChannelTypes.contains(adChannelType)) {
+                throw new GradleException(
+                        "Flavor '${flavor.name}' must explicitly define a supported adChannelType"
+                )
+            }
             def merged = commonFlavorConfig + overrides
+            adChannelTypesByFlavor[flavor.name] = adChannelType
 
             flavor.applicationId merged.applicationId
             def appId = merged.applicationId
@@ -456,6 +475,7 @@ android {
             flavor.buildConfigField "String", "BASE_URL", "\"${merged.baseUrl}\""
             flavor.buildConfigField "String", "AD_FLOW_BASE_URL", "\"${adFlowBaseUrl}\""
             flavor.buildConfigField "String", "APP_ID", "\"${merged.appId}\""
+            flavor.buildConfigField "String", "AD_CHANNEL_TYPE", "\"${adChannelType}\""
             flavor.buildConfigField "String", "CHANNEL", "\"${merged.channel}\""
             flavor.buildConfigField "String", "C_TYPE", "\"${merged.cType}\""
             flavor.buildConfigField "String", "MODEL", "\"${merged.model}\""
@@ -478,6 +498,7 @@ android {
 
         hq008 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adffa",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 19,
@@ -500,6 +521,7 @@ android {
 
         hq008XHSX {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adxhsx",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 4,
@@ -522,6 +544,7 @@ android {
 
         tcl_aishang {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adais",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 3,
@@ -544,6 +567,7 @@ android {
 
         ad_ytx01 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adytx01",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 4,
@@ -566,6 +590,7 @@ android {
 
         ad_ytx01_sxk {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adytx01",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -588,6 +613,7 @@ android {
 
         ad_ytx01_jx {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adytx01",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -610,6 +636,7 @@ android {
 
         ad_album_101_001 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adalbum101001",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -632,6 +659,7 @@ android {
 
         hq008Noneu {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adnoneu",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 14,
@@ -654,6 +682,7 @@ android {
 
         hq008Noneuc2 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adnoneu",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 11,
@@ -676,6 +705,7 @@ android {
 
         haier_lsap {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeLsap,
                     applicationId       : "com.google.android.adengine",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 7,
@@ -695,6 +725,7 @@ android {
 
         addy_hq1002 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeLsap,
                     applicationId       : "com.google.android.addyhq1002",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 4,
@@ -717,6 +748,7 @@ android {
 
         addy_jams {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeLsap,
                     applicationId       : "com.google.android.addyjams",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 10,
@@ -739,6 +771,7 @@ android {
 
         google_ad_tv_desktop_tcl_test {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.localvideoplayer.tv",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 11,
@@ -760,6 +793,7 @@ android {
 
         google_ad_tv_desktop_v260904_x98k {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.localvideoplayer.tv",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -781,6 +815,7 @@ android {
 
         google_ad_tv_desktop_localcalendar {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.localcalendar.tv",
                     minSdk              : 24,
                     adFlowBaseUrl       : "https://api.kytira.cc/",
@@ -803,6 +838,7 @@ android {
 
         google_ad_tv_desktop_kaneshort {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.adsflare.kaneshort",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -822,8 +858,32 @@ android {
             buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
         }
 
+        google_ad_tv_desktop_ambientlight {
+            applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
+                    applicationId       : "com.ambientlight.tv",
+                    minSdk              : 23,
+                    adFlowBaseUrl       : "https://api.kytira.cc/",
+                    versionCode         : 1,
+                    versionName         : "1.0.1",
+                    signingConfig       : signingConfigs.ambientLightRelease,
+                    baseUrl             : "https://api.bcytua.cc/",
+                    channel             : "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+                    cType               : "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+                    model               : "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+                    backupDomain        : "https://api.bcytua.cc/",
+                    manifestPlaceholders: [
+                            share_uid: "",
+                            ump_app_id: "ca-app-pub-3199037222330432~8403613512"
+                    ]
+            ])
+            buildConfigField "String", "CMP_DEVICE_ID_OVERRIDE", "\"\""
+            buildConfigField "String", "UMP_DEBUG_DEVICE_ID", "\"${umpDebugDeviceId}\""
+        }
+
         google_ad_tv_desktop {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 10,
@@ -845,6 +905,7 @@ android {
 
         google_ad_tv_desktop_jm {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 9,
@@ -866,6 +927,7 @@ android {
 
         google_ad_tv_desktop_ytx {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 2,
@@ -887,6 +949,7 @@ android {
 
         google_ad_tv_desktop_007 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -908,6 +971,7 @@ android {
 
         google_ad_tv_desktop_v260904_1 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.localvideoplayer.tv",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 13,
@@ -929,6 +993,7 @@ android {
 
         google_ad_tv_desktop_tpmaotai1935 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "io.android.launcher.tv.desktop",
                     adFlowBaseUrl       : "https://api.rvebxa.cc/",
                     versionCode         : 1,
@@ -950,6 +1015,7 @@ android {
 
         google_ad_tv_lockscreen {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.chihim.lockscreentv.play",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 9,
@@ -971,6 +1037,7 @@ android {
 
         google_ad_tv_lockscreen_hq002 {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeGoogle,
                     applicationId       : "com.chihim.lockscreentv.play",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -992,6 +1059,7 @@ android {
 
         tcl_poly {
             applyCommonFlavorConfig(delegate, [
+                    adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adpoly",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
                     versionCode         : 1,
@@ -1015,6 +1083,14 @@ android {
     }
 
 }
+
+def googleAdFlavors = adChannelTypesByFlavor.findAll { flavorName, channelType ->
+    channelType == adChannelTypeGoogle
+}.keySet().toList()
+def googleAdSigningConfigNames = googleAdFlavors.collectEntries { flavorName ->
+    [(flavorName): android.productFlavors.getByName(flavorName).signingConfig.name]
+}
+ext.googleAdFlavors = googleAdFlavors
 
 android.applicationVariants.configureEach { variant ->
     if (variant.buildType.name != "release") {
@@ -1200,41 +1276,10 @@ androidComponents {
     onVariants(selector().withBuildType("debug").withFlavor("ad", "addy_jams")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("addyJamsRelease"))
     }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_tcl_test")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_v260904_x98k")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_localcalendar")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("localCalendarRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_kaneshort")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("kaneShortRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_jm")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_ytx")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_007")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_v260904_1")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("localVideoPlayerRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_desktop_tpmaotai1935")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_lockscreen")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
-    }
-    onVariants(selector().withBuildType("debug").withFlavor("ad", "google_ad_tv_lockscreen_hq002")) { variant ->
-        variant.signingConfig.setConfig(android.signingConfigs.getByName("googleAdTvDesktopRelease"))
+    googleAdSigningConfigNames.each { flavorName, signingConfigName ->
+        onVariants(selector().withBuildType("debug").withFlavor("ad", flavorName)) { variant ->
+            variant.signingConfig.setConfig(android.signingConfigs.getByName(signingConfigName))
+        }
     }
     onVariants(selector().withBuildType("debug").withFlavor("ad", "tcl_poly")) { variant ->
         variant.signingConfig.setConfig(android.signingConfigs.getByName("tclDemoNoneuRelease"))
@@ -1270,9 +1315,10 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     debugImplementation project(':hq008-flow-sdk')
 
-    //noinspection UseTomlInstead
-  //  implementation 'io.github.code-rebooter:lib_autorun:1.0.61-alpha.5'
-    implementation files('libs/lib_autorun-release-202608191720.aar')
+    // TCL 运行时依赖有严格版本锁定；仅远程获取 SDK AAR，复用项目现有依赖。
+    implementation(libs.alive.reporter) {
+        transitive = false
+    }
 
     add(googleAdCommonImplementation.name, project(':ad-sdk-tcl'))
     add(googleAdCommonImplementation.name,

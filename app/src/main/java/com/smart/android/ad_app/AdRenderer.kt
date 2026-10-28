@@ -103,7 +103,7 @@ object AdRenderer {
         defaultPosition: Position,
         defaultFocusable: Boolean
     ): WindowRenderConfig {
-        val useHiddenMode = BuildFlavor.isHq008Family() && AdDisplayConfig.isHiddenMode()
+        val useHiddenMode = BuildFlavor.usesSharedAdRuntime() && AdDisplayConfig.isHiddenMode()
         if (!useHiddenMode) {
             return WindowRenderConfig(
                 width = defaultWidth,

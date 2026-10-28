@@ -10,7 +10,7 @@ internal object Hq008ApiRequestFields {
     private const val TCL_SDK_VERSION = "2.8.02"
 
     fun appendTo(body: MutableMap<String, Any>, context: Context, googleAuthorization: Boolean = false) {
-        body.putAll(fields(BuildConfig.FLAVOR, BuildConfig.VERSION_NAME) {
+        body.putAll(fields(BuildConfig.AD_CHANNEL_TYPE, BuildConfig.VERSION_NAME) {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
         })
         if (googleAuthorization && BuildFlavor.isGoogleAd()) {
@@ -18,10 +18,9 @@ internal object Hq008ApiRequestFields {
         }
     }
 
-    internal fun fields(flavor: String, versionName: String, androidId: () -> String?): Map<String, Any> =
+    internal fun fields(channelType: String, versionName: String, androidId: () -> String?): Map<String, Any> =
         linkedMapOf<String, Any>("androidid" to runCatching(androidId).getOrNull().orEmpty()).apply {
-            // These HQ008-family channels execute ads with TCL; LSAP uses a separate SDK.
-            if (BuildFlavor.isHq008Family(flavor) && !BuildFlavor.isHaierLsap(flavor)) {
+            if (BuildFlavor.usesTclRuntime(channelType)) {
                 put("ad_version_name", versionName)
                 put("sdk_version", TCL_SDK_VERSION)
             }

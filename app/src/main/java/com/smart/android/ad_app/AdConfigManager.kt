@@ -14,7 +14,7 @@ object AdConfigManager {
     private const val HQ008_DEFAULT_FLOATING_POSITION = 0
 
     init {
-        if (BuildFlavor.isHq008Family()) {
+        if (BuildFlavor.usesSharedAdRuntime()) {
             Hq008CmpManager.setRemoteDecisionProvider { _, onResult ->
                 fun fallbackPopupAction(reason: String) {
                     Log.w(
@@ -46,7 +46,7 @@ object AdConfigManager {
                         TAG,
                         "广告链路：consent-popup 返回动作=${dto?.consent_action.orEmpty()}，payloadPresent=${dto?.consent_payload != null}"
                     )
-                    val googleUmpFlavor = BuildFlavor.isGoogleAdTvDesktop() || BuildFlavor.isGoogleAdTvLockscreen()
+                    val googleUmpFlavor = BuildFlavor.usesGoogleConsent()
                     when (dto?.consent_action) {
                         "ACCEPT_ALL" -> {
                             Hq008ConsentLogReporter.report(
@@ -146,7 +146,7 @@ object AdConfigManager {
             "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${channel.value}，channelSource=${channel.source.label}，hidden=${AdDisplayConfig.isHiddenMode()}"
         )
 
-        if (!BuildFlavor.isHq008Family() || !hasOverlayPermission()) {
+        if (!BuildFlavor.usesSharedAdRuntime() || !hasOverlayPermission()) {
             Log.i(TAG, "悬浮广告未启用或缺少悬浮窗权限，本轮不请求广告流程")
             return
         }

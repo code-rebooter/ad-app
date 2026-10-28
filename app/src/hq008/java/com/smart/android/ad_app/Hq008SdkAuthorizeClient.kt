@@ -90,7 +90,7 @@ internal object Hq008SdkAuthorizeClient {
         val localIp = getLocalIpAddress()
         val mac = getMacAddress().orEmpty()
         val userAgentFields = HaierUserAgentAuthorizeFields.build(
-            flavor = BuildConfig.FLAVOR,
+            channelType = BuildConfig.AD_CHANNEL_TYPE,
             fallbackEffectiveUa = Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent()
         ) {
             userAgentReportCollector.collect(context)

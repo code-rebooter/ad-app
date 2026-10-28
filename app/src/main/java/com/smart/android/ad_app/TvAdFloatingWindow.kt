@@ -162,7 +162,7 @@ class TvAdFloatingWindow(
 
     @SuppressLint("ClickableViewAccessibility")
     private fun installTouchClickOverlayIfNeeded() {
-        if (!BuildFlavor.isHq008Family()) {
+        if (!BuildFlavor.usesSharedAdRuntime()) {
             return
         }
         val overlay = View(context).apply {
@@ -185,7 +185,7 @@ class TvAdFloatingWindow(
     }
 
     private fun enableTouchClickIfNeeded() {
-        if (!BuildFlavor.isHq008Family()) {
+        if (!BuildFlavor.usesSharedAdRuntime()) {
             return
         }
         canHandleTouchClick = true

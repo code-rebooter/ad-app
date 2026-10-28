@@ -19,7 +19,7 @@ import java.util.Locale
 
 object AdManagerImpl : IAdManager {
     override fun init() {
-        if (BuildFlavor.isHaierLsap()) {
+        if (BuildFlavor.isLsap()) {
             HaierLsapAdManagerBridge.init()
             return
         }
@@ -35,7 +35,7 @@ object AdManagerImpl : IAdManager {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
-        if (BuildFlavor.isHaierLsap()) {
+        if (BuildFlavor.isLsap()) {
             HaierLsapAdManagerBridge.showAd(
                 flRoot = flRoot,
                 adId = adId,
@@ -61,7 +61,7 @@ object AdManagerImpl : IAdManager {
     override fun destroyAd() = destroyAd(null)
 
     override fun destroyAd(requestId: String?) {
-        if (BuildFlavor.isHaierLsap()) {
+        if (BuildFlavor.isLsap()) {
             HaierLsapAdManagerBridge.destroyAd(requestId)
             return
         }

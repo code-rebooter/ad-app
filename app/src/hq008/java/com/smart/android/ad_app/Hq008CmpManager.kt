@@ -360,7 +360,7 @@ object Hq008CmpManager {
     }
 
     fun init(context: Context) {
-        if (!BuildFlavor.isHq008Family()) {
+        if (!BuildFlavor.usesSharedAdRuntime()) {
             return
         }
 
@@ -451,7 +451,7 @@ object Hq008CmpManager {
         timeoutMs: Long = CONSENT_READY_TIMEOUT_MS,
         onReady: () -> Unit
     ) {
-        if (!BuildFlavor.isHq008Family()) {
+        if (!BuildFlavor.usesSharedAdRuntime()) {
             onReady()
             return
         }

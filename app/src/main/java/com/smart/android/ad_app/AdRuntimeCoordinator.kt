@@ -21,7 +21,7 @@ object AdRuntimeCoordinator {
 
     fun start(context: Context) {
         val appContext = context.applicationContext
-        if (BuildFlavor.isHq008Family()) {
+        if (BuildFlavor.usesSharedAdRuntime()) {
             Hq008LocalSchedulePolicy.initialize(appContext)
         }
         Log.i(TAG, "正式链路：开始启动广告运行协调器，flavor=${BuildConfig.FLAVOR}，package=${appContext.packageName}")

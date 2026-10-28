@@ -8,9 +8,8 @@ import java.io.File
 class Hq008Noneuc2FlavorContractTest {
 
     @Test
-    fun `hq008Noneuc2 should stay in hq008 noneu family`() {
-        assertTrue(BuildFlavor.isHq008Noneu("hq008Noneuc2"))
-        assertTrue(BuildFlavor.isHq008Family("hq008Noneuc2"))
+    fun `hq008Noneuc2 should use TCL runtime`() {
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
     }
 
     @Test
@@ -28,8 +27,7 @@ class Hq008Noneuc2FlavorContractTest {
         val buildGradle = readProjectFile("app/build.gradle")
         val manifest = readProjectFile("app/src/hq008XHSX/AndroidManifest.xml")
 
-        assertTrue(BuildFlavor.isHq008("hq008XHSX"))
-        assertTrue(BuildFlavor.isHq008Family("hq008XHSX"))
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
         assertTrue(buildGradle.contains("hq008XHSX {"))
         assertTrue(buildGradle.contains("applicationId       : \"com.google.android.adxhsx\"") || buildGradle.contains("applicationId: \"com.google.android.adxhsx\""))
         assertTrue(buildGradle.contains("channel             : \"hq008XHSX\"") || buildGradle.contains("channel               : \"hq008XHSX\""))

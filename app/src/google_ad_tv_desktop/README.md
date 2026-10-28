@@ -11,7 +11,7 @@
 - IMA 反编译源码、动态 VM/Core 对照代码和分析输出不存放在本仓库内，统一保存在仓库外研究工作区。
 - 本目录 Manifest、res、proguard-rules.pro：所有 Google flavor 共用。
 - `app/gradle/google-url-tcl.gradle`：生成排除旧广告入口的 HQ008 业务源码，并为所有 Google flavor 注册相同 TCL 公共、监测和填充处理器。
-- `app/build.gradle` 的 `googleAdFlavors`：统一声明 Google 渠道集合，全部继承 `googleAdCommonImplementation`，不再通过客户渠道相互继承依赖。
+- `app/build.gradle` 要求每个 flavor 显式配置统一的 `adChannelType`。所有 Google flavor 均使用 `GOOGLE`；公共源码、依赖、ASM、签名和运行时判断均从该字段派生，不读取 flavor 名称或前缀。
 
 旧 IMA/Media3 广告执行器、纯 TCL 实验执行器和旧 resolve 客户端已删除；Google 宿主不再依赖 AndroidX Media3。TCL 自身原厂播放器与底层依赖仍保留。
 
@@ -29,6 +29,7 @@
 | `google_ad_tv_desktop_v260904_x98k` | `GOOGLE_AD_TV_DESKTOP_V260904_X98K` | `com.localvideoplayer.tv` |
 | `google_ad_tv_desktop_localcalendar` | `GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR` | `com.localcalendar.tv` |
 | `google_ad_tv_desktop_kaneshort` | `GOOGLE_AD_TV_DESKTOP_KANESHORT` | `com.adsflare.kaneshort` |
+| `google_ad_tv_desktop_ambientlight` | `GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT` | `com.ambientlight.tv` |
 | `google_ad_tv_desktop_tpmaotai1935` | `GOOGLE_AD_TV_DESKTOP_TPMAOTAI1935` | `io.android.launcher.tv.desktop` |
 | `google_ad_tv_lockscreen` | `GOOGLE_AD_TV_LOCKSCREEN` | `com.chihim.lockscreentv.play` |
 | `google_ad_tv_lockscreen_hq002` | `GOOGLE_AD_TV_LOCKSCREEN_HQ002` | `com.chihim.lockscreentv.play` |

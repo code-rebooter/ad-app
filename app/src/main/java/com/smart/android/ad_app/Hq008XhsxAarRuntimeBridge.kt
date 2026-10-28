@@ -133,7 +133,7 @@ object Hq008XhsxAarRuntimeBridge {
     /** Existing shipped-firmware corrections for reflective Android property reads. */
     @JvmStatic
     fun getAndroidSystemProperty(name: String?, defaultValue: String?): String? {
-        return if (BuildFlavor.isGoogleAd() && HaierBuildIdentityNormalizer.isFingerprintProperty(name)) {
+        return if (BuildFlavor.needsIdentityPatch() && HaierBuildIdentityNormalizer.isFingerprintProperty(name)) {
             // The caller's default is not a firmware source. Missing properties use native components.
             HaierBuildIdentityNormalizer.correctFingerprintProperty(
                 name, HaierBuildIdentityNormalizer.systemProperty(name, null)

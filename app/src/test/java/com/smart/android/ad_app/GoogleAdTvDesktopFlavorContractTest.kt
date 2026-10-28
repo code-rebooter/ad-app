@@ -9,8 +9,22 @@ import java.io.File
 class GoogleAdTvDesktopFlavorContractTest {
 
     @Test
-    fun `google_ad_tv_lockscreen should use hq008 flow control path`() {
-        assertTrue(BuildFlavor.isHq008Family("google_ad_tv_lockscreen"))
+    fun `channel capabilities should remain independent`() {
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_TCL))
+        assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_TCL))
+        assertFalse(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_TCL))
+
+        assertFalse(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_LSAP))
+        assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_LSAP))
+        assertFalse(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_LSAP))
+
+        assertFalse(BuildFlavor.usesTclRuntime("OTHER"))
+        assertFalse(BuildFlavor.needsIdentityPatch("OTHER"))
+        assertFalse(BuildFlavor.usesGoogleConsent("OTHER"))
     }
 
     @Test
@@ -21,10 +35,9 @@ class GoogleAdTvDesktopFlavorContractTest {
         val buildFlavorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
         val projectRoot = findProjectRoot("app/build.gradle")
 
-        assertTrue(BuildFlavor.isGoogleAdTvDesktop("google_ad_tv_desktop"))
-        assertTrue(BuildFlavor.isHq008Noneu("google_ad_tv_desktop"))
-        assertTrue(BuildFlavor.isHq008Family("google_ad_tv_desktop"))
-        assertTrue(buildFlavorSource.contains("fun isGoogleAdTvDesktop("))
+        assertTrue(BuildFlavor.isGoogleAd(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(BuildFlavor.usesSharedAdRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(buildFlavorSource.contains("fun isGoogleAd("))
 
         assertTrue(buildGradle.contains("google_ad_tv_desktop {"))
         val sharedBuild = readProjectFile("app/gradle/google-url-tcl.gradle")
@@ -35,6 +48,7 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(sharedBuild.contains("res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']"))
 
         assertTrue(flavorBlock.contains("applicationId       : \"io.android.launcher.tv.desktop\"") || flavorBlock.contains("applicationId: \"io.android.launcher.tv.desktop\""))
+        assertTrue(flavorBlock.contains("adChannelType      : adChannelTypeGoogle"))
         assertTrue(flavorBlock.contains("versionCode         : 10") || flavorBlock.contains("versionCode: 10"))
         assertTrue(flavorBlock.contains("versionName         : \"1.0.9\"") || flavorBlock.contains("versionName: \"1.0.9\""))
         assertTrue(flavorBlock.contains("channel             : \"GOOGLE_AD_TV_DESKTOP\"") || flavorBlock.contains("channel               : \"GOOGLE_AD_TV_DESKTOP\""))
@@ -46,7 +60,10 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(buildGradle.contains("storeFile file(\"signing_files/google_ad_tv_desktop_upload.jks\")"))
         assertTrue(buildGradle.contains("keyAlias \"tvdesktopupload\""))
         assertTrue(buildGradle.contains("storeType \"PKCS12\""))
-        assertTrue(buildGradle.contains("onVariants(selector().withBuildType(\"debug\").withFlavor(\"ad\", \"google_ad_tv_desktop\"))"))
+        assertTrue(buildGradle.contains("flavor.buildConfigField \"String\", \"AD_CHANNEL_TYPE\""))
+        assertTrue(buildGradle.contains("def googleAdFlavors = adChannelTypesByFlavor.findAll"))
+        assertTrue(buildGradle.contains("googleAdSigningConfigNames.each { flavorName, signingConfigName ->"))
+        assertTrue(buildGradle.contains("withFlavor(\"ad\", flavorName)"))
 
         assertFalse(buildGradle.contains("androidx.media3:media3-exoplayer-ima"))
         assertFalse(buildGradle.contains("providers.gradleProperty('googleUrlEngine')"))

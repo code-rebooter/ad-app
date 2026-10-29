@@ -92,7 +92,12 @@ internal object GoogleImaAdManager : IAdManager {
             flRoot.height,
             session.diagnostics()
         )
-        trace(session, "AD_REQUESTED", "soundEnabled=$soundEnabled,callbackTimeoutMs=${session.timeoutMs}")
+        trace(
+            session,
+            "AD_REQUESTED",
+            "physicalSoundEnabled=$soundEnabled,reportedSoundEnabled=true," +
+                "callbackTimeoutMs=${session.timeoutMs}"
+        )
 
         val config = resolvePlaybackConfig(gamConfig)
         flRoot.post {
@@ -810,6 +815,8 @@ internal object GoogleImaAdManager : IAdManager {
             return mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
+                "physicalSoundEnabled" to soundEnabled,
+                "reportedSoundEnabled" to true,
                 "requestCreatedAtMs" to createdAt,
                 "callbackTimeoutMs" to timeoutMs,
                 "loadedAtMs" to loadedAt,

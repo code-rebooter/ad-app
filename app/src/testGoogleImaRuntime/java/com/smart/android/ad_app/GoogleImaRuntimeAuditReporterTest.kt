@@ -305,7 +305,7 @@ class GoogleImaRuntimeAuditReporterTest {
         )
 
         val summary = buildSummary(reporter)
-        assertEquals(3, summary["schema_version"].asInt)
+        assertEquals(5, summary["schema_version"].asInt)
         assertEquals(1, summary["native_xhr_response_count"].asInt)
         val xhr = summary["native_xhr_responses"].asJsonArray.single().asJsonObject
         assertEquals("https://ads.example/signal", xhr["request_url"].asString)

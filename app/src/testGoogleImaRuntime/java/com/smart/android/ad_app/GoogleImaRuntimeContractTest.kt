@@ -46,6 +46,12 @@ class GoogleImaRuntimeContractTest {
         )
 
         assertTrue(moduleBuild.contains("com.smart.android.googleima.controlled:interactivemedia:3.35.1"))
+        assertTrue(
+            moduleBuild.contains(
+                "com.smart.android.googleima.controlled:media3-exoplayer-ima:1.8.0"
+            )
+        )
+        assertTrue(moduleBuild.contains("patchGoogleMedia3ImaAar"))
         assertTrue(moduleBuild.contains("verifyControlledGoogleImaAars"))
         assertTrue(moduleBuild.contains("dependsOn verifyControlledGoogleImaAars"))
 
@@ -70,6 +76,8 @@ class GoogleImaRuntimeContractTest {
         assertTrue(runtimeBridge.contains("shouldCollectAppSet"))
         assertTrue(runtimeBridge.contains("source=shared_local"))
         assertTrue(runtimeBridge.contains("source=tcl_persisted"))
+        assertTrue(runtimeBridge.contains("forceUnmutedVolumePercentage"))
+        assertTrue(runtimeBridge.contains("forceUnmutedAdsRequest"))
 
         assertTrue(sharedIdentity.contains("independent_local_adid_settings_v2"))
         assertTrue(sharedIdentity.contains("independent_local_per_app_lat_v1"))
@@ -79,6 +87,7 @@ class GoogleImaRuntimeContractTest {
 
         assertTrue(patcher.contains("patchGoogleAdsIdentifierDiagnostics"))
         assertTrue(patcher.contains("patchGoogleAppSetTelemetry"))
+        assertTrue(patcher.contains("patchGoogleMedia3ImaVolume"))
         assertTrue(patcher.contains("usesClientTelemetry"))
         assertTrue(patcher.contains("instruction.operand == 27601"))
         assertTrue(patcher.contains("auditNativeResponse"))

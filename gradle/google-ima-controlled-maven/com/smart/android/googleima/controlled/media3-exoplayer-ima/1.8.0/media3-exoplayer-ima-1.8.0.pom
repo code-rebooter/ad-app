@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.smart.android.googleima.controlled</groupId>
+  <artifactId>media3-exoplayer-ima</artifactId>
+  <version>1.8.0</version>
+  <packaging>aar</packaging>
+  <dependencies>
+    <dependency><groupId>com.smart.android.googleima.controlled</groupId><artifactId>interactivemedia</artifactId><version>3.35.1</version><scope>compile</scope></dependency>
+    <dependency><groupId>androidx.media3</groupId><artifactId>media3-exoplayer</artifactId><version>1.8.0</version><scope>compile</scope><type>aar</type></dependency>
+    <dependency><groupId>androidx.annotation</groupId><artifactId>annotation</artifactId><version>1.6.0</version><scope>runtime</scope></dependency>
+  </dependencies>
+</project>

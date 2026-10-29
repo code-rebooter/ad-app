@@ -22,6 +22,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private val nativeXhrResponses = mutableListOf<NativeXhrResponse>()
     private val verificationScripts = mutableListOf<VerificationScript>()
     private val webResources = linkedMapOf<String, WebResourceStatus>()
+    private val soundSignals = linkedMapOf<String, SoundSignalStatus>()
     private val omidCalls = linkedMapOf<String, Int>()
     private val omidSessions = linkedMapOf<String, OmidSessionStatus>()
     private val imaAdEventCounts = linkedMapOf<String, Int>()
@@ -39,6 +40,12 @@ internal class GoogleImaRuntimeAuditReporter(
     private var hierarchyLastLength = 0
     private var hierarchyNotVisibleReasonCount = 0
     private var hierarchyWindowFocusFalseCount = 0
+    private var originalAdTagUrl = ""
+    private var normalizedAdTagUrl = ""
+    private var originalVpmute = ""
+    private var normalizedVpmute = ""
+    private var lastOmidPhysicalDeviceVolume = -1f
+    private var lastOmidDeviceVolume = -1f
     private var lastImaAdEvent = ""
     private var lastAdDurationMs = -1L
     private var lastPodMaxDurationMs = -1L
@@ -74,15 +81,21 @@ internal class GoogleImaRuntimeAuditReporter(
     private var lastContentPlayerIsPlaying = false
     private var lastPlayWhenReady = false
     private var lastPlaybackSuppressionReason = -1
+    private var lastPhysicalPlayerVolume = -1f
+    private var lastReportedPlayerVolume = -1f
+    private var lastReportedPlayerVolumeObserved = false
+    private var lastReportedMuted: Boolean? = null
     private var finished = false
 
     fun record(event: GoogleImaAuditEvent) {
         synchronized(lock) {
             if (finished) return
             when (event.eventType) {
+                "audit_begin" -> recordAuditBegin(event)
                 "vast_response" -> recordVast(event)
                 "native_xhr_response" -> recordNativeXhr(event)
                 "web_resource" -> recordWebResource(event)
+                "sound_signal" -> recordSoundSignal(event)
                 "omid_bridge" -> recordOmid(event)
                 "ima_ad_event" -> recordImaAdEvent(event)
                 "player_state", "playback_progress", "first_frame", "terminal_snapshot" ->
@@ -90,6 +103,13 @@ internal class GoogleImaRuntimeAuditReporter(
                 "playback_error" -> recordPlaybackError(event)
             }
         }
+    }
+
+    private fun recordAuditBegin(event: GoogleImaAuditEvent) {
+        originalAdTagUrl = event.fields["ad_tag_url_original"].orEmpty()
+        normalizedAdTagUrl = event.fields["ad_tag_url"].orEmpty()
+        originalVpmute = event.fields["vpmute_original"].orEmpty()
+        normalizedVpmute = event.fields["vpmute_normalized"].orEmpty()
     }
 
     fun finish(terminalReason: String) {
@@ -186,6 +206,30 @@ internal class GoogleImaRuntimeAuditReporter(
         }
     }
 
+    private fun recordSoundSignal(event: GoogleImaAuditEvent) {
+        val signal = event.fields["signal"].orEmpty()
+        if (signal.isBlank()) return
+        val status = soundSignals.getOrPut(signal) { SoundSignalStatus() }
+        status.callCount += 1
+        status.lastPhysicalValue = event.fields["physical_value"].orEmpty()
+        status.lastReportedValue = event.fields["reported_value"].orEmpty()
+        status.lastObservedAtMs = event.elapsedRealtimeMs
+        status.lastSessionIds = event.fields["session_ids"].orEmpty()
+            .split(',')
+            .filter { it.isNotBlank() }
+        if (signal == "omid_device_volume") {
+            status.lastPhysicalValue.toFloatOrNull()?.let { lastOmidPhysicalDeviceVolume = it }
+            status.lastReportedValue.toFloatOrNull()?.let { lastOmidDeviceVolume = it }
+            status.lastSessionIds.forEach { sessionId ->
+                val session = omidSessions.getOrPut(sessionId) { OmidSessionStatus() }
+                status.lastPhysicalValue.toFloatOrNull()?.let {
+                    session.lastPhysicalDeviceVolume = it
+                }
+                status.lastReportedValue.toFloatOrNull()?.let { session.lastDeviceVolume = it }
+            }
+        }
+    }
+
     private fun recordOmid(event: GoogleImaAuditEvent) {
         val method = event.fields["method"].orEmpty()
         if (method.isBlank()) return
@@ -193,6 +237,18 @@ internal class GoogleImaRuntimeAuditReporter(
         val sessionId = event.fields["session_id"].orEmpty().ifBlank { "unscoped" }
         val session = omidSessions.getOrPut(sessionId) { OmidSessionStatus() }
         session.methodCallCounts[method] = (session.methodCallCounts[method] ?: 0) + 1
+        if (method == "startSession") {
+            if (lastOmidPhysicalDeviceVolume >= 0f) {
+                session.lastPhysicalDeviceVolume = lastOmidPhysicalDeviceVolume
+            }
+            if (lastOmidDeviceVolume >= 0f) session.lastDeviceVolume = lastOmidDeviceVolume
+        }
+        if (method == "setDeviceVolume") {
+            event.fields["device_volume"]?.toFloatOrNull()?.let {
+                lastOmidDeviceVolume = it
+                session.lastDeviceVolume = it
+            }
+        }
         if (method != "setNativeViewHierarchy") return
 
         hierarchyCount += 1
@@ -315,6 +371,18 @@ internal class GoogleImaRuntimeAuditReporter(
         fields["is_playing"]?.toBooleanStrictOrNull()?.let { lastPlayerIsPlaying = it }
         fields["is_playing_ad"]?.toBooleanStrictOrNull()?.let { lastPlayerIsPlayingAd = it }
         fields["play_when_ready"]?.toBooleanStrictOrNull()?.let { lastPlayWhenReady = it }
+        fields["physical_player_volume"]?.toFloatOrNull()?.let {
+            lastPhysicalPlayerVolume = it
+        }
+        fields["reported_player_volume"]?.toFloatOrNull()?.let {
+            lastReportedPlayerVolume = it
+        }
+        fields["reported_player_volume_observed"]?.toBooleanStrictOrNull()?.let {
+            lastReportedPlayerVolumeObserved = it
+        }
+        fields["reported_muted"]?.toBooleanStrictOrNull()?.let {
+            lastReportedMuted = it
+        }
         fields["playback_suppression_reason"]?.toIntOrNull()?.let {
             lastPlaybackSuppressionReason = it
         }
@@ -359,6 +427,13 @@ internal class GoogleImaRuntimeAuditReporter(
                 isPlaying = isPlaying,
                 isPlayingAd = isPlayingAd,
                 playWhenReady = fields["play_when_ready"]?.toBooleanStrictOrNull() ?: false,
+                physicalPlayerVolume =
+                    fields["physical_player_volume"]?.toFloatOrNull() ?: -1f,
+                reportedPlayerVolume =
+                    fields["reported_player_volume"]?.toFloatOrNull() ?: -1f,
+                reportedPlayerVolumeObserved = fields["reported_player_volume_observed"]
+                    ?.toBooleanStrictOrNull() ?: false,
+                reportedMuted = fields["reported_muted"]?.toBooleanStrictOrNull(),
                 playbackSuppressionReason =
                     fields["playback_suppression_reason"]?.toIntOrNull() ?: -1
             )
@@ -419,10 +494,17 @@ internal class GoogleImaRuntimeAuditReporter(
         val adProgressRatio = activeAdStatus?.playbackRatio()
         return gson.toJson(
             linkedMapOf(
-                "schema_version" to 3,
+                "schema_version" to 5,
                 "audit_scope" to "pure_ima_request_playback_omid",
                 "request_id" to requestId,
                 "terminal_reason" to terminalReason,
+                "request_sound_audit" to linkedMapOf(
+                    "original_ad_tag_url" to originalAdTagUrl,
+                    "normalized_ad_tag_url" to normalizedAdTagUrl,
+                    "original_vpmute" to originalVpmute,
+                    "normalized_vpmute" to normalizedVpmute,
+                    "normalization_changed" to (originalAdTagUrl != normalizedAdTagUrl)
+                ),
                 "native_xhr_response_count" to nativeXhrCount,
                 "native_xhr_responses" to nativeXhrResponses.map { response ->
                     linkedMapOf(
@@ -500,6 +582,16 @@ internal class GoogleImaRuntimeAuditReporter(
                         "last_error" to status.lastError
                     )
                 },
+                "sound_reporting_audit" to soundSignals.map { (signal, status) ->
+                    linkedMapOf(
+                        "signal" to signal,
+                        "call_count" to status.callCount,
+                        "last_physical_value" to status.lastPhysicalValue,
+                        "last_reported_value" to status.lastReportedValue,
+                        "last_session_ids" to status.lastSessionIds,
+                        "last_observed_at_ms" to status.lastObservedAtMs
+                    )
+                },
                 "ima_playback_audit" to linkedMapOf(
                     "ima_event_counts" to imaAdEventCounts,
                     "ima_event_timeline" to imaAdEvents.map { event ->
@@ -566,6 +658,11 @@ internal class GoogleImaRuntimeAuditReporter(
                     "last_is_playing" to lastPlayerIsPlaying,
                     "last_is_playing_ad" to lastPlayerIsPlayingAd,
                     "last_play_when_ready" to lastPlayWhenReady,
+                    "last_physical_player_volume" to lastPhysicalPlayerVolume,
+                    "last_reported_player_volume" to lastReportedPlayerVolume,
+                    "last_reported_player_volume_observed" to
+                        lastReportedPlayerVolumeObserved,
+                    "last_reported_muted" to lastReportedMuted,
                     "last_playback_suppression_reason" to lastPlaybackSuppressionReason,
                     "last_ad_player_state" to lastAdPlayerState,
                     "last_ad_position_ms" to lastAdPlayerPositionMs,
@@ -591,6 +688,11 @@ internal class GoogleImaRuntimeAuditReporter(
                             "is_playing" to snapshot.isPlaying,
                             "is_playing_ad" to snapshot.isPlayingAd,
                             "play_when_ready" to snapshot.playWhenReady,
+                            "physical_player_volume" to snapshot.physicalPlayerVolume,
+                            "reported_player_volume" to snapshot.reportedPlayerVolume,
+                            "reported_player_volume_observed" to
+                                snapshot.reportedPlayerVolumeObserved,
+                            "reported_muted" to snapshot.reportedMuted,
                             "playback_suppression_reason" to
                                 snapshot.playbackSuppressionReason
                         )
@@ -601,6 +703,8 @@ internal class GoogleImaRuntimeAuditReporter(
                     "initialized" to ((omidCalls["init"] ?: 0) > 0),
                     "session_started" to ((omidCalls["startSession"] ?: 0) > 0),
                     "session_finished" to ((omidCalls["finishSession"] ?: 0) > 0),
+                    "last_physical_device_volume" to lastOmidPhysicalDeviceVolume,
+                    "last_device_volume" to lastOmidDeviceVolume,
                     "hierarchy_submission_count" to hierarchyCount,
                     "hierarchy_first_at_ms" to hierarchyFirstAtMs,
                     "hierarchy_last_at_ms" to hierarchyLastAtMs,
@@ -616,6 +720,9 @@ internal class GoogleImaRuntimeAuditReporter(
                             "method_call_counts" to status.methodCallCounts,
                             "session_started" to ((status.methodCallCounts["startSession"] ?: 0) > 0),
                             "session_finished" to ((status.methodCallCounts["finishSession"] ?: 0) > 0),
+                            "last_physical_device_volume" to
+                                status.lastPhysicalDeviceVolume,
+                            "last_device_volume" to status.lastDeviceVolume,
                             "hierarchy_submission_count" to status.hierarchyCount,
                             "last_hierarchy_length" to status.lastHierarchyLength,
                             "last_hierarchy_sha256" to status.lastHierarchyHash,
@@ -918,6 +1025,10 @@ internal class GoogleImaRuntimeAuditReporter(
         val isPlaying: Boolean,
         val isPlayingAd: Boolean,
         val playWhenReady: Boolean,
+        val physicalPlayerVolume: Float,
+        val reportedPlayerVolume: Float,
+        val reportedPlayerVolumeObserved: Boolean,
+        val reportedMuted: Boolean?,
         val playbackSuppressionReason: Int
     )
 
@@ -964,12 +1075,22 @@ internal class GoogleImaRuntimeAuditReporter(
 
     private data class OmidSessionStatus(
         val methodCallCounts: LinkedHashMap<String, Int> = linkedMapOf(),
+        var lastPhysicalDeviceVolume: Float = -1f,
+        var lastDeviceVolume: Float = -1f,
         var hierarchyCount: Int = 0,
         var lastHierarchyLength: Int = 0,
         var lastHierarchyHash: String = "",
         var lastHierarchyEncoded: String = "",
         var notVisibleReasonCount: Int = 0,
         var windowFocusFalseCount: Int = 0
+    )
+
+    private data class SoundSignalStatus(
+        var callCount: Int = 0,
+        var lastPhysicalValue: String = "",
+        var lastReportedValue: String = "",
+        var lastSessionIds: List<String> = emptyList(),
+        var lastObservedAtMs: Long = 0L
     )
 
     private data class WebResourceStatus(

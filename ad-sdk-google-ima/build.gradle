@@ -10,6 +10,7 @@ base {
 
 def patchInputs = [
     ima: configurations.maybeCreate('googleImaPatchInput'),
+    media3Ima: configurations.maybeCreate('googleMedia3ImaPatchInput'),
     tvAds: configurations.maybeCreate('googleTvAdsPatchInput'),
     adsIdentifier: configurations.maybeCreate('googleAdsIdentifierPatchInput'),
     appSet: configurations.maybeCreate('googleAppSetPatchInput')
@@ -21,6 +22,10 @@ patchInputs.values().each { configuration ->
 
 dependencies.add(patchInputs.ima.name,
         dependencies.create('com.google.ads.interactivemedia.v3:interactivemedia:3.35.1') {
+            transitive = false
+        })
+dependencies.add(patchInputs.media3Ima.name,
+        dependencies.create('androidx.media3:media3-exoplayer-ima:1.8.0') {
             transitive = false
         })
 dependencies.add(patchInputs.tvAds.name,
@@ -64,6 +69,13 @@ def patchedImaAar = registerPatchedAar(
         'interactivemedia-3.35.1-controlled.aar',
         '8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64',
         'google_ima')
+def patchedMedia3ImaAar = registerPatchedAar(
+        'patchGoogleMedia3ImaAar',
+        patchInputs.media3Ima,
+        'Media3 ExoPlayer IMA 1.8.0',
+        'media3-exoplayer-ima-1.8.0-controlled.aar',
+        'e4da3cf65329f6f9069a91b6effc0f4ea0cdd03c466d18f5a30a1c0d4ac739ac',
+        'google_media3_ima')
 def patchedTvAdsAar = registerPatchedAar(
         'patchGoogleTvAdsAar',
         patchInputs.tvAds,
@@ -95,6 +107,16 @@ def controlledAarCopies = [
                 published: rootProject.file(
                         'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
                                 'interactivemedia/3.35.1/interactivemedia-3.35.1.aar'
+                )
+        ],
+        [
+                task: tasks.named('patchGoogleMedia3ImaAar'),
+                generated: layout.buildDirectory.file(
+                        'generated/patched-dependencies/media3-exoplayer-ima-1.8.0-controlled.aar'
+                ),
+                published: rootProject.file(
+                        'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
+                                'media3-exoplayer-ima/1.8.0/media3-exoplayer-ima-1.8.0.aar'
                 )
         ],
         [
@@ -191,10 +213,7 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.8.0'
     implementation 'androidx.media3:media3-ui:1.8.0'
     implementation 'androidx.webkit:webkit:1.9.0'
-    implementation('androidx.media3:media3-exoplayer-ima:1.8.0') {
-        exclude group: 'com.google.ads.interactivemedia.v3', module: 'interactivemedia'
-    }
-
+    implementation 'com.smart.android.googleima.controlled:media3-exoplayer-ima:1.8.0'
     implementation 'com.smart.android.googleima.controlled:interactivemedia:3.35.1'
 }
 

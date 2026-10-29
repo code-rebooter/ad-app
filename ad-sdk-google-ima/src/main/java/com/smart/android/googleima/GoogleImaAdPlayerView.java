@@ -373,6 +373,14 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         fields.put("is_playing", Boolean.toString(player.isPlaying()));
         fields.put("is_playing_ad", Boolean.toString(player.isPlayingAd()));
         fields.put("play_when_ready", Boolean.toString(player.getPlayWhenReady()));
+        fields.put("physical_player_volume", Float.toString(player.getVolume()));
+        boolean reportedVolumeObserved = GoogleImaRuntimeBridge.hasObservedImaCoreVolume();
+        fields.put("reported_player_volume_observed", Boolean.toString(reportedVolumeObserved));
+        if (reportedVolumeObserved) {
+            fields.put("reported_player_volume", Float.toString(
+                    GoogleImaRuntimeBridge.getObservedImaCoreReportedVolume()));
+            fields.put("reported_muted", "false");
+        }
         fields.put("playback_suppression_reason",
                 Integer.toString(player.getPlaybackSuppressionReason()));
         fields.put("current_ad_group_index", Integer.toString(player.getCurrentAdGroupIndex()));

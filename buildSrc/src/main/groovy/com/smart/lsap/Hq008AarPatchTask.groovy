@@ -71,6 +71,12 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                     case 'google_ima':
                         patched = LsapClassPatcher.patchGoogleImaParameters(jarEntry.name, bytes)
                         break
+                    case 'google_media3_ima':
+                        patched = LsapClassPatcher.patchGoogleMedia3ImaVolume(
+                            jarEntry.name,
+                            bytes
+                        )
+                        break
                     case 'google_tv_ads':
                         patched = LsapClassPatcher.patchGoogleTvAdsParameters(jarEntry.name, bytes)
                         break
@@ -101,6 +107,8 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         jarInput.close()
         if (targetFlavor.get() == 'google_ima') {
             verifyGoogleImaPatch(classEntries, modifiedClasses)
+        } else if (targetFlavor.get() == 'google_media3_ima') {
+            verifyGoogleMedia3ImaPatch(classEntries, modifiedClasses)
         } else if (targetFlavor.get() == 'google_tv_ads') {
             verifyGoogleTvAdsPatch(classEntries, modifiedClasses)
         } else if (targetFlavor.get() == 'google_ads_identifier') {
@@ -125,7 +133,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         List<String> metadataLines
         if (targetFlavor.get() == 'google_ima') {
             metadataLines = [
-                'patchVersion=google-ima-parameter-normalization-7',
+                'patchVersion=google-ima-parameter-normalization-8',
                 'visibilityPolicy=ignore-ima-view-visibility-gate',
                 'viewabilityPolicy=ignore-ima-size-threshold-gate',
                 'nativeViewabilityPolicy=force-ima-view-visible-bounds',
@@ -143,7 +151,19 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                 'vastAuditPolicy=capture-native-xhr-root-and-wrapper-responses',
                 'verificationAuditPolicy=observe-webview-resource-loads-and-errors',
                 'omidAuditPolicy=observe-js-bridge-session-and-view-hierarchy-calls',
+                'soundReportingPolicy=force-unmuted-request-player-activeview-and-omid-signals',
+                'playbackVolumePolicy=preserve-host-selected-physical-player-volume',
                 'nativeNetworkHeaderCoverage=http-url-connection-only',
+                "originalAarSha256=${actualHash}",
+                "patchedClassesJarSha256=${sha256(patchedClasses)}",
+                "targetFlavor=${targetFlavor.get()}",
+                "modifiedClasses=${modifiedClasses}"
+            ]
+        } else if (targetFlavor.get() == 'google_media3_ima') {
+            metadataLines = [
+                'patchVersion=google-media3-ima-volume-normalization-1',
+                'soundReportingPolicy=force-unmuted-video-ad-player-volume-query',
+                'playbackVolumePolicy=preserve-host-selected-physical-player-volume',
                 "originalAarSha256=${actualHash}",
                 "patchedClassesJarSha256=${sha256(patchedClasses)}",
                 "targetFlavor=${targetFlavor.get()}",
@@ -234,9 +254,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 42) {
+        if (modifiedClasses != 45) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 42"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 45"
             )
         }
 
@@ -420,6 +440,42 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '()Landroid/os/IBinder;', 0, 'IMA native window-token gate')
         requireCallCount(nativeViewability, 'android/view/View', 'isShown', '()Z', 0,
             'IMA native view-hidden gate')
+        requireCallCount(nativeViewability, runtimeBridge, 'forceUnmutedNativeVolume',
+            '()D', 1, 'IMA native ActiveView reported volume')
+        requireCallCount(nativeViewability, 'android/media/AudioManager', 'getStreamVolume',
+            '(I)I', 0, 'IMA native ActiveView physical stream volume read')
+        requireCallCount(nativeViewability, 'android/media/AudioManager', 'getStreamMaxVolume',
+            '(I)I', 0, 'IMA native ActiveView physical maximum volume read')
+
+        byte[] adsRequest = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl.class'
+        )
+        requireCallCount(adsRequest, runtimeBridge, 'forceUnmutedAdTagUrl',
+            '(Ljava/lang/String;)Ljava/lang/String;', 1,
+            'IMA vpmute request normalization')
+        requireStaticFieldReadCount(
+            adsRequest,
+            'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState',
+            'UNMUTED',
+            'Lcom/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState;',
+            1,
+            'IMA ad-will-play-muted request state'
+        )
+
+        byte[] clientVideoDisplay = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/impl/zzg.class'
+        )
+        requireCallCount(clientVideoDisplay, runtimeBridge, 'forceUnmutedVolumePercentage',
+            '(I)I', 1, 'IMA client-side player volume events')
+
+        byte[] streamVideoDisplay = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/impl/zzcb.class'
+        )
+        requireCallCount(streamVideoDisplay, runtimeBridge, 'forceUnmutedVolumePercentage',
+            '(I)I', 2, 'IMA stream player start and volume events')
 
         byte[] omidVisibilityReason = requireClass(
             classEntries,
@@ -556,6 +612,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(omidBridgeAudit, runtimeBridge, 'auditOmidBridge',
             '(Ljava/lang/String;[Ljava/lang/Object;)V', 1,
             'IMA OMID JavaScript bridge audit')
+        requireCallCount(omidBridgeAudit, runtimeBridge, 'forceUnmutedOmidArguments',
+            '(Ljava/lang/String;[Ljava/lang/Object;)[Ljava/lang/Object;', 1,
+            'IMA OMID reported device volume')
 
         byte[] ordinaryIdentity = requireClass(
             classEntries,
@@ -588,6 +647,41 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '(Landroid/content/Context;)' +
             'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;',
             0, 'IMA V2 direct GMS Advertising ID read')
+    }
+
+    private static void verifyGoogleMedia3ImaPatch(
+        Map<String, byte[]> classEntries,
+        int modifiedClasses
+    ) {
+        if (modifiedClasses != 2) {
+            throw new GradleException(
+                "Media3 IMA patch changed ${modifiedClasses} classes; expected exactly 2"
+            )
+        }
+        byte[] adTagLoader = requireClass(
+            classEntries,
+            'androidx/media3/exoplayer/ima/AdTagLoader.class'
+        )
+        requireCallCount(
+            adTagLoader,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+            'forceUnmutedAdsRequest',
+            '(Lcom/google/ads/interactivemedia/v3/api/AdsRequest;)V',
+            1,
+            'Media3 IMA AdsRequest videoPlayMuted normalization'
+        )
+        byte[] videoAdPlayer = requireClass(
+            classEntries,
+            'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class'
+        )
+        requireCallCount(
+            videoAdPlayer,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+            'forceUnmutedVolumePercentage',
+            '(I)I',
+            1,
+            'Media3 IMA VideoAdPlayer reported volume'
+        )
     }
 
     private static void verifyGoogleTvAdsPatch(

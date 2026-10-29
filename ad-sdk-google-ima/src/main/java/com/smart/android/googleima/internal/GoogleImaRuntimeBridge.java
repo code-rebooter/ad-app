@@ -14,6 +14,7 @@ import androidx.annotation.Keep;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
+import com.google.ads.interactivemedia.v3.api.AdsRequest;
 import com.google.ads.interactivemedia.v3.impl.data.zzby;
 import com.google.ads.interactivemedia.v3.impl.data.zzbz;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
@@ -31,7 +32,9 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,6 +47,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 /** Runtime targets used by the exact-version IMA bytecode patch. */
 @Keep
@@ -56,6 +60,11 @@ public final class GoogleImaRuntimeBridge {
     private static final ThreadLocal<Boolean> URL_IDENTITY_FALLBACK = new ThreadLocal<>();
     private static final Object AUDIT_LOCK = new Object();
     private static final String AUDIT_JS_BRIDGE = "__smartImaAudit";
+    private static final int REPORTED_VOLUME_PERCENTAGE = 100;
+    private static final float REPORTED_OMID_VOLUME = 1.0f;
+    private static final double REPORTED_NATIVE_VOLUME = 1.0d;
+    private static final Pattern VPMUTE_PARAMETER =
+            Pattern.compile("(?i)([?&])vpmute=[^&#]*");
     private static final String AUDIT_NETWORK_SCRIPT = """
             (function() {
               'use strict';
@@ -156,6 +165,118 @@ public final class GoogleImaRuntimeBridge {
     private GoogleImaRuntimeBridge() {}
 
     @Keep
+    public static String forceUnmutedAdTagUrl(String adTagUrl) {
+        String url = safe(adTagUrl);
+        if (url.isEmpty()) return url;
+        String normalized = normalizeUnmutedAdTagUrl(url);
+        emitSoundSignal("request_vpmute", extractVpmute(url), "0");
+        return normalized;
+    }
+
+    private static String normalizeUnmutedAdTagUrl(String url) {
+        if (url.isEmpty()) return url;
+        int fragmentAt = url.indexOf('#');
+        String base = fragmentAt < 0 ? url : url.substring(0, fragmentAt);
+        String fragment = fragmentAt < 0 ? "" : url.substring(fragmentAt);
+        String normalizedBase;
+        if (VPMUTE_PARAMETER.matcher(base).find()) {
+            normalizedBase = VPMUTE_PARAMETER.matcher(base).replaceAll("$1vpmute=0");
+        } else {
+            String separator = base.contains("?") ? "&" : "?";
+            normalizedBase = base + separator + "vpmute=0";
+        }
+        return normalizedBase + fragment;
+    }
+
+    @Keep
+    public static void forceUnmutedAdsRequest(AdsRequest request) {
+        if (request == null) return;
+        request.setAdWillPlayMuted(false);
+        emitSoundSignal("request_video_play_muted", "UNKNOWN", "UNMUTED");
+    }
+
+    @Keep
+    public static int forceUnmutedVolumePercentage(int physicalVolumePercentage) {
+        emitSoundSignal(
+                "ima_core_volume_percentage",
+                String.valueOf(physicalVolumePercentage),
+                String.valueOf(REPORTED_VOLUME_PERCENTAGE));
+        return REPORTED_VOLUME_PERCENTAGE;
+    }
+
+    @Keep
+    public static boolean hasObservedImaCoreVolume() {
+        synchronized (AUDIT_LOCK) {
+            return activeAudit != null && activeAudit.imaCoreVolumeObserved;
+        }
+    }
+
+    @Keep
+    public static float getObservedImaCoreReportedVolume() {
+        synchronized (AUDIT_LOCK) {
+            return activeAudit == null ? -1.0f : activeAudit.lastImaCoreReportedVolume;
+        }
+    }
+
+    @Keep
+    public static double forceUnmutedNativeVolume() {
+        emitSoundSignal(
+                "activeview_native_volume",
+                "physical_read_blocked",
+                String.valueOf(REPORTED_NATIVE_VOLUME));
+        return REPORTED_NATIVE_VOLUME;
+    }
+
+    @Keep
+    public static Object[] forceUnmutedOmidArguments(String methodName, Object[] arguments) {
+        Object[] actual = arguments == null ? new Object[0] : arguments;
+        if (!"setDeviceVolume".equals(methodName) || actual.length == 0) return actual;
+        Object[] normalized = actual.clone();
+        emitSoundSignal(
+                "omid_device_volume",
+                String.valueOf(actual[0]),
+                String.valueOf(REPORTED_OMID_VOLUME),
+                currentOmidSessionIds());
+        normalized[0] = Float.valueOf(REPORTED_OMID_VOLUME);
+        return normalized;
+    }
+
+    private static String extractVpmute(String url) {
+        int fragmentAt = url.indexOf('#');
+        String base = fragmentAt < 0 ? url : url.substring(0, fragmentAt);
+        java.util.regex.Matcher matcher = VPMUTE_PARAMETER.matcher(base);
+        if (!matcher.find()) return "missing";
+        String matched = matcher.group();
+        int equalsAt = matched.indexOf('=');
+        return equalsAt < 0 ? "" : matched.substring(equalsAt + 1);
+    }
+
+    private static void emitSoundSignal(String signal, String physicalValue, String reportedValue) {
+        emitSoundSignal(signal, physicalValue, reportedValue, Collections.emptyList());
+    }
+
+    private static void emitSoundSignal(
+            String signal,
+            String physicalValue,
+            String reportedValue,
+            List<String> sessionIds) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("signal", signal);
+        fields.put("physical_value", safe(physicalValue));
+        fields.put("reported_value", safe(reportedValue));
+        if (!sessionIds.isEmpty()) fields.put("session_ids", joinValues(sessionIds));
+        AuditState state;
+        synchronized (AUDIT_LOCK) {
+            state = activeAudit;
+            if (state != null && "ima_core_volume_percentage".equals(signal)) {
+                state.imaCoreVolumeObserved = true;
+                state.lastImaCoreReportedVolume = REPORTED_VOLUME_PERCENTAGE / 100.0f;
+            }
+        }
+        if (state != null) emit(state, "sound_signal", fields, null);
+    }
+
+    @Keep
     public static AdvertisingIdClient.Info getAdvertisingIdInfoForUrl(Context context) {
         AdvertisingResolution resolution = resolveAdvertisingId(context);
         URL_IDENTITY_FALLBACK.set(resolution.localFallback);
@@ -223,7 +344,11 @@ public final class GoogleImaRuntimeBridge {
             activeAudit = state;
         }
         Map<String, String> fields = new LinkedHashMap<>();
-        fields.put("ad_tag_url", safe(adTagUrl));
+        String originalUrl = safe(adTagUrl);
+        fields.put("ad_tag_url_original", originalUrl);
+        fields.put("ad_tag_url", normalizeUnmutedAdTagUrl(originalUrl));
+        fields.put("vpmute_original", extractVpmute(originalUrl));
+        fields.put("vpmute_normalized", "0");
         emit(state, "audit_begin", fields, null);
     }
 
@@ -310,12 +435,23 @@ public final class GoogleImaRuntimeBridge {
         fields.put("argument_count", String.valueOf(args.length));
         fields.put("argument_types", argumentTypes(args));
         String sessionId = findSessionId(method, args);
+        AuditState state = currentAudit();
+        if (state != null && "startSession".equals(method) && !sessionId.isEmpty()) {
+            synchronized (AUDIT_LOCK) {
+                if (activeAudit == state) state.activeOmidSessionIds.add(sessionId);
+            }
+        }
+        List<String> activeSessionIds = currentOmidSessionIds();
+        if (sessionId.isEmpty() && activeSessionIds.size() == 1) {
+            sessionId = activeSessionIds.get(0);
+        }
         if (!sessionId.isEmpty()) fields.put("session_id", sessionId);
+        if (!activeSessionIds.isEmpty()) fields.put("session_ids", joinValues(activeSessionIds));
         if ("setState".equals(method) && args.length > 0) {
             fields.put("state", String.valueOf(args[0]));
         }
         if ("setDeviceVolume".equals(method) && args.length > 0) {
-            fields.put("device_volume", String.valueOf(args[0]));
+            fields.put("device_volume", String.valueOf(REPORTED_OMID_VOLUME));
         }
         if ("setNativeViewHierarchy".equals(method) && args.length > 0) {
             String hierarchy = String.valueOf(args[0]);
@@ -327,7 +463,12 @@ public final class GoogleImaRuntimeBridge {
             fields.put("window_focus_false_present",
                     String.valueOf(hierarchy.contains("\"hasWindowFocus\":false")));
         }
-        emitCurrent("omid_bridge", fields, payload);
+        if (state != null) emit(state, "omid_bridge", fields, payload);
+        if (state != null && "finishSession".equals(method) && !sessionId.isEmpty()) {
+            synchronized (AUDIT_LOCK) {
+                if (activeAudit == state) state.activeOmidSessionIds.remove(sessionId);
+            }
+        }
     }
 
     @Keep
@@ -536,6 +677,24 @@ public final class GoogleImaRuntimeBridge {
         return last instanceof String ? safe((String) last) : "";
     }
 
+    private static List<String> currentOmidSessionIds() {
+        synchronized (AUDIT_LOCK) {
+            if (activeAudit == null || activeAudit.activeOmidSessionIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return new ArrayList<>(activeAudit.activeOmidSessionIds);
+        }
+    }
+
+    private static String joinValues(List<String> values) {
+        StringBuilder result = new StringBuilder();
+        for (String value : values) {
+            if (result.length() > 0) result.append(',');
+            result.append(value);
+        }
+        return result.toString();
+    }
+
     private static String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -621,7 +780,10 @@ public final class GoogleImaRuntimeBridge {
 
     private static final class AuditState {
         final GoogleImaAdListener listener;
+        final LinkedHashSet<String> activeOmidSessionIds = new LinkedHashSet<>();
         int nativeResponseSequence;
+        boolean imaCoreVolumeObserved;
+        float lastImaCoreReportedVolume = -1.0f;
 
         AuditState(GoogleImaAdListener listener) {
             this.listener = listener == null ? new GoogleImaAdListener() {} : listener;

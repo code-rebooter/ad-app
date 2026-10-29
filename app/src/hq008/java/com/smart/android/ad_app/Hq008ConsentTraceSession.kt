@@ -20,6 +20,9 @@ internal class Hq008ConsentTraceSession(
     data class TraceSnapshot(
         val finalEventType: String,
         val steps: List<TraceStep>,
+        val milestones: List<TraceStep>,
+        val observedEventTypes: Set<String>,
+        val trimmedStepCount: Int,
         val popupLogEnabled: Boolean,
         val requestId: String
     )
@@ -29,6 +32,9 @@ internal class Hq008ConsentTraceSession(
     private var popupLogEnabled = true
     private var requestId = ""
     private val requestIdAliases = mutableSetOf<String>()
+    private val milestones = linkedMapOf<String, TraceStep>()
+    private val observedEventTypes = linkedSetOf<String>()
+    private var trimmedStepCount = 0
 
     fun activeRequestId(): String = requestId
 
@@ -135,7 +141,7 @@ internal class Hq008ConsentTraceSession(
         if (pendingSteps.isEmpty()) {
             traceStartedElapsedMs = nowMs
         }
-        pendingSteps += TraceStep(
+        val step = TraceStep(
             index = pendingSteps.size + 1,
             elapsedMs = nowMs - traceStartedElapsedMs,
             eventType = eventType,
@@ -143,6 +149,9 @@ internal class Hq008ConsentTraceSession(
             eventMessage = eventMessage,
             adLog = adLog?.takeIf { it.isNotBlank() }
         )
+        pendingSteps += step
+        observedEventTypes += eventType
+        if (eventType in milestoneEventTypes) milestones[eventType] = step
         trimSteps()
     }
 
@@ -152,16 +161,17 @@ internal class Hq008ConsentTraceSession(
         }
         val first = pendingSteps.first()
         val tail = pendingSteps.takeLast(maxTraceSteps - 1)
+        trimmedStepCount += pendingSteps.size - maxTraceSteps
         pendingSteps.clear()
         pendingSteps += first.copy(
-            rawEventMessage = "${first.rawEventMessage} [已裁剪]",
-            eventMessage = "${first.eventMessage} [已裁剪]"
+            rawEventMessage = first.rawEventMessage.markTrimmed(),
+            eventMessage = first.eventMessage.markTrimmed()
         )
         pendingSteps += tail.mapIndexed { index, step -> step.copy(index = index + 2) }
     }
 
     private fun hasAdPhaseStarted(): Boolean {
-        return pendingSteps.any { it.eventType == "AD_PHASE_START" }
+        return "AD_PHASE_START" in observedEventTypes
     }
 
     private fun isTerminalEvent(eventType: String): Boolean {
@@ -174,6 +184,7 @@ internal class Hq008ConsentTraceSession(
             eventType == "AD_PHASE_ERROR" ||
             eventType == "AD_PHASE_TIMEOUT" ||
             eventType == "AD_PHASE_CANCELLED" ||
+            eventType == "AD_PHASE_SKIPPED" ||
             eventType == "FLOATING_FLOW_SKIPPED" ||
             eventType == "FLOW_GUARD_FINISH"
     }
@@ -182,6 +193,9 @@ internal class Hq008ConsentTraceSession(
         val snapshot = TraceSnapshot(
             finalEventType = finalEventType,
             steps = pendingSteps.toList(),
+            milestones = milestones.values.toList(),
+            observedEventTypes = observedEventTypes.toSet(),
+            trimmedStepCount = trimmedStepCount,
             popupLogEnabled = popupLogEnabled,
             requestId = requestId
         )
@@ -194,11 +208,31 @@ internal class Hq008ConsentTraceSession(
         traceStartedElapsedMs = 0L
         requestId = ""
         requestIdAliases.clear()
+        milestones.clear()
+        observedEventTypes.clear()
+        trimmedStepCount = 0
     }
 
     private companion object {
         val REQUEST_ID_PATTERN = Regex("(?:^|[,\\s])(?:requestId|request_id)=([^,\\s]+)")
+        val milestoneEventTypes = setOf(
+            "AD_PHASE_START",
+            "AD_REQUESTED",
+            "AD_LOADED",
+            "AD_STARTED",
+            "AD_FIRST_FRAME",
+            "AD_PLAYBACK_EVIDENCE",
+            "AD_PHASE_COMPLETED",
+            "AD_PHASE_ERROR",
+            "AD_PHASE_TIMEOUT",
+            "AD_PHASE_CANCELLED",
+            "AD_PHASE_SKIPPED",
+            "FLOW_GUARD_FINISH",
+            "UMP_STATUS_AFTER_AUTHORIZED"
+        )
     }
+
+    private fun String.markTrimmed(): String = if (endsWith(" [已裁剪]")) this else "$this [已裁剪]"
 
     private fun resetAll() {
         resetStepsOnly()

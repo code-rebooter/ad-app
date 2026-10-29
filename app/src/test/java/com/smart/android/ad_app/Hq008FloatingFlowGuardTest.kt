@@ -2,6 +2,7 @@ package com.smart.android.ad_app
 
 import org.junit.After
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -110,6 +111,66 @@ class Hq008FloatingFlowGuardTest {
         Hq008FloatingFlowGuard.extendForPlayback(first.token, 600_000L, 800_000L)
         assertTrue(Hq008FloatingFlowGuard.isActive(replacement.token))
         assertNotNull(Hq008FloatingFlowGuard.tryEnterWithExpiry("hq008XHSX", 1_328_000L))
+    }
+
+    @Test
+    fun `active request id can extend guard for a long IMA ad`() {
+        val entry = Hq008FloatingFlowGuard.tryEnterWithExpiry(
+            "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+            1_000L,
+            60_000L
+        )!!
+        entry.token.requestId = "ima-long-ad"
+
+        assertTrue(
+            Hq008FloatingFlowGuard.extendActiveForPlayback(
+                requestId = "ima-long-ad",
+                timeoutMs = 631_000L,
+                nowMs = 10_000L
+            )
+        )
+        assertNull(
+            Hq008FloatingFlowGuard.tryEnterWithExpiry(
+                "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+                641_000L,
+                60_000L
+            )
+        )
+        assertNotNull(
+            Hq008FloatingFlowGuard.tryEnterWithExpiry(
+                "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
+                647_000L,
+                60_000L
+            )
+        )
+    }
+
+    @Test
+    fun `unrelated request cannot extend the active flow`() {
+        val entry = Hq008FloatingFlowGuard.tryEnterWithExpiry("GOOGLE", 1_000L, 60_000L)!!
+        entry.token.requestId = "active-request"
+
+        assertFalse(
+            Hq008FloatingFlowGuard.extendActiveForPlayback(
+                requestId = "other-request",
+                timeoutMs = 600_000L,
+                nowMs = 10_000L
+            )
+        )
+        assertNotNull(Hq008FloatingFlowGuard.tryEnterWithExpiry("GOOGLE", 62_000L, 60_000L))
+    }
+
+    @Test
+    fun `active snapshot exposes stage elapsed and remaining deadline`() {
+        val token = Hq008FloatingFlowGuard.tryEnter("channel-a", 1_000L, 10_000L)!!
+        token.requestId = "request-a"
+        assertTrue(Hq008FloatingFlowGuard.markStage(token, "ima_loaded"))
+
+        val snapshot = Hq008FloatingFlowGuard.activeSnapshot(4_000L)!!
+        assertEquals("request-a", snapshot.requestId)
+        assertEquals("ima_loaded", snapshot.stage)
+        assertEquals(3_000L, snapshot.elapsedMs)
+        assertEquals(7_000L, snapshot.remainingMs)
     }
 
     private fun invokeIsActive(token: Hq008FloatingFlowGuard.Token): Boolean {

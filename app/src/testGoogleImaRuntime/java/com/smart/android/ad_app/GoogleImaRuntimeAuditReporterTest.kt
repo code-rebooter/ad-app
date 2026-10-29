@@ -78,6 +78,34 @@ class GoogleImaRuntimeAuditReporterTest {
             )
         )
         reporter.record(event("omid_bridge", 320L, mapOf("method" to "finishSession")))
+        reporter.record(
+            event(
+                "ima_ad_event",
+                330L,
+                mapOf(
+                    "ima_event" to "COMPLETED",
+                    "ad_duration_ms" to "15000",
+                    "pod_max_duration_ms" to "15000",
+                    "total_ads" to "1",
+                    "ad_position" to "1",
+                    "pod_index" to "0"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "ima_ad_event",
+                340L,
+                mapOf(
+                    "ima_event" to "ALL_ADS_COMPLETED",
+                    "ad_duration_ms" to "-1",
+                    "pod_max_duration_ms" to "-1",
+                    "total_ads" to "-1",
+                    "ad_position" to "-1",
+                    "pod_index" to "-1"
+                )
+            )
+        )
 
         val summaryMethod = GoogleImaRuntimeAuditReporter::class.java
             .getDeclaredMethod("buildSummary", String::class.java)
@@ -113,6 +141,13 @@ class GoogleImaRuntimeAuditReporterTest {
         assertTrue(omid["session_finished"].asBoolean)
         assertEquals(2, omid["hierarchy_submission_count"].asInt)
         assertEquals(200L, omid["hierarchy_max_gap_ms"].asLong)
+        val playback = summary["ima_playback_audit"].asJsonObject
+        assertEquals("ALL_ADS_COMPLETED", playback["last_ima_event"].asString)
+        assertEquals(15_000L, playback["last_ad_duration_ms"].asLong)
+        assertEquals(1, playback["last_total_ads"].asInt)
+        assertEquals(1, playback["last_ad_position"].asInt)
+        assertEquals(0, playback["last_pod_index"].asInt)
+        assertEquals(1.0, playback["ad_progress_ratio"].asDouble, 0.0)
     }
 
     @Test
@@ -151,6 +186,370 @@ class GoogleImaRuntimeAuditReporterTest {
         )
     }
 
+    @Test
+    fun `network omid sessions and ad player snapshot remain inspectable`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-detail")
+        reporter.record(
+            event(
+                "native_xhr_response",
+                10L,
+                mapOf(
+                    "response_index" to "2",
+                    "request_id" to "ima-request",
+                    "response_id" to "ima-response",
+                    "request_url" to "https://ads.example/signal",
+                    "request_type" to "POST",
+                    "content_type" to "application/json",
+                    "error_code" to "0",
+                    "content_length" to "27",
+                    "content_sha256" to "response-hash"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "web_resource",
+                20L,
+                mapOf(
+                    "phase" to "request",
+                    "url" to "https://verify.example/omid.js",
+                    "http_method" to "GET",
+                    "main_frame" to "false"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "web_resource",
+                25L,
+                mapOf(
+                    "phase" to "http_error",
+                    "url" to "https://verify.example/omid.js",
+                    "error_code" to "503",
+                    "error" to "Service Unavailable"
+                )
+            )
+        )
+
+        val hierarchy = """{"adSessionId":"session-1","hasWindowFocus":true}"""
+        reporter.record(
+            event(
+                "omid_bridge",
+                30L,
+                mapOf("method" to "startSession", "session_id" to "session-1")
+            )
+        )
+        reporter.record(
+            event(
+                "omid_bridge",
+                40L,
+                mapOf(
+                    "method" to "setNativeViewHierarchy",
+                    "session_id" to "session-1",
+                    "hierarchy_length" to hierarchy.length.toString(),
+                    "hierarchy_sha256" to sha256(hierarchy),
+                    "not_visible_reason_present" to "false",
+                    "window_focus_false_present" to "false"
+                ),
+                hierarchy
+            )
+        )
+        reporter.record(
+            event(
+                "omid_bridge",
+                50L,
+                mapOf("method" to "finishSession", "session_id" to "session-1")
+            )
+        )
+        reporter.record(
+            event(
+                "first_frame",
+                60L,
+                mapOf(
+                    "playback_state" to "3",
+                    "position_ms" to "100",
+                    "duration_ms" to "15000",
+                    "buffered_position_ms" to "15000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "true"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "playback_progress",
+                70L,
+                mapOf(
+                    "playback_state" to "3",
+                    "position_ms" to "14500",
+                    "duration_ms" to "15000",
+                    "buffered_position_ms" to "15000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "true"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "player_state",
+                80L,
+                mapOf(
+                    "playback_state" to "3",
+                    "position_ms" to "1000",
+                    "duration_ms" to "60000",
+                    "buffered_position_ms" to "60000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "false"
+                )
+            )
+        )
+
+        val summary = buildSummary(reporter)
+        assertEquals(3, summary["schema_version"].asInt)
+        assertEquals(1, summary["native_xhr_response_count"].asInt)
+        val xhr = summary["native_xhr_responses"].asJsonArray.single().asJsonObject
+        assertEquals("https://ads.example/signal", xhr["request_url"].asString)
+        assertEquals("response-hash", xhr["content_sha256"].asString)
+
+        val web = summary["web_resources"].asJsonArray.single().asJsonObject
+        assertEquals("GET", web["last_http_method"].asString)
+        assertEquals("false", web["last_main_frame"].asString)
+        assertEquals(1, web["error_count"].asInt)
+
+        val playback = summary["ima_playback_audit"].asJsonObject
+        assertEquals(1, playback["first_frame_count"].asInt)
+        assertEquals(14_500L, playback["last_ad_position_ms"].asLong)
+        assertEquals(14_500L, playback["max_ad_position_ms"].asLong)
+        assertEquals(14_500L, playback["current_ad_max_position_ms"].asLong)
+        assertEquals(1_000L, playback["last_content_position_ms"].asLong)
+
+        val omidSession = summary["omid_runtime_audit"].asJsonObject["sessions"]
+            .asJsonArray.single().asJsonObject
+        assertEquals("session-1", omidSession["session_id"].asString)
+        assertTrue(omidSession["session_started"].asBoolean)
+        assertTrue(omidSession["session_finished"].asBoolean)
+        assertEquals(
+            hierarchy,
+            gunzipBase64(
+                omidSession["last_hierarchy_artifact"].asJsonObject["content"].asString
+            )
+        )
+    }
+
+    @Test
+    fun `verification not executed macro matches the actual failure request`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-macro")
+        val template = "https://verify.example/not-executed?reason=[REASON]"
+        val vastXml = """
+            <VAST version="4.1"><Ad><InLine><AdVerifications>
+              <Verification vendor="vendor-a">
+                <JavaScriptResource apiFramework="omid">https://verify.example/omid.js</JavaScriptResource>
+                <TrackingEvents><Tracking event="verificationNotExecuted">$template</Tracking></TrackingEvents>
+              </Verification>
+            </AdVerifications></InLine></Ad></VAST>
+        """.trimIndent()
+        reporter.record(event("vast_response", 10L, mapOf("response_index" to "1"), vastXml))
+        reporter.record(
+            event(
+                "web_resource",
+                20L,
+                mapOf(
+                    "phase" to "request",
+                    "url" to "https://verify.example/not-executed?reason=2"
+                )
+            )
+        )
+
+        val script = buildSummary(reporter)["verification_scripts"].asJsonArray.single().asJsonObject
+        assertTrue(script["verification_not_executed_request_observed"].asBoolean)
+        assertEquals("2", script["verification_not_executed_reason"].asString)
+        assertEquals(
+            "https://verify.example/not-executed?reason=2",
+            script["verification_not_executed_actual_urls"].asJsonArray.single().asString
+        )
+    }
+
+    @Test
+    fun `verification macro preserves encoded ampersands inside values`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-encoded-macro")
+        val template =
+            "https://verify.example/not-executed?page=[PAGEURL]&reason=[REASON]"
+        val vastXml = """
+            <VAST version="4.1"><Ad><InLine><AdVerifications>
+              <Verification vendor="vendor-a">
+                <JavaScriptResource apiFramework="omid">https://verify.example/omid.js</JavaScriptResource>
+                <TrackingEvents><Tracking event="verificationNotExecuted">${template.replace("&", "&amp;")}</Tracking></TrackingEvents>
+              </Verification>
+            </AdVerifications></InLine></Ad></VAST>
+        """.trimIndent()
+        val actualUrl = "https://verify.example/not-executed?" +
+            "page=https%3A%2F%2Fpublisher.example%2Fpage%3Fa%3D1%26b%3D2&reason=2"
+        reporter.record(event("vast_response", 10L, mapOf("response_index" to "1"), vastXml))
+        reporter.record(
+            event(
+                "web_resource",
+                20L,
+                mapOf("phase" to "request", "url" to actualUrl)
+            )
+        )
+
+        val script = buildSummary(reporter)["verification_scripts"].asJsonArray.single().asJsonObject
+        assertTrue(script["verification_not_executed_request_observed"].asBoolean)
+        val values = script["verification_not_executed_macro_values"].asJsonObject
+        assertEquals("https://publisher.example/page?a=1&b=2", values["PAGEURL"].asString)
+        assertEquals("2", values["REASON"].asString)
+    }
+
+    @Test
+    fun `loaded next ad does not inherit the previous ad progress`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-progress")
+        fun adEvent(
+            time: Long,
+            eventName: String,
+            adId: String,
+            durationMs: Long,
+            position: Int
+        ) = event(
+            "ima_ad_event",
+            time,
+            mapOf(
+                "ima_event" to eventName,
+                "ima_ad_id" to adId,
+                "creative_id" to "creative-$adId",
+                "ad_duration_ms" to durationMs.toString(),
+                "pod_max_duration_ms" to "45000",
+                "total_ads" to "2",
+                "ad_position" to position.toString(),
+                "pod_index" to "0"
+            )
+        )
+        reporter.record(adEvent(10L, "LOADED", "ad-1", 15_000L, 1))
+        reporter.record(adEvent(20L, "STARTED", "ad-1", 15_000L, 1))
+        reporter.record(
+            event(
+                "playback_progress",
+                30L,
+                mapOf(
+                    "trigger" to "periodic",
+                    "playback_state" to "3",
+                    "position_ms" to "7500",
+                    "duration_ms" to "15000",
+                    "buffered_position_ms" to "15000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "true"
+                )
+            )
+        )
+        reporter.record(adEvent(40L, "COMPLETED", "ad-1", 15_000L, 1))
+        reporter.record(adEvent(50L, "LOADED", "ad-2", 30_000L, 2))
+
+        val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+        assertTrue(playback["active_ad_key"].asString.contains("pod:0:1:ad:ad-1"))
+        assertTrue(playback["pending_ad_key"].asString.contains("pod:0:2:ad:ad-2"))
+        val second = playback["ad_instances"].asJsonArray
+            .map { it.asJsonObject }
+            .first { it["ad_position"].asInt == 2 }
+        assertEquals(-1L, second["max_position_ms"].asLong)
+        assertEquals(1.0, playback["ad_progress_ratio"].asDouble, 0.0)
+    }
+
+    @Test
+    fun `repeated material in different pod positions remains separate instances`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-repeated-material")
+        fun adEvent(time: Long, eventName: String, position: Int) = event(
+            "ima_ad_event",
+            time,
+            mapOf(
+                "ima_event" to eventName,
+                "ima_ad_id" to "same-ad",
+                "creative_id" to "same-creative",
+                "ad_duration_ms" to if (position == 1) "15000" else "30000",
+                "pod_max_duration_ms" to "45000",
+                "total_ads" to "2",
+                "ad_position" to position.toString(),
+                "pod_index" to "0"
+            )
+        )
+        reporter.record(adEvent(10L, "LOADED", 1))
+        reporter.record(adEvent(20L, "STARTED", 1))
+        reporter.record(
+            event(
+                "playback_progress",
+                30L,
+                mapOf(
+                    "playback_state" to "3",
+                    "position_ms" to "15000",
+                    "duration_ms" to "15000",
+                    "buffered_position_ms" to "15000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "true"
+                )
+            )
+        )
+        reporter.record(adEvent(40L, "COMPLETED", 1))
+        reporter.record(adEvent(50L, "LOADED", 2))
+
+        val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+        val instances = playback["ad_instances"].asJsonArray.map { it.asJsonObject }
+        assertEquals(2, instances.size)
+        val first = instances.first { it["ad_position"].asInt == 1 }
+        val second = instances.first { it["ad_position"].asInt == 2 }
+        assertEquals("COMPLETED", first["terminal_event"].asString)
+        assertEquals(1.0, first["playback_ratio"].asDouble, 0.0)
+        assertEquals("", second["terminal_event"].asString)
+        assertEquals(-1L, second["max_position_ms"].asLong)
+    }
+
+    @Test
+    fun `ima log identity ad data and structured errors remain inspectable`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-log")
+        reporter.record(
+            event(
+                "ima_ad_event",
+                10L,
+                mapOf(
+                    "ima_event" to "LOG",
+                    "ima_ad_id" to "ima-ad-1",
+                    "creative_id" to "creative-1",
+                    "creative_ad_id" to "creative-ad-1",
+                    "universal_ad_ids" to "ad-id.org:universal-1",
+                    "ad_duration_ms" to "15000",
+                    "total_ads" to "1",
+                    "ad_position" to "1",
+                    "pod_index" to "0",
+                    "ad_data.type" to "adLoadError",
+                    "ad_data.errorCode" to "402",
+                    "ad_data.errorMessage" to "media unavailable",
+                    "ad_data.innerError" to "decoder"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "playback_error",
+                20L,
+                mapOf(
+                    "category" to "player",
+                    "reason" to "player_error",
+                    "message" to "decode failed",
+                    "playback_error_code_name" to "ERROR_CODE_DECODING_FAILED",
+                    "cause_chain" to "decoder cause"
+                )
+            )
+        )
+
+        val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+        val log = playback["ima_event_timeline"].asJsonArray.single().asJsonObject
+        assertEquals("ima-ad-1", log["ima_ad_id"].asString)
+        assertEquals("402", log["ad_data"].asJsonObject["errorCode"].asString)
+        assertEquals("decoder", log["ad_data"].asJsonObject["innerError"].asString)
+        val error = playback["playback_errors"].asJsonArray.single().asJsonObject
+        assertEquals(
+            "ERROR_CODE_DECODING_FAILED",
+            error["details"].asJsonObject["playback_error_code_name"].asString
+        )
+    }
+
     private fun gunzipBase64(value: String): String {
         val compressed = BaseEncoding.base64().decode(value)
         return GZIPInputStream(ByteArrayInputStream(compressed))
@@ -161,6 +560,13 @@ class GoogleImaRuntimeAuditReporterTest {
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
+
+    private fun buildSummary(reporter: GoogleImaRuntimeAuditReporter) = JsonParser.parseString(
+        GoogleImaRuntimeAuditReporter::class.java
+            .getDeclaredMethod("buildSummary", String::class.java)
+            .apply { isAccessible = true }
+            .invoke(reporter, "completed") as String
+    ).asJsonObject
 
     private fun event(
         type: String,

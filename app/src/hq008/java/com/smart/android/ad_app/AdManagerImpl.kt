@@ -60,12 +60,14 @@ object AdManagerImpl : IAdManager {
 
     override fun destroyAd() = destroyAd(null)
 
-    override fun destroyAd(requestId: String?) {
+    override fun destroyAd(requestId: String?) = destroyAd(requestId, "window_destroy")
+
+    override fun destroyAd(requestId: String?, reason: String) {
         if (BuildFlavor.isLsap()) {
-            HaierLsapAdManagerBridge.destroyAd(requestId)
+            HaierLsapAdManagerBridge.destroyAd(requestId, reason)
             return
         }
-        Hq008TclVideoAd.destroyAd(requestId)
+        Hq008TclVideoAd.destroyAd(requestId, reason)
     }
 }
 
@@ -104,6 +106,7 @@ private object HaierLsapAdManagerBridge : IAdManager {
 
     override fun destroyAd() = delegate.destroyAd()
     override fun destroyAd(requestId: String?) = delegate.destroyAd(requestId)
+    override fun destroyAd(requestId: String?, reason: String) = delegate.destroyAd(requestId, reason)
 }
 
 /** The two public wrappers share one delegate in the pinned TCL 2.8.02 SDK. */
@@ -150,7 +153,7 @@ private object Hq008TclVideoAd {
     ) {
         val createdAtMs = SystemClock.elapsedRealtime()
         onMain {
-            destroyAd()
+            destroyAd(reason = "replaced_by_new_request")
             val requestId = Hq008ReportRequestIdResolver.resolve(adId)
             val effectiveCallbackTimeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS
             // PLAY_FLOW showAd entry
@@ -209,13 +212,14 @@ private object Hq008TclVideoAd {
         }
     }
 
-    fun destroyAd(requestId: String? = null) = onMain {
+    fun destroyAd(requestId: String? = null, reason: String = "window_destroy") = onMain {
         val request = currentRequest ?: return@onMain
         if (requestId != null && request.requestId != requestId) return@onMain
         if (request.markTerminal()) {
             Hq008ConsentLogReporter.report(
                 eventType = "AD_PHASE_CANCELLED",
-                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()},stage=window_destroy,reason=window_hidden"
+                eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()}," +
+                    "stage=window_destroy,reason=$reason"
             )
         }
         clearActiveRequestState(request)

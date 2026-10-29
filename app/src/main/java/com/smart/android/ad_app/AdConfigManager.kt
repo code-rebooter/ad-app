@@ -146,8 +146,28 @@ object AdConfigManager {
             "广告链路：开始请求广告配置，adType=$adType，package=${appContext.packageName}，channel=${channel.value}，channelSource=${channel.source.label}，hidden=${AdDisplayConfig.isHiddenMode()}"
         )
 
-        if (!BuildFlavor.usesSharedAdRuntime() || !hasOverlayPermission()) {
-            Log.i(TAG, "悬浮广告未启用或缺少悬浮窗权限，本轮不请求广告流程")
+        if (!BuildFlavor.usesSharedAdRuntime()) {
+            Log.i(TAG, "悬浮广告运行时未启用，本轮不请求广告流程")
+            Hq008ConsentLogReporter.report(
+                eventType = if (Hq008ConsentLogReporter.hasActiveFlow()) {
+                    "AD_TRIGGER_SKIPPED"
+                } else {
+                    "FLOATING_FLOW_SKIPPED"
+                },
+                eventMessage = "reason=shared_ad_runtime_disabled,adType=$adType"
+            )
+            return
+        }
+        if (!hasOverlayPermission()) {
+            Log.i(TAG, "缺少悬浮窗权限，本轮不请求广告流程")
+            Hq008ConsentLogReporter.report(
+                eventType = if (Hq008ConsentLogReporter.hasActiveFlow()) {
+                    "AD_TRIGGER_SKIPPED"
+                } else {
+                    "FLOATING_FLOW_SKIPPED"
+                },
+                eventMessage = "reason=overlay_permission_missing,adType=$adType"
+            )
             return
         }
         if (!AdPlaybackAvailability.isPlaybackAllowed()) {
@@ -163,7 +183,15 @@ object AdConfigManager {
         }
         val entry = Hq008FloatingFlowGuard.tryEnterWithExpiry(channel.value)
         if (entry == null) {
+            val active = Hq008FloatingFlowGuard.activeSnapshot()
             Log.i(TAG, "广告链路：上一轮 hq008 悬浮广告流程尚未结束，本轮跳过 flow-control，channel=${channel.value}")
+            Hq008ConsentLogReporter.report(
+                eventType = "AD_TRIGGER_SKIPPED",
+                eventMessage = "reason=in_flight,adType=$adType,channelId=${channel.value}," +
+                    "activeRequestId=${active?.requestId.orEmpty()}," +
+                    "activeStage=${active?.stage.orEmpty()},elapsedMs=${active?.elapsedMs ?: -1L}," +
+                    "deadlineMs=${active?.deadlineMs ?: -1L},remainingMs=${active?.remainingMs ?: -1L}"
+            )
             Hq008ConsentLogReporter.report(
                 eventType = "FLOATING_FLOW_SKIPPED",
                 eventMessage = "reason=in_flight,adType=$adType"
@@ -171,10 +199,11 @@ object AdConfigManager {
             return
         }
         val flowToken = entry.token
+        Hq008FloatingFlowGuard.markStage(flowToken, "flow_control_request")
         entry.expiredToken?.let { expired ->
-            Hq008ConsentLogReporter.finishActiveFlow("flow_expired", expired.requestId)
+            AdManagerImpl.destroyAd(expired.requestId, "flow_expired")
             AdRenderer.stopFloatingAd("flow_expired")
-            AdManagerImpl.destroyAd(expired.requestId)
+            Hq008ConsentLogReporter.finishActiveFlow("flow_expired", expired.requestId)
         }
         val flavorTag = BuildConfig.FLAVOR
         Log.i(
@@ -372,6 +401,7 @@ object AdConfigManager {
             Hq008FloatingFlowGuard.extendForPlayback(
                 flowToken, AdPlaybackPolicy.resolveCallbackTimeoutMs(dto.ad_callback_timeout_seconds)
             )
+            Hq008FloatingFlowGuard.markStage(flowToken, "ad_dispatch")
             AdRenderer.showFloatingAd(
                 buildHq008FloatingAdConfig(dto),
                 onFloatingFlowFinished = {
@@ -385,6 +415,7 @@ object AdConfigManager {
         flowToken: Hq008FloatingFlowGuard.Token,
         stage: String
     ): Boolean {
+        Hq008FloatingFlowGuard.markStage(flowToken, stage)
         if (!Hq008FloatingFlowGuard.isActive(flowToken)) {
             Log.i(TAG, "广告链路：悬浮广告流程已失效，忽略异步回调，stage=$stage")
             return false

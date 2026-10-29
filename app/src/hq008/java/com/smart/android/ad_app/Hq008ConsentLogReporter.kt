@@ -173,7 +173,8 @@ internal object Hq008ConsentLogReporter {
         val traceSummary = buildTraceSummary(
             finalEventType = snapshot.finalEventType,
             finalEventMessage = finalEventMessage,
-            stepsForUpload = stepsForUpload
+            stepsForUpload = stepsForUpload,
+            snapshot = snapshot
         )
 
         var adLogPayload = gson.toJson(traceSummary)
@@ -185,6 +186,7 @@ internal object Hq008ConsentLogReporter {
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
                 stepsForUpload = stepsForUpload,
+                snapshot = snapshot,
                 includeAdLog = { step -> step.eventType in criticalAdLogEvents }
             ).apply {
                 put("traceCompacted", true)
@@ -197,6 +199,7 @@ internal object Hq008ConsentLogReporter {
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
                 stepsForUpload = stepsForUpload,
+                snapshot = snapshot,
                 includeAdLog = { step -> step.eventType == "AD_SDK_DIAGNOSTIC" &&
                     listOf("playback_probe_summary", "diagnostic_evidence_summary", "previous_flow_checkpoint")
                         .any { step.rawEventMessage.contains("stage=$it") } }
@@ -211,6 +214,7 @@ internal object Hq008ConsentLogReporter {
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
                 stepsForUpload = stepsForUpload,
+                snapshot = snapshot,
                 includeAdLog = { false }
             ).apply {
                 put("traceCompacted", true)
@@ -224,6 +228,10 @@ internal object Hq008ConsentLogReporter {
             append(describeTerminalEvent(snapshot.finalEventType))
             append("，步骤数=")
             append(stepsForUpload.size)
+            if (snapshot.trimmedStepCount > 0) {
+                append("，已裁剪=")
+                append(snapshot.trimmedStepCount)
+            }
             val conclusion = summaryStepMessage.ifBlank { finalEventMessage }
             if (conclusion.isNotBlank()) {
                 append("，结论=")
@@ -244,13 +252,23 @@ internal object Hq008ConsentLogReporter {
         finalEventType: String,
         finalEventMessage: String,
         stepsForUpload: List<TraceStep>,
+        snapshot: Hq008ConsentTraceSession.TraceSnapshot,
         includeAdLog: (TraceStep) -> Boolean = { true }
     ): LinkedHashMap<String, Any> {
         return linkedMapOf(
-            "traceVersion" to 2,
+            "traceVersion" to 3,
             "finalEventType" to finalEventType,
             "finalEventMessage" to finalEventMessage.take(MAX_MESSAGE_LENGTH),
             "stepCount" to stepsForUpload.size,
+            "trimmedStepCount" to snapshot.trimmedStepCount,
+            "observedEventTypes" to snapshot.observedEventTypes.toList(),
+            "milestones" to snapshot.milestones.map { milestone ->
+                linkedMapOf(
+                    "elapsedMs" to milestone.elapsedMs,
+                    "eventType" to milestone.eventType,
+                    "eventMessage" to milestone.eventMessage
+                )
+            },
             "steps" to stepsForUpload.map { step ->
                 linkedMapOf<String, Any>(
                     "index" to step.index,
@@ -282,16 +300,41 @@ internal object Hq008ConsentLogReporter {
                 adLog = it.adLog
             )
         }
-        val summaryStep = if (isAdPhaseFlow(steps)) {
-            buildAdFlowSummaryStep(steps, snapshot.finalEventType)
+        val summarySourceSteps = mergeSummarySteps(steps, snapshot.milestones)
+        val summaryStep = if (isAdPhaseFlow(summarySourceSteps)) {
+            buildAdFlowSummaryStep(summarySourceSteps, snapshot.finalEventType)
         } else {
-            buildFlowSummaryStep(steps, snapshot.finalEventType)
+            buildFlowSummaryStep(summarySourceSteps, snapshot.finalEventType)
         }
         return if (summaryStep != null) {
             steps + summaryStep
         } else {
             steps
         }
+    }
+
+    private fun mergeSummarySteps(
+        steps: List<TraceStep>,
+        milestones: List<Hq008ConsentTraceSession.TraceStep>
+    ): List<TraceStep> {
+        val merged = steps.toMutableList()
+        milestones.forEach { milestone ->
+            if (merged.none {
+                    it.eventType == milestone.eventType &&
+                        it.elapsedMs == milestone.elapsedMs &&
+                        it.rawEventMessage == milestone.rawEventMessage
+                }) {
+                merged += TraceStep(
+                    index = milestone.index,
+                    elapsedMs = milestone.elapsedMs,
+                    eventType = milestone.eventType,
+                    rawEventMessage = milestone.rawEventMessage,
+                    eventMessage = milestone.eventMessage,
+                    adLog = milestone.adLog
+                )
+            }
+        }
+        return merged.sortedBy { it.elapsedMs }
     }
 
     private fun isAdPhaseFlow(steps: List<TraceStep>): Boolean {
@@ -304,6 +347,7 @@ internal object Hq008ConsentLogReporter {
                 step.eventType == "AD_PHASE_ERROR" ||
                 step.eventType == "AD_PHASE_TIMEOUT" ||
                 step.eventType == "AD_PHASE_CANCELLED" ||
+                step.eventType == "AD_PHASE_SKIPPED" ||
                 step.eventType == "FLOW_GUARD_FINISH"
         }
     }
@@ -322,10 +366,12 @@ internal object Hq008ConsentLogReporter {
         val stage = findLastValue(steps, "AD_PHASE_ERROR", "stage")
             ?: findLastValue(steps, "AD_PHASE_TIMEOUT", "stage")
             ?: findLastValue(steps, "AD_PHASE_CANCELLED", "stage")
+            ?: findLastValue(steps, "AD_PHASE_SKIPPED", "stage")
         val errorCode = findLastValue(steps, "AD_PHASE_ERROR", "errorCode")
         val reason = findLastValue(steps, "AD_PHASE_ERROR", "reason")
             ?: findLastValue(steps, "AD_PHASE_TIMEOUT", "reason")
             ?: findLastValue(steps, "AD_PHASE_CANCELLED", "reason")
+            ?: findLastValue(steps, "AD_PHASE_SKIPPED", "reason")
             ?: findLastValue(steps, "FLOW_GUARD_FINISH", "reason")
         val error = findLastValue(steps, "AD_PHASE_ERROR", "error")
 
@@ -1004,6 +1050,7 @@ internal object Hq008ConsentLogReporter {
             "AD_PHASE_ERROR" -> "广告播放失败"
             "AD_PHASE_TIMEOUT" -> "广告播放超时"
             "AD_PHASE_CANCELLED" -> "广告流程提前结束"
+            "AD_PHASE_SKIPPED" -> "广告流程已跳过"
             "FLOATING_FLOW_SKIPPED" -> "广告流程已跳过"
             "FLOW_GUARD_FINISH" -> "广告流程守卫收口"
             else -> eventType

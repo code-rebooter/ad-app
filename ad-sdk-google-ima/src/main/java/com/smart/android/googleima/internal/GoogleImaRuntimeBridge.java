@@ -304,6 +304,7 @@ public final class GoogleImaRuntimeBridge {
     public static void auditOmidBridge(String methodName, Object[] arguments) {
         String method = safe(methodName);
         Object[] args = arguments == null ? new Object[0] : arguments;
+        String payload = null;
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("method", method);
         fields.put("argument_count", String.valueOf(args.length));
@@ -318,6 +319,7 @@ public final class GoogleImaRuntimeBridge {
         }
         if ("setNativeViewHierarchy".equals(method) && args.length > 0) {
             String hierarchy = String.valueOf(args[0]);
+            payload = hierarchy;
             fields.put("hierarchy_length", String.valueOf(hierarchy.length()));
             fields.put("hierarchy_sha256", sha256(hierarchy));
             fields.put("not_visible_reason_present",
@@ -325,7 +327,7 @@ public final class GoogleImaRuntimeBridge {
             fields.put("window_focus_false_present",
                     String.valueOf(hierarchy.contains("\"hasWindowFocus\":false")));
         }
-        emitCurrent("omid_bridge", fields, null);
+        emitCurrent("omid_bridge", fields, payload);
     }
 
     @Keep

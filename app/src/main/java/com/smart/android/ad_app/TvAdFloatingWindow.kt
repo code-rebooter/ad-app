@@ -91,7 +91,7 @@ class TvAdFloatingWindow(
                     stopSignalStatusMonitor()
                     // Release decoding resources before removing the window, without a fade-out.
                     try {
-                        AdManagerImpl.destroyAd(playbackRequestId)
+                        AdManagerImpl.destroyAd(playbackRequestId, reason)
                     } finally {
                         destroy()
                         Hq008ConsentLogReporter.finishActiveFlow(reason, playbackRequestId)
@@ -118,12 +118,12 @@ class TvAdFloatingWindow(
         stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
-        AdManagerImpl.destroyAd(playbackRequestId)
+        AdManagerImpl.destroyAd(playbackRequestId, "window_hidden")
         dispatchFlowFinishedOnce()
     }
 
     override fun onWindowDestroyed() {
-        AdManagerImpl.destroyAd(playbackRequestId)
+        AdManagerImpl.destroyAd(playbackRequestId, "window_destroyed")
         stopSignalStatusMonitor()
         disableTouchClick()
         cancelCountdown()
@@ -213,7 +213,7 @@ class TvAdFloatingWindow(
         "广告区域收到触摸点击，立即停止广告".adDebugPrintLog()
         AdTouchClickReporter.reportHq008TouchClick(adId)
         cancelCountdown()
-        AdManagerImpl.destroyAd(playbackRequestId)
+        AdManagerImpl.destroyAd(playbackRequestId, "touch_click")
         binding.root.isVisible = false
         closeAfterPlayback()
     }

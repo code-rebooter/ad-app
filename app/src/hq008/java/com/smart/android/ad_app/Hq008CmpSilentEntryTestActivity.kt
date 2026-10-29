@@ -326,6 +326,7 @@ class Hq008CmpSilentEntryTestActivity : FragmentActivity() {
             eventType == "AD_PHASE_ERROR" ||
             eventType == "AD_PHASE_TIMEOUT" ||
             eventType == "AD_PHASE_CANCELLED" ||
+            eventType == "AD_PHASE_SKIPPED" ||
             eventType == "FLOW_GUARD_FINISH"
     }
 

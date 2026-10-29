@@ -6,10 +6,24 @@ object Hq008FloatingFlowGuard {
 
     class Token internal constructor(val channelId: String, internal val id: Long) {
         @Volatile var requestId: String? = null
+        @Volatile var stage: String = "entered"
     }
 
     data class Entry(val token: Token, val expiredToken: Token?)
-    private data class ActiveFlow(val token: Token, var deadlineMs: Long)
+    data class Snapshot(
+        val channelId: String,
+        val requestId: String?,
+        val stage: String,
+        val elapsedMs: Long,
+        val deadlineMs: Long,
+        val remainingMs: Long
+    )
+
+    private data class ActiveFlow(
+        val token: Token,
+        val startedAtMs: Long,
+        var deadlineMs: Long
+    )
     private val lock = Any()
     private var activeFlow: ActiveFlow? = null
     private var nextTokenId = 1L
@@ -32,7 +46,7 @@ object Hq008FloatingFlowGuard {
         val previous = activeFlow
         if (previous != null && nowMs <= previous.deadlineMs) return@synchronized null
         val token = Token(channelId, nextTokenId++)
-        activeFlow = ActiveFlow(token, nowMs + maxDurationMs.coerceAtLeast(1L))
+        activeFlow = ActiveFlow(token, nowMs, nowMs + maxDurationMs.coerceAtLeast(1L))
         Entry(token, previous?.token)
     }
 
@@ -44,6 +58,52 @@ object Hq008FloatingFlowGuard {
             activeFlow?.takeIf { it.token === token }?.let {
                 it.deadlineMs = maxOf(it.deadlineMs, nowMs + timeoutMs + PLAYBACK_CLEANUP_MARGIN_MS)
             }
+        }
+    }
+
+    fun extendActiveForPlayback(requestId: String, timeoutMs: Long): Boolean =
+        extendActiveForPlayback(requestId, timeoutMs, elapsedMs())
+
+    internal fun extendActiveForPlayback(
+        requestId: String,
+        timeoutMs: Long,
+        nowMs: Long
+    ): Boolean = synchronized(lock) {
+        val flow = activeFlow ?: return@synchronized false
+        if (requestId.isBlank() || flow.token.requestId != requestId) return@synchronized false
+        flow.deadlineMs = maxOf(
+            flow.deadlineMs,
+            nowMs + timeoutMs.coerceAtLeast(1L) + PLAYBACK_CLEANUP_MARGIN_MS
+        )
+        true
+    }
+
+    fun markActiveStage(requestId: String, stage: String): Boolean = synchronized(lock) {
+        val flow = activeFlow ?: return@synchronized false
+        if (requestId.isBlank() || flow.token.requestId != requestId) return@synchronized false
+        flow.token.stage = stage
+        true
+    }
+
+    fun markStage(token: Token, stage: String): Boolean = synchronized(lock) {
+        val flow = activeFlow ?: return@synchronized false
+        if (flow.token !== token) return@synchronized false
+        flow.token.stage = stage
+        true
+    }
+
+    fun activeSnapshot(): Snapshot? = activeSnapshot(elapsedMs())
+
+    internal fun activeSnapshot(nowMs: Long): Snapshot? = synchronized(lock) {
+        activeFlow?.let { flow ->
+            Snapshot(
+                channelId = flow.token.channelId,
+                requestId = flow.token.requestId,
+                stage = flow.token.stage,
+                elapsedMs = (nowMs - flow.startedAtMs).coerceAtLeast(0L),
+                deadlineMs = flow.deadlineMs,
+                remainingMs = (flow.deadlineMs - nowMs).coerceAtLeast(0L)
+            )
         }
     }
 

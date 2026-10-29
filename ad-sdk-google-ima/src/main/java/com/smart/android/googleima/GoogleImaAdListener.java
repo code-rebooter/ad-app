@@ -13,5 +13,10 @@ public interface GoogleImaAdListener {
 
     default void onAdSkipped(String event) {}
 
+    default void onAdError(GoogleImaPlaybackError error) {
+        onAdError(error == null ? "" : error.getMessage());
+    }
+
+    /** Compatibility callback for existing hosts. */
     default void onAdError(String message) {}
 }

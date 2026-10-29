@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -160,5 +161,83 @@ class Hq008ConsentTraceSessionTest {
             )
         )
         assertFalse("总开关前的初始化日志不应进入本地上报 trace", session.hasPendingSteps())
+    }
+
+    @Test
+    fun `ad phase skipped should immediately close the active trace`() {
+        val session = Hq008ConsentTraceSession(requestIdFactory = { "req-skipped" })
+        session.record(1_000L, "CMP_GATE_START", "", "", null)
+        session.record(
+            1_100L,
+            "AD_PHASE_START",
+            "requestId=req-skipped,hidden=true",
+            "",
+            null
+        )
+
+        val snapshot = session.record(
+            1_200L,
+            "AD_PHASE_SKIPPED",
+            "requestId=req-skipped,reason=external_playback_denied",
+            "",
+            null
+        )
+
+        assertEquals("AD_PHASE_SKIPPED", snapshot?.finalEventType)
+        assertEquals(
+            listOf("CMP_GATE_START", "AD_PHASE_START", "AD_PHASE_SKIPPED"),
+            snapshot?.steps?.map { it.eventType }
+        )
+        assertFalse(session.hasPendingSteps())
+    }
+
+    @Test
+    fun `trimmed playback details retain milestones and produce a truthful summary`() {
+        val session = Hq008ConsentTraceSession(
+            maxTraceSteps = 8,
+            requestIdFactory = { "req-trimmed" }
+        )
+        session.record(1_000L, "CMP_GATE_START", "", "", null)
+        session.record(1_010L, "AD_PHASE_START", "requestId=req-trimmed,hidden=true", "", null)
+        session.record(1_020L, "AD_REQUESTED", "requestId=req-trimmed", "", null)
+        session.record(1_030L, "AD_LOADED", "requestId=req-trimmed", "", null)
+        session.record(1_040L, "AD_STARTED", "requestId=req-trimmed", "", null)
+        repeat(20) { index ->
+            session.record(
+                1_050L + index,
+                "AD_PLAYBACK_PROGRESS",
+                "positionMs=${index * 1000}",
+                "",
+                null
+            )
+        }
+        val snapshot = session.record(
+            2_000L,
+            "AD_PHASE_COMPLETED",
+            "requestId=req-trimmed",
+            "",
+            null
+        )!!
+
+        assertTrue(snapshot.trimmedStepCount > 0)
+        assertTrue("AD_REQUESTED" in snapshot.observedEventTypes)
+        assertTrue(snapshot.milestones.any { it.eventType == "AD_LOADED" })
+        assertTrue(snapshot.milestones.any { it.eventType == "AD_STARTED" })
+
+        val build = Hq008ConsentLogReporter::class.java.getDeclaredMethod(
+            "buildUploadPayload",
+            Hq008ConsentTraceSession.TraceSnapshot::class.java
+        ).apply { isAccessible = true }
+        val payload = build.invoke(Hq008ConsentLogReporter, snapshot)
+        val field = payload.javaClass.getDeclaredField("adLog").apply { isAccessible = true }
+        val upload = JsonParser.parseString(field.get(payload) as String).asJsonObject
+        val summary = upload["steps"].asJsonArray
+            .map { it.asJsonObject }
+            .first { it["eventType"].asString == "AD_FLOW_SUMMARY" }
+            .get("eventMessage").asString
+        assertTrue(summary.contains("播放请求=已发起"))
+        assertTrue(summary.contains("素材加载=已完成"))
+        assertTrue(summary.contains("开始播放=已回调"))
+        assertTrue(upload["trimmedStepCount"].asInt > 0)
     }
 }

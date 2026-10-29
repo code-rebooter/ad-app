@@ -41,10 +41,12 @@ class AdPlaybackStatusReceiver : BroadcastReceiver() {
 
         val cancelled = Hq008FloatingFlowGuard.cancelActive("external_playback_denied:$reason")
         cancelled?.requestId?.let {
-            Hq008ConsentLogReporter.finishActiveFlow("external_playback_denied:$reason", it)
-            AdManagerImpl.destroyAd(it)
+            AdManagerImpl.destroyAd(it, "external_playback_denied:$reason")
         }
         AdRenderer.stopFloatingAd("external_playback_denied:$reason")
+        cancelled?.requestId?.let {
+            Hq008ConsentLogReporter.finishActiveFlow("external_playback_denied:$reason", it)
+        }
     }
 
     private companion object {

@@ -34,6 +34,10 @@ class GoogleAdTvDesktopFlavorContractTest {
         val productFlavorsBlock = extractBlock(buildGradle, "    productFlavors {")
         val flavorBlock = extractBlock(productFlavorsBlock, "        google_ad_tv_desktop {")
         val buildFlavorSource = readProjectFile("app/src/main/java/com/smart/android/ad_app/BuildFlavor.kt")
+        val independentManager = readProjectFile(
+            "app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/" +
+                "GoogleAdTvDesktopAdManager.kt"
+        )
         val projectRoot = findProjectRoot("app/build.gradle")
 
         assertTrue(BuildFlavor.isGoogleAd(BuildFlavor.CHANNEL_TYPE_GOOGLE))
@@ -77,6 +81,15 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(buildGradle.contains("add(googleAdCommonImplementation.name, project(':ad-sdk-google-ima'))"))
         assertTrue(File(projectRoot, "ad-sdk-google-ima/build.gradle").exists())
         assertTrue(buildGradle.contains("extendsFrom googleAdCommonImplementation"))
+
+        assertTrue(
+            independentManager.contains(
+                "override fun destroyAd(requestId: String?) = " +
+                    "destroyAd(requestId, \"window_destroy\")"
+            )
+        )
+        assertTrue(independentManager.contains("override fun destroyAd(requestId: String?, reason: String)"))
+        assertTrue(independentManager.contains("AD_PHASE_CANCELLED\", \"reason=\$reason"))
 
         assertTrue(File(projectRoot, "app/signing_files/google_ad_tv_desktop_upload.jks").exists())
     }

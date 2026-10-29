@@ -30,4 +30,6 @@ interface IAdManager {
     fun destroyAd()
     /** Release only the session owned by this window/request. Null is an explicit global stop. */
     fun destroyAd(requestId: String?)
+    /** Preserve the caller's real cancellation reason when the implementation supports auditing. */
+    fun destroyAd(requestId: String?, reason: String) = destroyAd(requestId)
 }

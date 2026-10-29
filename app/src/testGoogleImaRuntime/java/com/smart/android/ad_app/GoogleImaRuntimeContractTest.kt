@@ -41,6 +41,9 @@ class GoogleImaRuntimeContractTest {
         val consentReporter = readProjectFile(
             "app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentLogReporter.kt"
         )
+        val imaManager = readProjectFile(
+            "app/src/googleImaRuntime/java/com/smart/android/ad_app/GoogleImaAdManager.kt"
+        )
 
         assertTrue(moduleBuild.contains("com.smart.android.googleima.controlled:interactivemedia:3.35.1"))
         assertTrue(moduleBuild.contains("verifyControlledGoogleImaAars"))
@@ -96,6 +99,12 @@ class GoogleImaRuntimeContractTest {
             Regex("NetworkHelper\\.makeRequest<EmptyData>").findAll(consentReporter).count()
         )
         assertTrue(consentReporter.contains("\"IMA_RUNTIME_AUDIT\""))
+        assertTrue(imaManager.contains("if (session.finishing) return"))
+        assertTrue(imaManager.contains("if (!beginFinishing(session)) return"))
+        assertTrue(imaManager.contains("if (session.completionPending)"))
+        assertTrue(imaManager.contains("finishCompletedSession(session)"))
+        assertFalse(imaManager.contains("if (!isActive(session)) return@Runnable"))
+        assertTrue(imaManager.contains("terminal_snapshot\" -> handlePlayerSnapshot"))
     }
 
     private fun readProjectFile(relativePath: String): String {

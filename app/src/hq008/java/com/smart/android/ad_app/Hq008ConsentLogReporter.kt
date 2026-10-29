@@ -25,6 +25,7 @@ internal object Hq008ConsentLogReporter {
         "AD_SDK_REQUEST",
         "AD_SDK_HTTP_CAPTURE",
         "AD_SDK_DIAGNOSTIC",
+        "IMA_RUNTIME_AUDIT",
         "USER_ACTION_START",
         "USER_ACTION_SUCCESS",
         "USER_ACTION_FAIL"
@@ -176,6 +177,9 @@ internal object Hq008ConsentLogReporter {
         )
 
         var adLogPayload = gson.toJson(traceSummary)
+        val preserveImaRuntimeAudit = stepsForUpload.any { step ->
+            step.eventType == "IMA_RUNTIME_AUDIT" && !step.adLog.isNullOrBlank()
+        }
         if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
             val compactedTraceSummary = buildTraceSummary(
                 finalEventType = snapshot.finalEventType,
@@ -188,7 +192,7 @@ internal object Hq008ConsentLogReporter {
             }
             adLogPayload = gson.toJson(compactedTraceSummary)
         }
-        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
+        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveImaRuntimeAudit) {
             val diagnosticSummary = buildTraceSummary(
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
@@ -202,7 +206,7 @@ internal object Hq008ConsentLogReporter {
             }
             adLogPayload = gson.toJson(diagnosticSummary)
         }
-        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
+        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveImaRuntimeAudit) {
             val compactedTraceSummary = buildTraceSummary(
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,

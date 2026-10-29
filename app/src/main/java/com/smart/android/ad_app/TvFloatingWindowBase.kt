@@ -155,9 +155,14 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
 
         rootView?.let { view ->
             try {
+                val revealWindow = shouldRevealWindow()
                 view.alpha = 0f
+                // SurfaceView-backed playback is only hidden by window-level alpha.
+                layoutParams?.alpha = if (revealWindow) 1f else 0f
                 windowManager?.addView(view, layoutParams)
-                view.animate().alpha(1f).setDuration(300).start()
+                if (revealWindow) {
+                    view.animate().alpha(1f).setDuration(300).start()
+                }
                 isShowing = true
                 hasDispatchedWindowHidden = false
                 if (config.isFocusable) {
@@ -336,6 +341,9 @@ abstract class TvFloatingWindowBase<T : ViewBinding>(context: Context) {
      * 悬浮窗显示时的回调
      */
     protected open fun onWindowShown() {}
+
+    /** Whether the mounted overlay should fade from transparent to visible. */
+    protected open fun shouldRevealWindow(): Boolean = true
 
     /**
      * 悬浮窗隐藏时的回调

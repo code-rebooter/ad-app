@@ -1,5 +1,6 @@
 package com.smart.android.ad_app
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -21,6 +22,8 @@ class Hq008ConsentLogReporterContractTest {
         assertTrue("终态发送前应检查 popup log 开关", source.contains("if (!payload.popupLogEnabled)"))
         assertTrue("流程结束后应重置 popup log 开关，避免污染下一轮", readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentTraceSession.kt").contains("popupLogEnabled = true"))
         assertTrue("gdpr consent 注入日志应被视为关键 adLog 事件", source.contains("\"AD_GDPR_CONSENT_ATTACHED\""))
+        assertFalse("完整 VAST 不应创建独立日志请求", source.contains("IMA_VAST_ARTIFACT"))
+        assertFalse("完整 VAST 不应绕过终态批次单独上传", source.contains("reportArtifact"))
     }
 
     private fun readProjectFile(relativePath: String): String {

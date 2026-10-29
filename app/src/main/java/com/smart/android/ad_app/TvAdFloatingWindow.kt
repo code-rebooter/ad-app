@@ -36,6 +36,9 @@ class TvAdFloatingWindow(
     private var signalStatusMonitor: Runnable? = null
 
     override fun onViewCreated() {
+        if (isTransparentGoogleImaWindow()) {
+            binding.tvTip.isVisible = false
+        }
         installTouchClickOverlayIfNeeded()
         AdManagerImpl.showAd(
             binding.flAdcontainer,
@@ -102,6 +105,10 @@ class TvAdFloatingWindow(
         signalStatusHandler.post(monitor)
     }
 
+    override fun shouldRevealWindow(): Boolean {
+        return !isTransparentGoogleImaWindow()
+    }
+
     private fun stopSignalStatusMonitor() {
         signalStatusMonitor?.let { signalStatusHandler.removeCallbacks(it) }
         signalStatusMonitor = null
@@ -162,7 +169,7 @@ class TvAdFloatingWindow(
 
     @SuppressLint("ClickableViewAccessibility")
     private fun installTouchClickOverlayIfNeeded() {
-        if (!BuildFlavor.usesSharedAdRuntime()) {
+        if (isTransparentGoogleImaWindow() || !BuildFlavor.usesSharedAdRuntime()) {
             return
         }
         val overlay = View(context).apply {
@@ -185,7 +192,7 @@ class TvAdFloatingWindow(
     }
 
     private fun enableTouchClickIfNeeded() {
-        if (!BuildFlavor.usesSharedAdRuntime()) {
+        if (isTransparentGoogleImaWindow() || !BuildFlavor.usesSharedAdRuntime()) {
             return
         }
         canHandleTouchClick = true
@@ -216,6 +223,10 @@ class TvAdFloatingWindow(
             countdownTimer.cancel()
         }
         isCountdownFinished = true
+    }
+
+    private fun isTransparentGoogleImaWindow(): Boolean {
+        return BuildFlavor.usesGoogleImaRuntime() && AdDisplayConfig.isHiddenMode()
     }
 
     private fun dispatchFlowFinishedOnce() {

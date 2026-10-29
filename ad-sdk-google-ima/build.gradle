@@ -1,0 +1,202 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+apply from: "$rootDir/gradle/jitpack-publish.gradle"
+
+base {
+    archivesName = 'ad-sdk-google-ima'
+}
+
+def patchInputs = [
+    ima: configurations.maybeCreate('googleImaPatchInput'),
+    tvAds: configurations.maybeCreate('googleTvAdsPatchInput'),
+    adsIdentifier: configurations.maybeCreate('googleAdsIdentifierPatchInput'),
+    appSet: configurations.maybeCreate('googleAppSetPatchInput')
+]
+patchInputs.values().each { configuration ->
+    configuration.canBeConsumed = false
+    configuration.canBeResolved = true
+}
+
+dependencies.add(patchInputs.ima.name,
+        dependencies.create('com.google.ads.interactivemedia.v3:interactivemedia:3.35.1') {
+            transitive = false
+        })
+dependencies.add(patchInputs.tvAds.name,
+        dependencies.create('com.google.android.tv:tv-ads:1.0.0') {
+            transitive = false
+        })
+dependencies.add(patchInputs.adsIdentifier.name,
+        dependencies.create('com.google.android.gms:play-services-ads-identifier:18.0.1') {
+            transitive = false
+        })
+dependencies.add(patchInputs.appSet.name,
+        dependencies.create('com.google.android.gms:play-services-appset:16.0.2') {
+            transitive = false
+        })
+
+def singleArtifact = { configuration, label ->
+    configuration.incoming.artifactView {}.files.elements.map { locations ->
+        if (locations.size() != 1) {
+            throw new GradleException("Expected one ${label} AAR, found ${locations.size()}")
+        }
+        locations.iterator().next().asFile
+    }
+}
+
+def registerPatchedAar = { taskName, configuration, label, outputName, sha256, target ->
+    def task = tasks.register(taskName, com.smart.lsap.Hq008AarPatchTask) {
+        inputAar.set(layout.file(singleArtifact(configuration, label)))
+        outputAar.set(layout.buildDirectory.file("generated/patched-dependencies/${outputName}"))
+        expectedSha256.set(sha256)
+        targetFlavor.set(target)
+    }
+    def artifact = files(layout.buildDirectory.file("generated/patched-dependencies/${outputName}"))
+    artifact.builtBy(task)
+    return artifact
+}
+
+def patchedImaAar = registerPatchedAar(
+        'patchGoogleImaRuntimeAar',
+        patchInputs.ima,
+        'Google IMA 3.35.1',
+        'interactivemedia-3.35.1-controlled.aar',
+        '8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64',
+        'google_ima')
+def patchedTvAdsAar = registerPatchedAar(
+        'patchGoogleTvAdsAar',
+        patchInputs.tvAds,
+        'Google TV Ads 1.0.0',
+        'tv-ads-1.0.0-controlled.aar',
+        '7336aa84a12c92f36196cce8d5170fcb1c9a9ded32a6f89ab42048695690e7f1',
+        'google_tv_ads')
+def patchedAdsIdentifierAar = registerPatchedAar(
+        'patchGoogleAdsIdentifierAar',
+        patchInputs.adsIdentifier,
+        'Google Ads Identifier 18.0.1',
+        'play-services-ads-identifier-18.0.1-controlled.aar',
+        'a98087cb6f28aee93a09ea37ff3fe399089ccaa05af784e1b8fdcb0e1faca5ae',
+        'google_ads_identifier')
+def patchedAppSetAar = registerPatchedAar(
+        'patchGoogleAppSetAar',
+        patchInputs.appSet,
+        'Google AppSet 16.0.2',
+        'play-services-appset-16.0.2-controlled.aar',
+        '74d81849acc9eb4e82d3cc942da55ad8537cfb73375236ed69b076d9d7ad8619',
+        'google_appset')
+
+def controlledAarCopies = [
+        [
+                task: tasks.named('patchGoogleImaRuntimeAar'),
+                generated: layout.buildDirectory.file(
+                        'generated/patched-dependencies/interactivemedia-3.35.1-controlled.aar'
+                ),
+                published: rootProject.file(
+                        'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
+                                'interactivemedia/3.35.1/interactivemedia-3.35.1.aar'
+                )
+        ],
+        [
+                task: tasks.named('patchGoogleTvAdsAar'),
+                generated: layout.buildDirectory.file(
+                        'generated/patched-dependencies/tv-ads-1.0.0-controlled.aar'
+                ),
+                published: rootProject.file(
+                        'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
+                                'tv-ads/1.0.0/tv-ads-1.0.0.aar'
+                )
+        ],
+        [
+                task: tasks.named('patchGoogleAdsIdentifierAar'),
+                generated: layout.buildDirectory.file(
+                        'generated/patched-dependencies/play-services-ads-identifier-18.0.1-controlled.aar'
+                ),
+                published: rootProject.file(
+                        'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
+                                'play-services-ads-identifier/18.0.1/' +
+                                'play-services-ads-identifier-18.0.1.aar'
+                )
+        ],
+        [
+                task: tasks.named('patchGoogleAppSetAar'),
+                generated: layout.buildDirectory.file(
+                        'generated/patched-dependencies/play-services-appset-16.0.2-controlled.aar'
+                ),
+                published: rootProject.file(
+                        'gradle/google-ima-controlled-maven/com/smart/android/googleima/controlled/' +
+                                'play-services-appset/16.0.2/play-services-appset-16.0.2.aar'
+                )
+        ]
+]
+
+def sha256 = { File input ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int count
+        while ((count = stream.read(buffer)) != -1) {
+            digest.update(buffer, 0, count)
+        }
+    }
+    digest.digest().encodeHex().toString()
+}
+
+def verifyControlledGoogleImaAars = tasks.register('verifyControlledGoogleImaAars') {
+    dependsOn controlledAarCopies.collect { it.task }
+    inputs.files controlledAarCopies.collect { it.generated }
+    inputs.files controlledAarCopies.collect { it.published }
+    doLast {
+        controlledAarCopies.each { copy ->
+            File generated = copy.generated.get().asFile
+            File published = copy.published
+            if (!published.isFile()) {
+                throw new GradleException("Missing controlled Google IMA artifact: ${published}")
+            }
+            String generatedSha = sha256(generated)
+            String publishedSha = sha256(published)
+            if (generatedSha != publishedSha) {
+                throw new GradleException(
+                        "Controlled Google IMA artifact is stale: ${published.name}; " +
+                                "generated=${generatedSha}, published=${publishedSha}"
+                )
+            }
+        }
+    }
+}
+
+android {
+    namespace 'com.smart.android.googleima'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 23
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.8.0'
+    implementation 'androidx.media3:media3-ui:1.8.0'
+    implementation 'androidx.webkit:webkit:1.9.0'
+    implementation('androidx.media3:media3-exoplayer-ima:1.8.0') {
+        exclude group: 'com.google.ads.interactivemedia.v3', module: 'interactivemedia'
+    }
+
+    implementation 'com.smart.android.googleima.controlled:interactivemedia:3.35.1'
+}
+
+tasks.named('preBuild').configure {
+    dependsOn verifyControlledGoogleImaAars
+}

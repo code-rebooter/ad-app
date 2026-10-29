@@ -71,6 +71,18 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                     case 'google_ima':
                         patched = LsapClassPatcher.patchGoogleImaParameters(jarEntry.name, bytes)
                         break
+                    case 'google_tv_ads':
+                        patched = LsapClassPatcher.patchGoogleTvAdsParameters(jarEntry.name, bytes)
+                        break
+                    case 'google_ads_identifier':
+                        patched = LsapClassPatcher.patchGoogleAdsIdentifierDiagnostics(
+                            jarEntry.name,
+                            bytes
+                        )
+                        break
+                    case 'google_appset':
+                        patched = LsapClassPatcher.patchGoogleAppSetTelemetry(jarEntry.name, bytes)
+                        break
                     case 'google_ump':
                         patched = LsapClassPatcher.patchGoogleUmpParameters(jarEntry.name, bytes)
                         break
@@ -89,6 +101,12 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         jarInput.close()
         if (targetFlavor.get() == 'google_ima') {
             verifyGoogleImaPatch(classEntries, modifiedClasses)
+        } else if (targetFlavor.get() == 'google_tv_ads') {
+            verifyGoogleTvAdsPatch(classEntries, modifiedClasses)
+        } else if (targetFlavor.get() == 'google_ads_identifier') {
+            verifyGoogleAdsIdentifierPatch(classEntries, modifiedClasses)
+        } else if (targetFlavor.get() == 'google_appset') {
+            verifyGoogleAppSetPatch(classEntries, modifiedClasses)
         } else if (targetFlavor.get() == 'google_ump') {
             verifyGoogleUmpPatch(classEntries)
         }
@@ -107,7 +125,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         List<String> metadataLines
         if (targetFlavor.get() == 'google_ima') {
             metadataLines = [
-                'patchVersion=google-ima-parameter-normalization-5',
+                'patchVersion=google-ima-parameter-normalization-6',
                 'visibilityPolicy=ignore-ima-view-visibility-gate',
                 'viewabilityPolicy=ignore-ima-size-threshold-gate',
                 'nativeViewabilityPolicy=force-ima-view-visible-bounds',
@@ -115,8 +133,45 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                 'lifecyclePolicy=keep-ima-activity-monitor-active',
                 'systemPropertyPolicy=normalize-ima-system-property-overload',
                 'webViewUaPolicy=normalize-before-every-navigation',
-                'nativeNetworkPolicy=preserve-gks-selection',
+                'msPolicy=local-generator-no-gass-no-dynamic-vm',
+                'adsIdentityTokenPolicy=blocked-no-signal-sdk-call',
+                'nativeNetworkPolicy=force-local-no-gks-service',
+                'secureSignalsPolicy=block-dynamic-core-adapters',
+                'gassClearcutPolicy=disabled',
+                'vastAuditPolicy=capture-native-xhr-root-and-wrapper-responses',
+                'verificationAuditPolicy=observe-webview-resource-loads-and-errors',
+                'omidAuditPolicy=observe-js-bridge-session-and-view-hierarchy-calls',
                 'nativeNetworkHeaderCoverage=http-url-connection-only',
+                "originalAarSha256=${actualHash}",
+                "patchedClassesJarSha256=${sha256(patchedClasses)}",
+                "targetFlavor=${targetFlavor.get()}",
+                "modifiedClasses=${modifiedClasses}"
+            ]
+        } else if (targetFlavor.get() == 'google_tv_ads') {
+            metadataLines = [
+                'patchVersion=google-tv-ads-fingerprint-normalization-1',
+                'platformSignalPolicy=preserve-tv-ads-collector-and-field-rules',
+                'fingerprintPolicy=host-shared-fingerprint-before-atv-bfp',
+                "originalAarSha256=${actualHash}",
+                "patchedClassesJarSha256=${sha256(patchedClasses)}",
+                "targetFlavor=${targetFlavor.get()}",
+                "modifiedClasses=${modifiedClasses}"
+            ]
+        } else if (targetFlavor.get() == 'google_ads_identifier') {
+            metadataLines = [
+                'patchVersion=google-ads-identifier-client-diagnostics-1',
+                'businessValuePolicy=preserve-aaid-and-lat',
+                'diagnosticPolicy=disable-gen-204-client-diagnostic',
+                "originalAarSha256=${actualHash}",
+                "patchedClassesJarSha256=${sha256(patchedClasses)}",
+                "targetFlavor=${targetFlavor.get()}",
+                "modifiedClasses=${modifiedClasses}"
+            ]
+        } else if (targetFlavor.get() == 'google_appset') {
+            metadataLines = [
+                'patchVersion=google-appset-client-telemetry-1',
+                'businessValuePolicy=preserve-appset-id-and-scope',
+                'telemetryPolicy=disable-client-telemetry-and-method-key-27601',
                 "originalAarSha256=${actualHash}",
                 "patchedClassesJarSha256=${sha256(patchedClasses)}",
                 "targetFlavor=${targetFlavor.get()}",
@@ -177,9 +232,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 34) {
+        if (modifiedClasses != 40) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 34"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 40"
             )
         }
 
@@ -203,6 +258,23 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '(Ljava/lang/String;)V',
             0,
             'unpatched IMA Core WebView navigation'
+        )
+        String runtimeBridge = 'com/smart/android/googleima/internal/GoogleImaRuntimeBridge'
+        requireCallCount(
+            webViewLoader,
+            runtimeBridge,
+            'setAuditedWebViewClient',
+            '(Landroid/webkit/WebView;Landroid/webkit/WebViewClient;)V',
+            1,
+            'IMA WebView resource audit client'
+        )
+        requireCallCount(
+            webViewLoader,
+            bridge,
+            'setAuditedWebViewClient',
+            '(Landroid/webkit/WebView;Landroid/webkit/WebViewClient;)V',
+            0,
+            'IMA WebView client without runtime resource audit'
         )
 
         byte[] companionWebView = requireClass(
@@ -407,12 +479,165 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             classEntries,
             'com/google/ads/interactivemedia/v3/impl/zzba.class'
         )
+        requireCallCount(networkSelector, runtimeBridge, 'normalizeGksFlag', '(Z)Z', 1,
+            'IMA GKS disable policy')
         requireAllocation(networkSelector,
             'com/google/ads/interactivemedia/v3/impl/zzbr',
             'IMA GKS network backend')
         requireAllocation(networkSelector,
             'com/google/ads/interactivemedia/v3/impl/zzbp',
             'IMA local network backend')
+
+        byte[] msLoader = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzgg.class'
+        )
+        requireCallCount(msLoader, runtimeBridge, 'bindLocalMsOwner',
+            '(Ljava/lang/Object;Landroid/content/Context;)Z', 1,
+            'IMA local ms owner binding')
+        requireCallCount(msLoader, runtimeBridge, 'localMsFor',
+            '(Ljava/lang/Object;Ljava/lang/Integer;)Ljava/lang/String;', 2,
+            'IMA local ms generation')
+
+        byte[] identityToken = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzej.class'
+        )
+        requireCallCount(identityToken, runtimeBridge, 'emptyAdsIdentityToken',
+            '(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/String;', 1,
+            'IMA SignalSdk token block')
+        requireCallCount(identityToken, 'com/google/ads/interactivemedia/v3/internal/zznm',
+            'doRead', '(Lcom/google/android/gms/common/api/internal/TaskApiCall;)' +
+            'Lcom/google/android/gms/tasks/Task;', 0, 'IMA SignalSdk service call')
+
+        byte[] secureSignals = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzgd.class'
+        )
+        requireCallCount(secureSignals, runtimeBridge, 'completedEmptySecureSignals',
+            '(Ljava/lang/String;)Lcom/google/android/gms/tasks/Task;', 2,
+            'IMA dynamic secure-signal adapters')
+        requireCallCount(secureSignals, runtimeBridge, 'emptySecureSignals',
+            '(Ljava/lang/String;)Ljava/util/List;', 1,
+            'IMA secure-signal collection')
+
+        byte[] gassLogger = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzpj.class'
+        )
+        requireCallCount(gassLogger, runtimeBridge, 'recordGassBlocked',
+            '(Ljava/lang/String;)V', 1, 'IMA GASS Clearcut block')
+        requireCallCount(gassLogger, 'com/google/android/gms/dynamite/DynamiteModule', 'load',
+            '(Landroid/content/Context;Lcom/google/android/gms/dynamite/DynamiteModule\$VersionPolicy;' +
+            'Ljava/lang/String;)Lcom/google/android/gms/dynamite/DynamiteModule;',
+            0, 'IMA GASS Clearcut Dynamite load')
+
+        byte[] dynamicVm = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzjj.class'
+        )
+        requireCallCount(dynamicVm, runtimeBridge, 'recordDynamicVmBlocked',
+            '(Ljava/lang/String;)V', 1, 'IMA dynamic VM block')
+
+        byte[] nativeNetworkAudit = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/impl/zzbs.class'
+        )
+        requireCallCount(nativeNetworkAudit, runtimeBridge, 'auditNativeResponse',
+            '(Ljava/lang/Object;Ljava/lang/Object;)V', 1,
+            'IMA native XHR VAST response audit')
+
+        byte[] omidBridgeAudit = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzcy.class'
+        )
+        requireCallCount(omidBridgeAudit, runtimeBridge, 'auditOmidBridge',
+            '(Ljava/lang/String;[Ljava/lang/Object;)V', 1,
+            'IMA OMID JavaScript bridge audit')
+    }
+
+    private static void verifyGoogleTvAdsPatch(
+        Map<String, byte[]> classEntries,
+        int modifiedClasses
+    ) {
+        if (modifiedClasses != 1) {
+            throw new GradleException(
+                "Google TV Ads patch changed ${modifiedClasses} classes; expected exactly 1"
+            )
+        }
+        byte[] collector = requireClass(
+            classEntries,
+            'com/google/android/gms/internal/atv_ads_framework/zzad.class'
+        )
+        String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+        requireCallCount(collector, bridge, 'getAndroidBuildFingerprint',
+            '()Ljava/lang/String;', 1, 'TV Ads atv_bfp fingerprint bridge')
+        requireStaticFieldReadCount(collector, 'android/os/Build', 'FINGERPRINT',
+            'Ljava/lang/String;', 0, 'TV Ads raw fingerprint')
+    }
+
+    private static void verifyGoogleAdsIdentifierPatch(
+        Map<String, byte[]> classEntries,
+        int modifiedClasses
+    ) {
+        if (modifiedClasses != 1) {
+            throw new GradleException(
+                "Google Ads Identifier patch changed ${modifiedClasses} classes; expected exactly 1"
+            )
+        }
+        byte[] client = requireClass(
+            classEntries,
+            'com/google/android/gms/ads/identifier/AdvertisingIdClient.class'
+        )
+        requireConstantBooleanMethod(
+            client,
+            'zzc',
+            '(Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;ZFJLjava/lang/String;Ljava/lang/Throwable;)Z',
+            false,
+            'Advertising ID gen_204 diagnostic'
+        )
+    }
+
+    private static void verifyGoogleAppSetPatch(
+        Map<String, byte[]> classEntries,
+        int modifiedClasses
+    ) {
+        if (modifiedClasses != 2) {
+            throw new GradleException(
+                "Google AppSet patch changed ${modifiedClasses} classes; expected exactly 2"
+            )
+        }
+        byte[] features = requireClass(
+            classEntries,
+            'com/google/android/gms/internal/appset/zzd.class'
+        )
+        requireConstantBooleanMethod(
+            features,
+            'usesClientTelemetry',
+            '()Z',
+            false,
+            'AppSet client telemetry feature'
+        )
+        byte[] client = requireClass(
+            classEntries,
+            'com/google/android/gms/internal/appset/zzp.class'
+        )
+        requireIntInstructionOperandCount(
+            client,
+            'getAppSetIdInfo',
+            '()Lcom/google/android/gms/tasks/Task;',
+            27601,
+            0,
+            'AppSet telemetry method key 27601'
+        )
+        requireIntInstructionOperandCount(
+            client,
+            'getAppSetIdInfo',
+            '()Lcom/google/android/gms/tasks/Task;',
+            0,
+            1,
+            'AppSet disabled telemetry method key'
+        )
     }
 
     private static void verifyGoogleUmpPatch(Map<String, byte[]> classEntries) {
@@ -562,6 +787,41 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         if (actual == 0) {
             throw new GradleException(
                 "Google IMA patch contract mismatch for ${label}: allocation missing"
+            )
+        }
+    }
+
+    private static void requireConstantBooleanMethod(
+        byte[] bytes,
+        String name,
+        String desc,
+        boolean expected,
+        String label
+    ) {
+        if (!LsapClassPatcher.isConstantBooleanMethod(bytes, name, desc, expected)) {
+            throw new GradleException(
+                "Google AAR patch contract mismatch for ${label}: expected constant ${expected}"
+            )
+        }
+    }
+
+    private static void requireIntInstructionOperandCount(
+        byte[] bytes,
+        String methodName,
+        String methodDesc,
+        int operand,
+        int expected,
+        String label
+    ) {
+        int actual = LsapClassPatcher.countIntInstructionOperandInMethod(
+            bytes,
+            methodName,
+            methodDesc,
+            operand
+        )
+        if (actual != expected) {
+            throw new GradleException(
+                "Google AAR patch contract mismatch for ${label}: expected ${expected}, found ${actual}"
             )
         }
     }

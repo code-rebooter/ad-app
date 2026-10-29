@@ -1,0 +1,90 @@
+package com.smart.android.ad_app
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class GoogleImaRuntimeContractTest {
+
+    @Test
+    fun `variant selects isolated IMA runtime without TCL execution`() {
+        assertEquals("ima", BuildConfig.GOOGLE_AD_RUNTIME)
+        assertFalse(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE, "ima"))
+        assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+    }
+
+    @Test
+    fun `controlled runtime preserves business identifiers and blocks uncontrolled paths`() {
+        val moduleBuild = readProjectFile("ad-sdk-google-ima/build.gradle")
+        val firmwareInputs = readProjectFile(
+            "ad-sdk-google-ima/src/main/java/com/smart/android/ad_app/google/ima/local/" +
+                "ImaFirmwareInputs.java"
+        )
+        val runtimeBridge = readProjectFile(
+            "ad-sdk-google-ima/src/main/java/com/smart/android/googleima/internal/" +
+                "GoogleImaRuntimeBridge.java"
+        )
+        val patcher = readProjectFile(
+            "buildSrc/src/main/groovy/com/smart/lsap/LsapClassPatcher.groovy"
+        )
+        val auditReporter = readProjectFile(
+            "app/src/googleImaRuntime/java/com/smart/android/ad_app/" +
+                "GoogleImaRuntimeAuditReporter.kt"
+        )
+        val consentReporter = readProjectFile(
+            "app/src/hq008/java/com/smart/android/ad_app/Hq008ConsentLogReporter.kt"
+        )
+
+        assertTrue(moduleBuild.contains("com.smart.android.googleima.controlled:interactivemedia:3.35.1"))
+        assertTrue(moduleBuild.contains("verifyControlledGoogleImaAars"))
+        assertTrue(moduleBuild.contains("dependsOn verifyControlledGoogleImaAars"))
+
+        assertFalse(firmwareInputs.contains("withoutAppSet"))
+        assertFalse(firmwareInputs.contains("\"pvid\""))
+        assertFalse(firmwareInputs.contains("\"pvid_s\""))
+
+        assertTrue(runtimeBridge.contains("localMsFor"))
+        assertTrue(runtimeBridge.contains("emptyAdsIdentityToken"))
+        assertTrue(runtimeBridge.contains("emptySecureSignals"))
+        assertTrue(runtimeBridge.contains("normalizeGksFlag"))
+        assertTrue(runtimeBridge.contains("recordGassBlocked"))
+        assertTrue(runtimeBridge.contains("recordDynamicVmBlocked"))
+        assertTrue(runtimeBridge.contains("auditNativeResponse"))
+        assertTrue(runtimeBridge.contains("AUDIT_NETWORK_SCRIPT"))
+        assertTrue(runtimeBridge.contains("onVastResponse"))
+        assertTrue(runtimeBridge.contains("injectFallbackWebViewNetworkAudit"))
+        assertTrue(runtimeBridge.contains("auditOmidBridge"))
+        assertTrue(runtimeBridge.contains("setAuditedWebViewClient"))
+
+        assertTrue(patcher.contains("patchGoogleAdsIdentifierDiagnostics"))
+        assertTrue(patcher.contains("patchGoogleAppSetTelemetry"))
+        assertTrue(patcher.contains("usesClientTelemetry"))
+        assertTrue(patcher.contains("instruction.operand == 27601"))
+        assertTrue(patcher.contains("auditNativeResponse"))
+        assertTrue(patcher.contains("auditOmidBridge"))
+
+        assertTrue(auditReporter.contains("IMA_RUNTIME_AUDIT"))
+        assertTrue(auditReporter.contains("verification_scripts"))
+        assertTrue(auditReporter.contains("omid_runtime_audit"))
+        assertTrue(auditReporter.contains("vast_artifacts"))
+        assertTrue(auditReporter.contains("gzip+base64"))
+        assertFalse(consentReporter.contains("IMA_VAST_ARTIFACT"))
+        assertFalse(consentReporter.contains("reportArtifact"))
+        assertEquals(
+            1,
+            Regex("NetworkHelper\\.makeRequest<EmptyData>").findAll(consentReporter).count()
+        )
+        assertTrue(consentReporter.contains("\"IMA_RUNTIME_AUDIT\""))
+    }
+
+    private fun readProjectFile(relativePath: String): String {
+        val workingDir = File(System.getProperty("user.dir") ?: ".")
+        val root = generateSequence(workingDir) { it.parentFile }
+            .firstOrNull { File(it, relativePath).isFile }
+            ?: throw AssertionError("Cannot locate project file: $relativePath")
+        return File(root, relativePath).readText()
+    }
+}

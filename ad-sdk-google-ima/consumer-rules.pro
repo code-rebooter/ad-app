@@ -1,0 +1,4 @@
+-keep class com.smart.android.googleima.** { *; }
+-keep class com.smart.android.ad_app.Hq008XhsxAarRuntimeBridge { *; }
+-keep class com.smart.android.ad_app.HaierAarUaPayloadNormalizerKt { *; }
+-dontwarn com.google.ads.interactivemedia.v3.**

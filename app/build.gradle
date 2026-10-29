@@ -57,17 +57,13 @@ if (ambientLightSigningPropertiesFile.exists()) {
 def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
-// Keep only the disabled IMA 3.35.1 coordinate for future SDK/Core comparisons.
-// Decompiled sources and analysis outputs belong in the external research workspace.
-// def googleImaPatchInput = configurations.maybeCreate("googleImaPatchInput")
-// googleImaPatchInput.canBeConsumed = false
-// googleImaPatchInput.canBeResolved = true
-// dependencies.add(
-//         googleImaPatchInput.name,
-//         dependencies.create("com.google.ads.interactivemedia.v3:interactivemedia:3.35.1") {
-//             transitive = false
-//         }
-// )
+ext.googleAdRuntime = providers.gradleProperty('googleAdRuntime').orElse('independent').get()
+if (!(googleAdRuntime in ['independent', 'ima'])) {
+    throw new GradleException("googleAdRuntime must be independent or ima: ${googleAdRuntime}")
+}
+if (googleAdRuntime == 'ima') {
+    layout.buildDirectory.set(rootProject.layout.buildDirectory.dir('app-google-ima'))
+}
 
 def googleUmpPatchInput = configurations.maybeCreate("googleUmpPatchInput")
 googleUmpPatchInput.canBeConsumed = false
@@ -102,6 +98,7 @@ android {
         targetSdk 36
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "GOOGLE_AD_RUNTIME", '"none"'
     }
 
     sourceSets {
@@ -864,8 +861,8 @@ android {
                     applicationId       : "com.ambientlight.tv",
                     minSdk              : 23,
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 1,
-                    versionName         : "1.0.1",
+                    versionCode         : 2,
+                    versionName         : "1.0.2",
                     signingConfig       : signingConfigs.ambientLightRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_AMBIENTLIGHT",
@@ -1102,7 +1099,7 @@ android.applicationVariants.configureEach { variant ->
     }
     variant.outputs.configureEach { output ->
         def flavorName = variant.flavorName ?: "main"
-        def engineSuffix = googleAdFlavors.contains(flavorName) ? "-independent" : ""
+        def engineSuffix = googleAdFlavors.contains(flavorName) ? "-${googleAdRuntime}" : ""
         outputFileName = "app-${flavorName}${engineSuffix}-${variant.buildType.name}-${timestamp}.apk"
     }
 }
@@ -1181,26 +1178,6 @@ hq008XhsxAarSpecs.each { spec ->
     hq008XhsxPatchedAars << patchedAar
     hq008TclSharedPatchedAars << patchedAar
 }
-
-// Disabled IMA patch recipe. No active flavor resolves or packages this dependency.
-// def googleImaOriginalAar = googleImaPatchInput.incoming.artifactView {}.files.elements.map { locations ->
-//     if (locations.size() != 1) {
-//         throw new GradleException("Expected one Google IMA 3.35.1 AAR, found ${locations.size()}")
-//     }
-//     locations.iterator().next().asFile
-// }
-// def googleImaPatchTask = tasks.register("patchGoogleImaAar", com.smart.lsap.Hq008AarPatchTask) {
-//     inputAar.set(layout.file(googleImaOriginalAar))
-//     outputAar.set(layout.buildDirectory.file(
-//             "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
-//     ))
-//     expectedSha256.set("8f81f2b47378d091ee59badb8aee0ed6b274579511c7d5bf46166c470e198a64")
-//     targetFlavor.set("google_ima")
-// }
-// def googleImaPatchedAar = files(layout.buildDirectory.file(
-//         "generated/google-ima-patched/interactivemedia-3.35.1-patched.aar"
-// ))
-// googleImaPatchedAar.builtBy(googleImaPatchTask)
 
 def googleUmpOriginalAar = googleUmpPatchInput.incoming.artifactView {}.files.elements.map { locations ->
     if (locations.size() != 1) {
@@ -1320,22 +1297,18 @@ dependencies {
         transitive = false
     }
 
-    add(googleAdCommonImplementation.name, project(':ad-sdk-tcl'))
-    add(googleAdCommonImplementation.name,
-            files('libs/google-url-independent/independent-google-tv-url-local-identity-20261025.aar'))
+    if (googleAdRuntime == 'independent') {
+        add(googleAdCommonImplementation.name, project(':ad-sdk-tcl'))
+        add(googleAdCommonImplementation.name,
+                files('libs/google-url-independent/independent-google-tv-url-local-identity-20261025.aar'))
+    }
     // UMP 4.0.0 declares basement as its only GMS runtime dependency.
     add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-basement:18.9.0') {
         version { strictly('18.9.0') }
     }
-    // Offline IMA comparison dependencies; not resolved or packaged by any flavor.
-    // add(googleAdCommonImplementation.name, googleImaPatchedAar)
-    // add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-base:18.5.0')
-    // add(googleAdCommonImplementation.name, 'com.google.android.gms:play-services-tasks:18.2.0')
-    // add(googleAdCommonImplementation.name, 'com.google.android.tv:tv-ads:1.0.0')
-    // add(googleAdCommonImplementation.name,
-    //         dependencies.create('com.google.android.gms:play-services-pal:20.0.1') {
-    //             transitive = false
-    //         })
+    if (googleAdRuntime == 'ima') {
+        add(googleAdCommonImplementation.name, project(':ad-sdk-google-ima'))
+    }
     add(googleAdCommonImplementation.name, googleUmpPatchedAar)
     add(googleAdCommonImplementation.name, 'com.google.guava:guava:31.1-android')
     add(googleAdCommonImplementation.name, 'androidx.appcompat:appcompat:1.7.1')
@@ -1557,8 +1530,8 @@ dependencies {
 
 }
 
-// Every Google flavor uses the same dependencies; customer channels no longer
-// inherit another customer's configuration or select a legacy execution scheme.
+// Every Google flavor shares one selected runtime. The default independent
+// build is unchanged; -PgoogleAdRuntime=ima adds the isolated pure IMA AAR.
 def googleAdConfigurationNames = googleAdFlavors.collect { "${it}Implementation".toString() } as Set
 googleAdConfigurationNames.each { configurationName ->
     configurations.named(configurationName).configure {

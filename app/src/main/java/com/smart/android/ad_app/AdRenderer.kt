@@ -104,7 +104,7 @@ object AdRenderer {
         defaultFocusable: Boolean
     ): WindowRenderConfig {
         val useHiddenMode = BuildFlavor.usesSharedAdRuntime() && AdDisplayConfig.isHiddenMode()
-        if (!useHiddenMode) {
+        if (!useHiddenMode || BuildFlavor.usesGoogleImaRuntime()) {
             return WindowRenderConfig(
                 width = defaultWidth,
                 height = defaultHeight,

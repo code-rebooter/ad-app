@@ -1,19 +1,21 @@
 # Google 渠道共享实现
 
-2026-10-26 起，当前应用的全部 Google flavor 共用一套独立 URL 生成、后台 patch 和 TCL 执行流程：
+默认构建下，全部 Google flavor 共用一套独立 URL 生成、后台 patch 和 TCL 执行流程：
 
 `业务开关 / CMP → sdk/authorize.data.gam_config → independent 本地生成完整 URL → 公共参数修正及空 rdid 兜底 → google-gam/patch → 后台 URL 原样交 TCL → 请求、解析、播放和监测`
 
 ## 目录与构建
 
 - 本目录 `java/`：共享 Google 业务入口、统一 URL 生成接口、公共修正、后台 patch、TCL 状态/监测桥接及原有 UMP/CMP 实现。
-- `src/googleUrlIndependent/java`：当前唯一参与编译的 URL 生成器和 `GoogleUrlEngine` 实现。
+- `src/googleUrlIndependent/java`：默认构建参与编译的 URL 生成器和 `GoogleUrlEngine` 实现。
+- `ad-sdk-google-ima`：独立纯 IMA 请求/播放 AAR；不修改或复用现有自拼接 module。
+- `src/googleImaRuntime/java`：仅在 `-PgoogleAdRuntime=ima` 时参与编译的宿主适配器。
 - IMA 反编译源码、动态 VM/Core 对照代码和分析输出不存放在本仓库内，统一保存在仓库外研究工作区。
 - 本目录 Manifest、res、proguard-rules.pro：所有 Google flavor 共用。
 - `app/gradle/google-url-tcl.gradle`：生成排除旧广告入口的 HQ008 业务源码，并为所有 Google flavor 注册相同 TCL 公共、监测和填充处理器。
 - `app/build.gradle` 要求每个 flavor 显式配置统一的 `adChannelType`。所有 Google flavor 均使用 `GOOGLE`；公共源码、依赖、ASM、签名和运行时判断均从该字段派生，不读取 flavor 名称或前缀。
 
-旧 IMA/Media3 广告执行器、纯 TCL 实验执行器和旧 resolve 客户端已删除；Google 宿主不再依赖 AndroidX Media3。TCL 自身原厂播放器与底层依赖仍保留。
+默认构建不依赖 IMA/Media3，继续使用 independent + TCL。纯 IMA 构建不编译 independent 生成器、不依赖 TCL，也不执行后台 `google-gam/patch`。
 
 ## 渠道
 
@@ -39,7 +41,7 @@
 
 ## 接口与日志
 
-所有 Google 渠道的后台均须在本轮 authorize 返回可用 `gam_config`，并支持 `google-gam/patch`；无可用基础链接时跳过本轮，不回退 resolve。patch 失败或无有效 URL 时结束本轮，不绕过后台。授权绑定的 request_id/channel_id 随本轮传递。
+所有 Google 渠道的后台均须在本轮 authorize 返回可用 `gam_config`。默认 independent 构建继续调用 `google-gam/patch`；纯 IMA 构建把 authorize 返回的基础广告 URL 直接交给 IMA AAR。
 
 patch 请求保留本地持久 UID `rdid`（`google_tcl_ad/aid`），并携带 mac、androidid、宿主版本及实际 TCL SDK 版本；这里的 UID 与 URL 的 GMS 广告 ID 是两个用途。公共修正及空 ID 兜底在 patch 之前，后台返回结果不再作本地 URL 修正。
 
@@ -49,11 +51,10 @@ patch 请求保留本地持久 UID `rdid`（`google_tcl_ad/aid`），并携带 m
 
 ## URL 引擎
 
-- 所有 Google flavor 固定编译 `src/googleUrlIndependent/java`，使用 `app/libs/google-url-independent/independent-google-tv-url-local-identity-20261025.aar`。
-- `googleUrlEngine` Gradle 参数已经移除；传入该参数不会改变构建结果，也不存在运行时 IMA 回退。
-- 活动依赖不包含 IMA AAR、PAL、tv-ads、GMS Advertising ID 或 AppSet。UMP/CMP 只保留自身需要的 Basement。
-- IMA 3.35.1、PAL、tv-ads 依赖坐标和补丁任务以注释保留在 `app/build.gradle`；后续分析新版远程 Core 或动态 VM 时只能在仓库外研究工作区临时恢复，不得写入正式 source set 或渠道构建。
-- Release APK 文件名固定包含 `independent`。
+- 默认值为 `-PgoogleAdRuntime=independent`，编译 `src/googleUrlIndependent/java` 并使用现有 independent AAR 与 TCL module。
+- `-PgoogleAdRuntime=ima` 编译 `src/googleImaRuntime/java` 并依赖新增的 `ad-sdk-google-ima` module；现有 independent/TCL 实现不参与该构建，IMA 历史所需的 GMS Advertising ID/AppSet 依赖仅在此构建恢复。
+- 两种方案都是编译期选择，不存在运行时回退。默认产物保存在 `app/build`，IMA 产物单独保存在根目录 `build/app-google-ima`。
+- IMA 构建继续使用现有 IMA 3.35.1 补丁任务；反编译源码、动态 VM/Core 对照代码和研究缓存仍只允许放在仓库外。
 
 独立适配器在后台线程共享进程级 owner，为每轮创建新会话和本地空白 WebView。WebView 不加载远程 Core，并阻止网络资源请求；在生成前应用现有固件输入规则。广告 ID/LAT 与 AppSet 使用独立 AAR 的本地存储和固定规则生成。取消/超时只交付一次结果，后台线程关闭会话后释放 WebView，不在主线程等待生成器结束。原始生成结果仍通过同一个公共 URL 修正及空 ID 兜底，再发后台 patch；patch 返回结果不再本地修改。
 
@@ -61,6 +62,12 @@ patch 请求保留本地持久 UID `rdid`（`google_tcl_ad/aid`），并携带 m
 
 ```sh
 ./gradlew :app:assembleGoogle_ad_tv_desktop_v260904_1Release
+```
+
+构建同一渠道的纯 IMA Release：
+
+```sh
+./gradlew -PgoogleAdRuntime=ima :app:assembleGoogle_ad_tv_desktop_v260904_1Release
 ```
 
 当前主渠道版本为 `1.0.12 / versionCode 13`。完整 AAR 的算法覆盖范围沿用原候选记录；构建与包内容检查不代表新增设备已通过取链、填充或播放验证。

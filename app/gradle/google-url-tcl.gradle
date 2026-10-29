@@ -1,5 +1,7 @@
-// All Google channels share the independent URL generator and TCL execution path.
+// All Google channels share one compile-time selected execution path.
 def googleFlavors = project.googleAdFlavors
+def useGoogleImaRuntime = project.googleAdRuntime == 'ima'
+def googleImaChannelSourceDir = layout.buildDirectory.dir('generated/googleImaChannel/java')
 
 def businessSources = tasks.register('prepareGoogleAdBusinessSources', Sync) {
     from('src/hq008/java') { spec ->
@@ -21,32 +23,74 @@ def businessSources = tasks.register('prepareGoogleAdBusinessSources', Sync) {
     into layout.buildDirectory.dir('generated/googleAdBusiness/java')
 }
 
+def imaChannelSources = tasks.register('prepareGoogleImaChannelSources', Sync) {
+    from('src/google_ad_tv_desktop/java') { spec ->
+        spec.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
+        spec.exclude 'com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleAdUrlBridge.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleGamPatchClient.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclFillBridge.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclFinalUrlLog.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclRdidFallback.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclTrackingBridge.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclUidStore.kt'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleTclVastFillDetector.java'
+        spec.exclude 'com/smart/android/ad_app/google/GoogleUrlTclPipeline.kt'
+    }
+    into googleImaChannelSourceDir
+    onlyIf { useGoogleImaRuntime }
+}
+
 googleFlavors.each { flavorName ->
     android.sourceSets.named(flavorName) {
         manifest.srcFile 'src/google_ad_tv_desktop/AndroidManifest.xml'
         java.srcDirs = [layout.buildDirectory.dir('generated/googleAdBusiness/java').get().asFile,
-                        'src/google_ad_tv_desktop/java',
-                        'src/googleUrlIndependent/java']
+                        useGoogleImaRuntime
+                                ? googleImaChannelSourceDir.get().asFile
+                                : file('src/google_ad_tv_desktop/java')]
+        if (useGoogleImaRuntime) {
+            java.srcDir 'src/googleImaRuntime/java'
+        } else {
+            java.srcDir 'src/googleUrlIndependent/java'
+        }
         kotlin.srcDirs = java.srcDirs
         res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']
     }
     android.productFlavors.named(flavorName) {
         proguardFile 'src/google_ad_tv_desktop/proguard-rules.pro'
+        buildConfigField 'String', 'GOOGLE_AD_RUNTIME', "\"${project.googleAdRuntime}\""
     }
     tasks.matching { task ->
         task.name == "pre${flavorName.capitalize()}DebugBuild" ||
                 task.name == "pre${flavorName.capitalize()}ReleaseBuild"
     }.configureEach {
         dependsOn businessSources
+        if (useGoogleImaRuntime) {
+            dependsOn imaChannelSources
+        }
     }
     androidComponents.onVariants(androidComponents.selector().withFlavor('ad', flavorName)) { variant ->
-        variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
-                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
-        variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclTrackingVisitorFactory,
-                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
-        variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclFillVisitorFactory,
-                com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
-        variant.instrumentation.setAsmFramesComputationMode(
-                com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+        if (!useGoogleImaRuntime) {
+            variant.instrumentation.transformClassesWith(com.smart.lsap.TclExperimentVisitorFactory,
+                    com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+            variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclTrackingVisitorFactory,
+                    com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+            variant.instrumentation.transformClassesWith(com.smart.lsap.GoogleTclFillVisitorFactory,
+                    com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+            variant.instrumentation.setAsmFramesComputationMode(
+                    com.android.build.api.instrumentation.FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
+        }
+    }
+}
+
+if (useGoogleImaRuntime) {
+    android.sourceSets.maybeCreate('google_ad_tv_desktop_ambientlightDebug').with {
+        manifest.srcFile 'src/googleImaRuntimeDebug/AndroidManifest.xml'
+        java.srcDirs = ['src/googleImaRuntimeDebug/java']
+        kotlin.srcDirs = ['src/googleImaRuntimeDebug/java']
+    }
+    android.sourceSets.maybeCreate('testGoogle_ad_tv_desktop_ambientlight').with {
+        java.srcDirs = ['src/testGoogleImaRuntime/java']
+        kotlin.srcDirs = ['src/testGoogleImaRuntime/java']
     }
 }

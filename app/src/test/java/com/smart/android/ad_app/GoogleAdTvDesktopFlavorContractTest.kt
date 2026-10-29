@@ -11,6 +11,7 @@ class GoogleAdTvDesktopFlavorContractTest {
     @Test
     fun `channel capabilities should remain independent`() {
         assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertFalse(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE, "ima"))
         assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_GOOGLE))
         assertTrue(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_GOOGLE))
 
@@ -41,9 +42,11 @@ class GoogleAdTvDesktopFlavorContractTest {
 
         assertTrue(buildGradle.contains("google_ad_tv_desktop {"))
         val sharedBuild = readProjectFile("app/gradle/google-url-tcl.gradle")
-        assertTrue(sharedBuild.contains("'src/google_ad_tv_desktop/java'"))
+        assertTrue(sharedBuild.contains("from('src/google_ad_tv_desktop/java')"))
         assertTrue(sharedBuild.contains("'src/googleUrlIndependent/java'"))
-        assertFalse(sharedBuild.contains("'src/googleUrlIma/java'"))
+        assertTrue(sharedBuild.contains("'src/googleImaRuntime/java'"))
+        assertTrue(sharedBuild.contains("prepareGoogleImaChannelSources"))
+        assertTrue(sharedBuild.contains("if (!useGoogleImaRuntime)"))
         assertFalse(sharedBuild.contains("GoogleImaUrlVisitorFactory"))
         assertTrue(sharedBuild.contains("res.srcDirs = ['src/hq008/res', 'src/google_ad_tv_desktop/res']"))
 
@@ -65,10 +68,14 @@ class GoogleAdTvDesktopFlavorContractTest {
         assertTrue(buildGradle.contains("googleAdSigningConfigNames.each { flavorName, signingConfigName ->"))
         assertTrue(buildGradle.contains("withFlavor(\"ad\", flavorName)"))
 
-        assertFalse(buildGradle.contains("androidx.media3:media3-exoplayer-ima"))
         assertFalse(buildGradle.contains("providers.gradleProperty('googleUrlEngine')"))
+        assertTrue(buildGradle.contains("providers.gradleProperty('googleAdRuntime').orElse('independent')"))
+        assertTrue(buildGradle.contains("if (googleAdRuntime == 'independent')"))
+        assertTrue(buildGradle.contains("if (googleAdRuntime == 'ima')"))
         assertTrue(buildGradle.contains("independent-google-tv-url-local-identity-20261025.aar"))
         assertTrue(buildGradle.contains("add(googleAdCommonImplementation.name, project(':ad-sdk-tcl'))"))
+        assertTrue(buildGradle.contains("add(googleAdCommonImplementation.name, project(':ad-sdk-google-ima'))"))
+        assertTrue(File(projectRoot, "ad-sdk-google-ima/build.gradle").exists())
         assertTrue(buildGradle.contains("extendsFrom googleAdCommonImplementation"))
 
         assertTrue(File(projectRoot, "app/signing_files/google_ad_tv_desktop_upload.jks").exists())

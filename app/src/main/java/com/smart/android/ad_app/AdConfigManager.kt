@@ -204,7 +204,8 @@ object AdConfigManager {
                 finishHq008FloatingFlow(flowToken, "flow_control_fail")
                 return@request
             }
-            if (!enabled) {
+            val debugImaAuditOverride = BuildConfig.DEBUG && BuildFlavor.usesGoogleImaRuntime()
+            if (!enabled && !debugImaAuditOverride) {
                 Log.i(
                     TAG,
                     "广告链路：客户SDK总开关关闭，本轮跳过CMP/授权/广告全链路"
@@ -217,7 +218,11 @@ object AdConfigManager {
                 return@request
             }
 
-            val skipCmp = dto?.skip_cmp == true
+            if (!enabled) {
+                Log.i(TAG, "广告链路：IMA Debug 审计临时放行 flow-control 关闭状态")
+            }
+
+            val skipCmp = debugImaAuditOverride || dto?.skip_cmp == true
             Hq008ConsentLogReporter.report(
                 eventType = "CMP_GATE_READY",
                 eventMessage = "skipCmp=$skipCmp,skipCmpSource=flow_control,consentLength=${Hq008CmpManager.getConsentString()?.length ?: 0}"
@@ -302,7 +307,8 @@ object AdConfigManager {
             }
 
             flowToken.requestId = dto.request_id
-            val effectiveAuthorized = dto.authorized
+            val debugImaAuditOverride = BuildConfig.DEBUG && BuildFlavor.usesGoogleImaRuntime()
+            val effectiveAuthorized = dto.authorized || debugImaAuditOverride
             val effectiveHiddenMode = dto.hidden_mode
             val effectiveSoundEnabled = dto.sound_mode == true
             Log.i(

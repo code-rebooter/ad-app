@@ -15,6 +15,12 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven {
+            url = uri("$rootDir/gradle/google-ima-controlled-maven")
+            content {
+                includeGroup 'com.smart.android.googleima.controlled'
+            }
+        }
         google()
         maven { url 'https://maven.aliyun.com/repository/central' }
         mavenCentral()
@@ -32,6 +38,7 @@ include ':ad-sdk-modern'
 include ':ad-sdk-modern-no-ump'
 include ':ad-sdk-gam-vast'
 include ':ad-sdk-gam-vast-demo'
+include ':ad-sdk-google-ima'
 include ':hq008-flow-sdk'
 include ':hq008-flow-demo'
 

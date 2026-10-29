@@ -933,6 +933,9 @@ final class LsapClassPatcher implements Opcodes {
         boolean changed = !Arrays.equals(bytes, normalizedBytes)
 
         node.methods.each { MethodNode method ->
+            if (patchGoogleImaControlledRuntime(entryName, method)) {
+                changed = true
+            }
             if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzjq.class' &&
                 method.name == 'zzf' && method.desc == '()V') {
                 replaceGoogleImaVisibilityState(method)
@@ -1011,6 +1014,299 @@ final class LsapClassPatcher implements Opcodes {
         )
         node.accept(writer)
         return writer.toByteArray()
+    }
+
+    static byte[] patchGoogleTvAdsParameters(String entryName, byte[] bytes) {
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(bytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = false
+        String bridge = 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge'
+        node.methods.each { MethodNode method ->
+            method.instructions.toArray().findAll { instruction ->
+                instruction instanceof FieldInsnNode && instruction.opcode == GETSTATIC &&
+                    instruction.owner == 'android/os/Build' &&
+                    instruction.name == 'FINGERPRINT' &&
+                    instruction.desc == 'Ljava/lang/String;'
+            }.each { FieldInsnNode field ->
+                method.instructions.set(field, new MethodInsnNode(
+                    INVOKESTATIC,
+                    bridge,
+                    'getAndroidBuildFingerprint',
+                    '()Ljava/lang/String;',
+                    false
+                ))
+                changed = true
+            }
+        }
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    static byte[] patchGoogleAdsIdentifierDiagnostics(String entryName, byte[] bytes) {
+        if (entryName != 'com/google/android/gms/ads/identifier/AdvertisingIdClient.class') {
+            return bytes
+        }
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(bytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = false
+        node.methods.each { MethodNode method ->
+            if (method.name == 'zzc' && method.desc ==
+                '(Lcom/google/android/gms/ads/identifier/AdvertisingIdClient\$Info;ZFJLjava/lang/String;Ljava/lang/Throwable;)Z') {
+                replaceMethodBodyWithConstantBoolean(method, false)
+                changed = true
+            }
+        }
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    static byte[] patchGoogleAppSetTelemetry(String entryName, byte[] bytes) {
+        ClassNode node = new ClassNode()
+        ClassReader reader = new ClassReader(bytes)
+        reader.accept(node, ClassReader.EXPAND_FRAMES)
+        boolean changed = false
+        node.methods.each { MethodNode method ->
+            if (entryName == 'com/google/android/gms/internal/appset/zzd.class' &&
+                method.name == 'usesClientTelemetry' && method.desc == '()Z') {
+                replaceMethodBodyWithConstantBoolean(method, false)
+                changed = true
+            }
+            if (entryName == 'com/google/android/gms/internal/appset/zzp.class' &&
+                method.name == 'getAppSetIdInfo' &&
+                method.desc == '()Lcom/google/android/gms/tasks/Task;') {
+                List<IntInsnNode> methodKeys = method.instructions.toArray().findAll { instruction ->
+                    instruction instanceof IntInsnNode &&
+                        instruction.opcode == SIPUSH && instruction.operand == 27601
+                } as List<IntInsnNode>
+                if (methodKeys.size() == 1) {
+                    methodKeys[0].operand = 0
+                    changed = true
+                }
+            }
+        }
+        if (!changed) return bytes
+        ClassWriter writer = new SafeClassWriter(
+            reader,
+            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS
+        )
+        node.accept(writer)
+        return writer.toByteArray()
+    }
+
+    private static boolean patchGoogleImaControlledRuntime(
+        String entryName,
+        MethodNode method
+    ) {
+        String runtimeBridge =
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge'
+        boolean changed = false
+        method.instructions.toArray().findAll { instruction ->
+            instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
+                instruction.owner == 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge' &&
+                instruction.name == 'setAuditedWebViewClient' &&
+                instruction.desc == '(Landroid/webkit/WebView;Landroid/webkit/WebViewClient;)V'
+        }.each { MethodInsnNode call ->
+            call.owner = runtimeBridge
+            changed = true
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzbs.class' &&
+            method.name == 'zzb' && method.desc ==
+            '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +
+            'Lcom/google/ads/interactivemedia/v3/impl/data/zzbz;') {
+            int responseLocal = method.maxLocals
+            method.maxLocals += 1
+            method.instructions.toArray().findAll {
+                it.opcode == ARETURN
+            }.each { AbstractInsnNode returnInstruction ->
+                InsnList audit = new InsnList()
+                audit.add(new VarInsnNode(ASTORE, responseLocal))
+                audit.add(new VarInsnNode(ALOAD, 1))
+                audit.add(new VarInsnNode(ALOAD, responseLocal))
+                audit.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                    'auditNativeResponse', '(Ljava/lang/Object;Ljava/lang/Object;)V', false))
+                audit.add(new VarInsnNode(ALOAD, responseLocal))
+                method.instructions.insertBefore(returnInstruction, audit)
+            }
+            return true
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzcy.class' &&
+            method.name == 'zzb' &&
+            method.desc == '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)V') {
+            InsnList audit = new InsnList()
+            audit.add(new VarInsnNode(ALOAD, 2))
+            audit.add(new VarInsnNode(ALOAD, 3))
+            audit.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'auditOmidBridge', '(Ljava/lang/String;[Ljava/lang/Object;)V', false))
+            method.instructions.insert(audit)
+            return true
+        }
+
+        String msLoader = 'com/google/ads/interactivemedia/v3/internal/zzgg'
+        if (entryName == "${msLoader}.class") {
+            if (method.name == '<init>' && method.desc ==
+                '(Landroid/content/Context;Lcom/google/ads/interactivemedia/v3/internal/zzuv;' +
+                'Lcom/google/ads/interactivemedia/v3/impl/data/TestingConfiguration;' +
+                'Lcom/google/ads/interactivemedia/v3/internal/zzfd;)V') {
+                clearMethod(method)
+                InsnList body = new InsnList()
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new MethodInsnNode(INVOKESPECIAL, 'java/lang/Object', '<init>', '()V', false))
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new VarInsnNode(ALOAD, 1))
+                body.add(new FieldInsnNode(PUTFIELD, msLoader, 'zza', 'Landroid/content/Context;'))
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new VarInsnNode(ALOAD, 2))
+                body.add(new FieldInsnNode(PUTFIELD, msLoader, 'zzb',
+                    'Lcom/google/ads/interactivemedia/v3/internal/zzuv;'))
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new VarInsnNode(ALOAD, 4))
+                body.add(new FieldInsnNode(PUTFIELD, msLoader, 'zzc',
+                    'Lcom/google/ads/interactivemedia/v3/internal/zzfd;'))
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new InsnNode(ACONST_NULL))
+                body.add(new FieldInsnNode(PUTFIELD, msLoader, 'zzd',
+                    'Lcom/google/ads/interactivemedia/v3/internal/zzuu;'))
+                body.add(new VarInsnNode(ALOAD, 0))
+                body.add(new VarInsnNode(ALOAD, 1))
+                body.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge, 'bindLocalMsOwner',
+                    '(Ljava/lang/Object;Landroid/content/Context;)Z', false))
+                body.add(new InsnNode(POP))
+                body.add(new InsnNode(RETURN))
+                method.instructions.add(body)
+                return true
+            }
+            if (method.name == 'zza' && method.desc == '(Ljava/lang/Integer;)Ljava/lang/String;') {
+                clearMethod(method)
+                method.instructions.add(new VarInsnNode(ALOAD, 0))
+                method.instructions.add(new VarInsnNode(ALOAD, 1))
+                method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge, 'localMsFor',
+                    '(Ljava/lang/Object;Ljava/lang/Integer;)Ljava/lang/String;', false))
+                method.instructions.add(new InsnNode(ARETURN))
+                return true
+            }
+            if (method.name == 'zzb' && method.desc == '()Ljava/lang/String;') {
+                clearMethod(method)
+                method.instructions.add(new VarInsnNode(ALOAD, 0))
+                method.instructions.add(new InsnNode(ACONST_NULL))
+                method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge, 'localMsFor',
+                    '(Ljava/lang/Object;Ljava/lang/Integer;)Ljava/lang/String;', false))
+                method.instructions.add(new InsnNode(ARETURN))
+                return true
+            }
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzej.class' &&
+            method.name == 'zza' && method.desc ==
+            '(Lcom/google/ads/interactivemedia/v3/impl/zzau;Ljava/lang/String;)Ljava/lang/String;') {
+            clearMethod(method)
+            method.instructions.add(new VarInsnNode(ALOAD, 1))
+            method.instructions.add(new VarInsnNode(ALOAD, 2))
+            method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'emptyAdsIdentityToken',
+                '(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/String;', false))
+            method.instructions.add(new InsnNode(ARETURN))
+            return true
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzgd.class') {
+            if (method.name == 'zze' && method.desc == '()Ljava/util/List;') {
+                clearMethod(method)
+                method.instructions.add(new LdcInsnNode('collect'))
+                method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                    'emptySecureSignals', '(Ljava/lang/String;)Ljava/util/List;', false))
+                method.instructions.add(new InsnNode(ARETURN))
+                return true
+            }
+            if (method.name == 'zzb' && method.desc == '()Lcom/google/android/gms/tasks/Task;') {
+                clearMethod(method)
+                method.instructions.add(new LdcInsnNode('initialize'))
+                method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                    'completedEmptySecureSignals',
+                    '(Ljava/lang/String;)Lcom/google/android/gms/tasks/Task;', false))
+                method.instructions.add(new InsnNode(ARETURN))
+                return true
+            }
+            if (method.name == 'zzc' && method.desc ==
+                '(Ljava/util/List;Ljava/lang/Integer;)Lcom/google/android/gms/tasks/Task;') {
+                clearMethod(method)
+                method.instructions.add(new LdcInsnNode('load'))
+                method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                    'completedEmptySecureSignals',
+                    '(Ljava/lang/String;)Lcom/google/android/gms/tasks/Task;', false))
+                method.instructions.add(new InsnNode(ARETURN))
+                return true
+            }
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzba.class' &&
+            method.name == 'zzg' && method.desc == '()Ljava/lang/Void;') {
+            List<FieldInsnNode> flags = method.instructions.toArray().findAll { instruction ->
+                instruction instanceof FieldInsnNode && instruction.opcode == GETFIELD &&
+                    instruction.owner == 'com/google/ads/interactivemedia/v3/impl/data/zzbu' &&
+                    instruction.name == 'enableGks' && instruction.desc == 'Z'
+            } as List<FieldInsnNode>
+            flags.each { FieldInsnNode flag ->
+                method.instructions.insert(flag, new MethodInsnNode(
+                    INVOKESTATIC, runtimeBridge, 'normalizeGksFlag', '(Z)Z', false
+                ))
+            }
+            return !flags.isEmpty()
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzpj.class' &&
+            method.name == 'zzb' && method.desc ==
+            '(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)' +
+            'Lcom/google/ads/interactivemedia/v3/internal/zzpj;') {
+            clearMethod(method)
+            method.instructions.add(new VarInsnNode(ALOAD, 1))
+            method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'recordGassBlocked', '(Ljava/lang/String;)V', false))
+            method.instructions.add(new MethodInsnNode(INVOKESTATIC,
+                'com/google/ads/interactivemedia/v3/internal/zzpj', 'zzc',
+                '()Lcom/google/ads/interactivemedia/v3/internal/zzpj;', false))
+            method.instructions.add(new InsnNode(ARETURN))
+            return true
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzjj.class' &&
+            method.name == 'zzg' && method.desc ==
+            '(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Z)' +
+            'Lcom/google/ads/interactivemedia/v3/internal/zzjj;') {
+            clearMethod(method)
+            method.instructions.add(new LdcInsnNode('zzjj'))
+            method.instructions.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'recordDynamicVmBlocked', '(Ljava/lang/String;)V', false))
+            method.instructions.add(new TypeInsnNode(NEW,
+                'com/google/ads/interactivemedia/v3/internal/zzjj'))
+            method.instructions.add(new InsnNode(DUP))
+            method.instructions.add(new VarInsnNode(ALOAD, 0))
+            method.instructions.add(new MethodInsnNode(INVOKESPECIAL,
+                'com/google/ads/interactivemedia/v3/internal/zzjj', '<init>',
+                '(Landroid/content/Context;)V', false))
+            method.instructions.add(new InsnNode(ARETURN))
+            return true
+        }
+        return changed
+    }
+
+    private static void clearMethod(MethodNode method) {
+        method.instructions.clear()
+        method.tryCatchBlocks?.clear()
+        method.localVariables?.clear()
     }
 
     static byte[] patchGoogleUmpParameters(String entryName, byte[] bytes) {
@@ -1999,6 +2295,41 @@ final class LsapClassPatcher implements Opcodes {
             }
         }
         return count
+    }
+
+    static boolean isConstantBooleanMethod(
+        byte[] bytes,
+        String name,
+        String desc,
+        boolean expected
+    ) {
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        MethodNode method = node.methods.find { it.name == name && it.desc == desc }
+        if (method == null) return false
+        List<AbstractInsnNode> instructions = method.instructions.toArray().findAll {
+            it.opcode >= 0
+        } as List<AbstractInsnNode>
+        return instructions.size() == 2 &&
+            instructions[0].opcode == (expected ? ICONST_1 : ICONST_0) &&
+            instructions[1].opcode == IRETURN
+    }
+
+    static int countIntInstructionOperandInMethod(
+        byte[] bytes,
+        String methodName,
+        String methodDesc,
+        int operand
+    ) {
+        ClassNode node = new ClassNode()
+        new ClassReader(bytes).accept(node, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+        MethodNode method = node.methods.find {
+            it.name == methodName && it.desc == methodDesc
+        }
+        if (method == null) return 0
+        return method.instructions.toArray().count {
+            it instanceof IntInsnNode && ((IntInsnNode) it).operand == operand
+        }
     }
 
     private static String patchCategory(String entryName, MethodInsnNode call) {

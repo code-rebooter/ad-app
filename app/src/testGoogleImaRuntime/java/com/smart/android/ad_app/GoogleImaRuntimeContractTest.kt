@@ -27,6 +27,10 @@ class GoogleImaRuntimeContractTest {
             "ad-sdk-google-ima/src/main/java/com/smart/android/googleima/internal/" +
                 "GoogleImaRuntimeBridge.java"
         )
+        val sharedIdentity = readProjectFile(
+            "ad-sdk-google-ima/src/main/java/com/smart/android/ad_app/google/ima/local/" +
+                "ImaSharedAdvertisingIdentity.java"
+        )
         val patcher = readProjectFile(
             "buildSrc/src/main/groovy/com/smart/lsap/LsapClassPatcher.groovy"
         )
@@ -58,6 +62,17 @@ class GoogleImaRuntimeContractTest {
         assertTrue(runtimeBridge.contains("injectFallbackWebViewNetworkAudit"))
         assertTrue(runtimeBridge.contains("auditOmidBridge"))
         assertTrue(runtimeBridge.contains("setAuditedWebViewClient"))
+        assertTrue(runtimeBridge.contains("getAdvertisingIdInfoForUrl"))
+        assertTrue(runtimeBridge.contains("getAdvertisingIdInfoForV2"))
+        assertTrue(runtimeBridge.contains("shouldCollectAppSet"))
+        assertTrue(runtimeBridge.contains("source=shared_local"))
+        assertTrue(runtimeBridge.contains("source=tcl_persisted"))
+
+        assertTrue(sharedIdentity.contains("independent_local_adid_settings_v2"))
+        assertTrue(sharedIdentity.contains("independent_local_per_app_lat_v1"))
+        assertTrue(sharedIdentity.contains("google_tcl_ad"))
+        assertTrue(sharedIdentity.contains("TCL_AID = \"aid\""))
+        assertTrue(sharedIdentity.contains("UUID.randomUUID().toString()"))
 
         assertTrue(patcher.contains("patchGoogleAdsIdentifierDiagnostics"))
         assertTrue(patcher.contains("patchGoogleAppSetTelemetry"))
@@ -65,6 +80,9 @@ class GoogleImaRuntimeContractTest {
         assertTrue(patcher.contains("instruction.operand == 27601"))
         assertTrue(patcher.contains("auditNativeResponse"))
         assertTrue(patcher.contains("auditOmidBridge"))
+        assertTrue(patcher.contains("getAdvertisingIdInfoForUrl"))
+        assertTrue(patcher.contains("getAdvertisingIdInfoForV2"))
+        assertTrue(patcher.contains("shouldCollectAppSet"))
 
         assertTrue(auditReporter.contains("IMA_RUNTIME_AUDIT"))
         assertTrue(auditReporter.contains("verification_scripts"))

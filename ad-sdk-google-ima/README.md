@@ -10,6 +10,11 @@
 独立诊断和客户端 telemetry 被关闭。TV Ads 保留原收集规则，只将补丁涉及的
 固件指纹输入统一交给宿主身份策略修正。
 
+Advertising ID 先读取原版 GMS 值；空值、全零或读取失败时，依次复用 independent
+方案的现有本地身份存储和 `google_tcl_ad/aid`。三层身份都按 IMA 原版 `adid`
+类型进入普通 URL 与 V2 信号。本地兜底生效的本轮不再获取 AppSet，避免同时生成
+`rdid` 与 `pvid/pvid_s`。
+
 `preBuild` 会从固定原版 SHA 重新生成四个补丁 AAR，并与
 `gradle/google-ima-controlled-maven` 内的实际依赖逐个校验 SHA；两者不一致时
 构建直接失败。

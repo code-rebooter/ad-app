@@ -125,7 +125,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         List<String> metadataLines
         if (targetFlavor.get() == 'google_ima') {
             metadataLines = [
-                'patchVersion=google-ima-parameter-normalization-6',
+                'patchVersion=google-ima-parameter-normalization-7',
                 'visibilityPolicy=ignore-ima-view-visibility-gate',
                 'viewabilityPolicy=ignore-ima-size-threshold-gate',
                 'nativeViewabilityPolicy=force-ima-view-visible-bounds',
@@ -138,6 +138,8 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                 'nativeNetworkPolicy=force-local-no-gks-service',
                 'secureSignalsPolicy=block-dynamic-core-adapters',
                 'gassClearcutPolicy=disabled',
+                'advertisingIdPolicy=gms-then-shared-local-then-tcl-persisted',
+                'appSetPolicy=skip-when-local-advertising-id-fallback-is-active',
                 'vastAuditPolicy=capture-native-xhr-root-and-wrapper-responses',
                 'verificationAuditPolicy=observe-webview-resource-loads-and-errors',
                 'omidAuditPolicy=observe-js-bridge-session-and-view-hierarchy-calls',
@@ -232,9 +234,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 40) {
+        if (modifiedClasses != 42) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 40"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 42"
             )
         }
 
@@ -554,6 +556,38 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(omidBridgeAudit, runtimeBridge, 'auditOmidBridge',
             '(Ljava/lang/String;[Ljava/lang/Object;)V', 1,
             'IMA OMID JavaScript bridge audit')
+
+        byte[] ordinaryIdentity = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzez.class'
+        )
+        requireCallCount(ordinaryIdentity, runtimeBridge, 'getAdvertisingIdInfoForUrl',
+            '(Landroid/content/Context;)' +
+            'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;',
+            1, 'IMA ordinary Advertising ID fallback')
+        requireCallCount(ordinaryIdentity,
+            'com/google/android/gms/ads/identifier/AdvertisingIdClient',
+            'getAdvertisingIdInfo',
+            '(Landroid/content/Context;)' +
+            'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;',
+            0, 'IMA ordinary direct GMS Advertising ID read')
+        requireCallCount(ordinaryIdentity, runtimeBridge, 'shouldCollectAppSet',
+            '(Z)Z', 1, 'IMA AppSet fallback suppression')
+
+        byte[] v2Identity = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/internal/zzok.class'
+        )
+        requireCallCount(v2Identity, runtimeBridge, 'getAdvertisingIdInfoForV2',
+            '(Landroid/content/Context;)' +
+            'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;',
+            1, 'IMA V2 Advertising ID fallback')
+        requireCallCount(v2Identity,
+            'com/google/android/gms/ads/identifier/AdvertisingIdClient',
+            'getAdvertisingIdInfo',
+            '(Landroid/content/Context;)' +
+            'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;',
+            0, 'IMA V2 direct GMS Advertising ID read')
     }
 
     private static void verifyGoogleTvAdsPatch(

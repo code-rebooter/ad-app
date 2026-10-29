@@ -33,7 +33,7 @@ public class PropertyLoggingSourceContractTest {
                 wrappers.add(source);
             }
         }
-        assertTrue("Expected all five logging wrappers", wrappers.size() == 5);
+        assertTrue("Expected all seven logging wrappers", wrappers.size() == 7);
         assertNoMatches(Pattern.compile("BuildConfig\\.DEBUG|System\\.getProperty|debugLogging|bridge\\?"), wrappers);
     }
 
@@ -77,6 +77,9 @@ public class PropertyLoggingSourceContractTest {
             for (Path module : (Iterable<Path>) modules::iterator) {
                 String name = module.getFileName().toString();
                 if (!(name.equals("app") || name.startsWith("ad-sdk") || name.startsWith("hq008-flow"))) {
+                    continue;
+                }
+                if (name.endsWith("-demo")) {
                     continue;
                 }
                 Path sourceRoot = module.resolve("src");

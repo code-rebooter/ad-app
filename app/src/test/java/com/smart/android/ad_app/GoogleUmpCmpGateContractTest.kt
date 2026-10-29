@@ -9,33 +9,28 @@ import java.io.File
 class GoogleUmpCmpGateContractTest {
 
     @Test
-    fun `google ump gate should not request remote consent popup after UMP already allows ads`() {
+    fun `google ump gate should only skip remote popup when the stored state is terminal`() {
         val source = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/Hq008CmpManager.kt")
-        val authorizedBlock = source
-            .substringAfter("if (result.canRequestAds) {")
-            .substringBefore("return@requestConsent")
 
         assertTrue(
-            "Authorized UMP state should be reported as a local skip instead of entering remote popup flow",
-            authorizedBlock.contains("UMP_GATE_SKIP_REMOTE")
+            "A previously applied accepted action should skip the remote popup",
+            source.contains("if (result.canRequestAds && isAcceptedAction(lastAppliedAction))")
         )
-        assertFalse(
-            "Authorized UMP state must not request consent-popup only because privacy options are required",
-            authorizedBlock.contains("requestRemoteDecision(")
+        assertTrue(
+            "A state without required privacy options should skip the remote popup",
+            source.contains("if (result.canRequestAds && result.privacyOptionsStatus != \"REQUIRED\")")
         )
-        assertFalse(
-            "privacy options availability is not a consent-popup eligibility signal",
-            source.contains("reason = \"privacy_options_required\"")
+        assertTrue(
+            "Required privacy options should still enter the remote decision flow",
+            source.contains("reason = if (result.canRequestAds) \"privacy_options_required\" else \"consent_required\"")
         )
     }
 
     @Test
     fun `google ump gate should reuse pending terminal decision before requesting remote popup again`() {
         val source = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/Hq008CmpManager.kt")
-        val consentRequiredBlock = source
-            .substringAfter("if (!result.formAvailable) {")
-            .substringAfter("return@requestConsent")
-            .substringBefore("requestRemoteDecision(")
+        val pendingRead = source.indexOf("val pendingAction = getPendingRemoteAction(appContext)")
+        val remoteRequest = source.indexOf("requestRemoteDecision(")
 
         assertTrue(
             "Terminal remote decisions should be kept while local UMP consent is still missing",
@@ -43,11 +38,11 @@ class GoogleUmpCmpGateContractTest {
         )
         assertTrue(
             "A pending terminal decision should be retried locally before asking consent-popup again",
-            consentRequiredBlock.contains("getPendingRemoteAction(appContext)")
+            pendingRead >= 0 && pendingRead < remoteRequest
         )
         assertTrue(
             "Pending retries should be visible in consent diagnostics",
-            consentRequiredBlock.contains("UMP_DECISION_RETRY_PENDING")
+            source.contains("UMP_DECISION_RETRY_PENDING")
         )
         assertTrue(
             "Pending terminal action should be persisted before UMP execution",
@@ -60,15 +55,15 @@ class GoogleUmpCmpGateContractTest {
     }
 
     @Test
-    fun `google ump manager should not rewrite stored consent through privacy options`() {
+    fun `google ump manager should apply explicit terminal decisions through privacy options`() {
         val source = readProjectFile("app/src/google_ad_tv_desktop/java/com/smart/android/ad_app/GoogleUmpConsentManager.kt")
 
-        assertFalse(
-            "Stored UMP consent should be returned as-is instead of reopening privacy options",
+        assertTrue(
+            "Explicit accepted or rejected actions should be applied to an existing consent state",
             source.contains("showSilentPrivacyOptionsForm(activity, action)")
         )
-        assertFalse(
-            "privacy options availability is not a trigger for silent consent rewriting",
+        assertTrue(
+            "Privacy options availability should gate stored-consent rewriting",
             source.contains("shouldApplyStoredConsentViaPrivacyOptions(")
         )
     }

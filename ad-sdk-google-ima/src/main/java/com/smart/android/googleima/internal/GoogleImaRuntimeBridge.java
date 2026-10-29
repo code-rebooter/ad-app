@@ -16,8 +16,10 @@ import androidx.webkit.WebViewFeature;
 
 import com.google.ads.interactivemedia.v3.impl.data.zzby;
 import com.google.ads.interactivemedia.v3.impl.data.zzbz;
+import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
+import com.smart.android.ad_app.google.ima.local.ImaSharedAdvertisingIdentity;
 import com.smart.android.ad_app.google.ima.local.signal.PrimitiveObserver;
 import com.smart.android.ad_app.google.ima.local.signal.android.ImaLocalFlagsProvider;
 import com.smart.android.ad_app.google.ima.local.signal.android.ImaLocalMsOwner;
@@ -51,6 +53,7 @@ public final class GoogleImaRuntimeBridge {
             "com.smart.android.ad_app.Hq008XhsxAarRuntimeBridge";
     private static final Map<Object, Context> MS_OWNERS = new WeakHashMap<>();
     private static final Map<WebView, Boolean> AUDITED_WEB_VIEWS = new WeakHashMap<>();
+    private static final ThreadLocal<Boolean> URL_IDENTITY_FALLBACK = new ThreadLocal<>();
     private static final Object AUDIT_LOCK = new Object();
     private static final String AUDIT_JS_BRIDGE = "__smartImaAudit";
     private static final String AUDIT_NETWORK_SCRIPT = """
@@ -151,6 +154,67 @@ public final class GoogleImaRuntimeBridge {
     );
 
     private GoogleImaRuntimeBridge() {}
+
+    @Keep
+    public static AdvertisingIdClient.Info getAdvertisingIdInfoForUrl(Context context) {
+        AdvertisingResolution resolution = resolveAdvertisingId(context);
+        URL_IDENTITY_FALLBACK.set(resolution.localFallback);
+        return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
+    }
+
+    @Keep
+    public static AdvertisingIdClient.Info getAdvertisingIdInfoForV2(Context context) {
+        AdvertisingResolution resolution = resolveAdvertisingId(context);
+        return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
+    }
+
+    @Keep
+    public static boolean shouldCollectAppSet(boolean configured) {
+        boolean localFallback = Boolean.TRUE.equals(URL_IDENTITY_FALLBACK.get());
+        URL_IDENTITY_FALLBACK.remove();
+        return configured && !localFallback;
+    }
+
+    private static AdvertisingResolution resolveAdvertisingId(Context context) {
+        boolean lastKnownLat = false;
+        try {
+            AdvertisingIdClient.Info original =
+                    AdvertisingIdClient.getAdvertisingIdInfo(context);
+            if (original != null) {
+                lastKnownLat = original.isLimitAdTrackingEnabled();
+                if (ImaSharedAdvertisingIdentity.isUsable(original.getId())) {
+                    PropertyLog.i(TAG, "control=advertisingId source=gms");
+                    return new AdvertisingResolution(
+                            original.getId(),
+                            lastKnownLat,
+                            false
+                    );
+                }
+            }
+        } catch (Exception | LinkageError failure) {
+            PropertyLog.w(TAG, "control=advertisingId source=gms result=unavailable", failure);
+        }
+
+        try {
+            ImaSharedAdvertisingIdentity.AdvertisingInfo local =
+                    ImaSharedAdvertisingIdentity.readAdvertising(context);
+            lastKnownLat = local.limitedAdTracking;
+            if (ImaSharedAdvertisingIdentity.isUsable(local.id)) {
+                PropertyLog.i(TAG, "control=advertisingId source=shared_local");
+                return new AdvertisingResolution(local.id, lastKnownLat, true);
+            }
+        } catch (RuntimeException | LinkageError failure) {
+            PropertyLog.w(
+                    TAG,
+                    "control=advertisingId source=shared_local result=unavailable",
+                    failure
+            );
+        }
+
+        String tclId = ImaSharedAdvertisingIdentity.readOrCreateTclId(context);
+        PropertyLog.i(TAG, "control=advertisingId source=tcl_persisted");
+        return new AdvertisingResolution(tclId, lastKnownLat, true);
+    }
 
     @Keep
     public static void beginAudit(GoogleImaAdListener listener, String adTagUrl) {
@@ -559,6 +623,22 @@ public final class GoogleImaRuntimeBridge {
 
         AuditState(GoogleImaAdListener listener) {
             this.listener = listener == null ? new GoogleImaAdListener() {} : listener;
+        }
+    }
+
+    private static final class AdvertisingResolution {
+        final String id;
+        final boolean limitedAdTracking;
+        final boolean localFallback;
+
+        AdvertisingResolution(
+                String actualId,
+                boolean actualLimitedAdTracking,
+                boolean actualLocalFallback
+        ) {
+            id = actualId;
+            limitedAdTracking = actualLimitedAdTracking;
+            localFallback = actualLocalFallback;
         }
     }
 

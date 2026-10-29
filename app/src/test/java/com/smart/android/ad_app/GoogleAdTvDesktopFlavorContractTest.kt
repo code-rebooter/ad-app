@@ -10,7 +10,7 @@ class GoogleAdTvDesktopFlavorContractTest {
 
     @Test
     fun `channel capabilities should remain independent`() {
-        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE))
+        assertTrue(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE, "independent"))
         assertFalse(BuildFlavor.usesTclRuntime(BuildFlavor.CHANNEL_TYPE_GOOGLE, "ima"))
         assertTrue(BuildFlavor.needsIdentityPatch(BuildFlavor.CHANNEL_TYPE_GOOGLE))
         assertTrue(BuildFlavor.usesGoogleConsent(BuildFlavor.CHANNEL_TYPE_GOOGLE))

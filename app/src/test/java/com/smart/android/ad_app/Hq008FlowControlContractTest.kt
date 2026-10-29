@@ -16,7 +16,10 @@ class Hq008FlowControlContractTest {
 
         assertTrue("hq008 浮窗广告入口应先请求 flow-control", adConfigManagerSource.contains("Hq008SdkFlowControlClient.request"))
         assertTrue("flow-control 关闭时应跳过整套客户流程", adConfigManagerSource.contains("客户SDK总开关关闭，本轮跳过CMP/授权/广告全链路"))
-        assertTrue("flow-control 结果应驱动 CMP 是否跳过", adConfigManagerSource.contains("val skipCmp = dto?.skip_cmp == true"))
+        assertTrue(
+            "flow-control 结果应驱动 CMP 是否跳过",
+            adConfigManagerSource.contains("val skipCmp = debugImaAuditOverride || dto?.skip_cmp == true")
+        )
         assertFalse("CMP 是否跳过不应再由本地渠道分类静态决定", adConfigManagerSource.contains("val skipCmp = BuildFlavor."))
         assertTrue("flow-control client 应请求 sdk/flow-control 接口", flowControlClientSource.contains("api/v2/ad/sdk/flow-control"))
         assertTrue("flow-control 响应应解析 popup_log_enabled 字段", flowControlClientSource.contains("@field:SerializedName(\"popup_log_enabled\")"))

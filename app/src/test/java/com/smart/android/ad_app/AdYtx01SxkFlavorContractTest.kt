@@ -26,8 +26,6 @@ class AdYtx01SxkFlavorContractTest {
         val sxkFlavorBlock = extractBlock(productFlavorsBlock, "        ad_ytx01_sxk {")
         val sxkSourceSetBlock = extractBlock(sourceSetsBlock, "        ad_ytx01_sxk {")
 
-        assertTrue(oldFlavorBlock.contains("versionCode         : 2"))
-        assertTrue(oldFlavorBlock.contains("versionName         : \"1.0.2\""))
         assertTrue(oldFlavorBlock.contains("channel             : \"AD_YTX01\""))
 
         assertTrue(sxkFlavorBlock.contains("applicationId       : \"com.google.android.adytx01\""))

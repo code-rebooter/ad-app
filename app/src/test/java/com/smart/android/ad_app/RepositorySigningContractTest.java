@@ -89,12 +89,10 @@ public class RepositorySigningContractTest {
         String flavor = buildGradle.substring(flavorStart, flavorEnd);
         assertTrue(flavor.contains("signingConfigs.localVideoPlayerRelease"));
 
-        int debugOverrideStart = buildGradle.indexOf(
-                "onVariants(selector().withBuildType(\"debug\").withFlavor(\"ad\", \"google_ad_tv_desktop_v260904_1\"))");
-        assertTrue("Missing customer debug signing override", debugOverrideStart >= 0);
-        int debugOverrideEnd = buildGradle.indexOf("\n    }", debugOverrideStart);
-        String debugOverride = buildGradle.substring(debugOverrideStart, debugOverrideEnd);
-        assertTrue(debugOverride.contains("getByName(\"localVideoPlayerRelease\")"));
+        assertTrue("Missing shared Google debug signing override",
+                buildGradle.contains("googleAdSigningConfigNames.each { flavorName, signingConfigName ->"));
+        assertTrue("Shared Google override must use each flavor's configured signing key",
+                buildGradle.contains("variant.signingConfig.setConfig(android.signingConfigs.getByName(signingConfigName))"));
     }
 
     private String readBuildGradle() throws Exception {

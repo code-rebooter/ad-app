@@ -4,15 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class Hq008ApiRequestFieldsTest {
-    @Test fun `Google channel types send host and execution SDK versions`() {
-        for (channelType in listOf(BuildFlavor.CHANNEL_TYPE_GOOGLE)) {
-            val fields = Hq008ApiRequestFields.fields(channelType, "host-version") { "actual-android-id" }
-            assertEquals("actual-android-id", fields["androidid"])
+    @Test fun `Google channel only sends TCL versions when the selected runtime uses TCL`() {
+        val channelType = BuildFlavor.CHANNEL_TYPE_GOOGLE
+        val fields = Hq008ApiRequestFields.fields(channelType, "host-version") { "actual-android-id" }
+        assertEquals("actual-android-id", fields["androidid"])
+        if (BuildFlavor.usesTclRuntime(channelType)) {
             assertEquals("host-version", fields["ad_version_name"])
             assertEquals("2.8.02", fields["sdk_version"])
-            assertFalse(fields.containsKey("rdid"))
-            assertFalse(fields.containsKey("android_id"))
+        } else {
+            assertFalse(fields.containsKey("ad_version_name"))
+            assertFalse(fields.containsKey("sdk_version"))
         }
+        assertFalse(fields.containsKey("rdid"))
+        assertFalse(fields.containsKey("android_id"))
     }
 
     @Test fun `all TCL flavors send the host version and actual TCL SDK version`() {

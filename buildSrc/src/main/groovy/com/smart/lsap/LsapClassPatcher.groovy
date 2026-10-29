@@ -1122,6 +1122,58 @@ final class LsapClassPatcher implements Opcodes {
             changed = true
         }
 
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzez.class' &&
+            method.name == 'zza' && method.desc ==
+            '(Lcom/google/ads/interactivemedia/v3/api/BaseRequest;' +
+            'Lcom/google/ads/interactivemedia/v3/internal/zzeu;Ljava/lang/String;)' +
+            'Lcom/google/ads/interactivemedia/v3/impl/data/zzbn;') {
+            method.instructions.toArray().findAll { instruction ->
+                instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
+                    instruction.owner ==
+                        'com/google/android/gms/ads/identifier/AdvertisingIdClient' &&
+                    instruction.name == 'getAdvertisingIdInfo' &&
+                    instruction.desc ==
+                        '(Landroid/content/Context;)' +
+                        'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;'
+            }.each { MethodInsnNode call ->
+                call.owner = runtimeBridge
+                call.name = 'getAdvertisingIdInfoForUrl'
+                changed = true
+            }
+            method.instructions.toArray().findAll { instruction ->
+                instruction instanceof FieldInsnNode && instruction.opcode == GETFIELD &&
+                    instruction.owner == 'com/google/ads/interactivemedia/v3/internal/zzez' &&
+                    instruction.name == 'zzb' && instruction.desc == 'Z'
+            }.each { FieldInsnNode field ->
+                method.instructions.insert(field, new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'shouldCollectAppSet',
+                    '(Z)Z',
+                    false
+                ))
+                changed = true
+            }
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzok.class' &&
+            method.name == 'zzc' && method.desc ==
+            '()Lcom/google/ads/interactivemedia/v3/internal/zzbp;') {
+            method.instructions.toArray().findAll { instruction ->
+                instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
+                    instruction.owner ==
+                        'com/google/android/gms/ads/identifier/AdvertisingIdClient' &&
+                    instruction.name == 'getAdvertisingIdInfo' &&
+                    instruction.desc ==
+                        '(Landroid/content/Context;)' +
+                        'Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;'
+            }.each { MethodInsnNode call ->
+                call.owner = runtimeBridge
+                call.name = 'getAdvertisingIdInfoForV2'
+                changed = true
+            }
+        }
+
         if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzbs.class' &&
             method.name == 'zzb' && method.desc ==
             '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +

@@ -47,8 +47,8 @@ class AddyHaierLsapChannelContractTest {
 
         assertTrue(jamsBlock.contains("applicationId       : \"com.google.android.addyjams\""))
         assertTrue(jamsBlock.contains("adChannelType      : adChannelTypeLsap"))
-        assertTrue(jamsBlock.contains("versionCode         : 9"))
-        assertTrue(jamsBlock.contains("versionName         : \"1.0.9\""))
+        assertTrue(jamsBlock.contains("versionCode         : 10"))
+        assertTrue(jamsBlock.contains("versionName         : \"1.0.10\""))
         assertTrue(jamsBlock.contains("channel             : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("cType               : \"ADDY_JAMS\""))
         assertTrue(jamsBlock.contains("model               : \"ADDY_JAMS\""))

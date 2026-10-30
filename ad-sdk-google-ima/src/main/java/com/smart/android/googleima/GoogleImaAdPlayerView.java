@@ -194,18 +194,6 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
                     emitAdEventAudit(event, adInfo, "current");
                     emitPlayerSnapshot("player_state", "ima_" + type.name());
                     GoogleImaRuntimeBridge.auditImaMeasurementTerminal(type.name());
-                    if (!GoogleImaRuntimeBridge.isCurrentImaMeasurementReady()) {
-                        Map<String, String> details = new LinkedHashMap<>();
-                        details.put("ima_started", Boolean.toString(
-                                GoogleImaRuntimeBridge.hasCurrentImaStarted()));
-                        details.put("omid_started", "false");
-                        failOnce(new GoogleImaPlaybackError(
-                                GoogleImaPlaybackError.CATEGORY_INTERNAL,
-                                "ima_measurement_handshake_failed",
-                                "IMA completed without STARTED and OM session",
-                                details));
-                        return;
-                    }
                     if (currentAdStarted) handleCurrentAdTerminal(event, adInfo, type.name());
                     else failOnce(GoogleImaPlaybackError.internal("ad_completed_before_start"));
                 } else if (type == AdEvent.AdEventType.ALL_ADS_COMPLETED
@@ -226,12 +214,6 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
                     emitPlayerSnapshot("player_state", "ima_" + type.name());
                     if (currentAdStarted) handleCurrentAdTerminal(event, adInfo, type.name());
                     else failOnce(GoogleImaPlaybackError.internal("ad_skipped_before_start"));
-                } else if (type == AdEvent.AdEventType.FIRST_QUARTILE) {
-                    if (!GoogleImaRuntimeBridge.hasCurrentImaStarted()) {
-                        GoogleImaRuntimeBridge.requestImaCoreStartRecovery(
-                                "first_quartile_without_started");
-                    }
-                    emitAdEventAudit(event, resolveAdInfo(event, false), "current");
                 } else {
                     emitAdEventAudit(event, resolveAdInfo(event, false), "current");
                 }
@@ -328,10 +310,6 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
                 || adInstanceTracker.isTerminal(adInfo.getInstanceId())) {
             return;
         }
-        GoogleImaRuntimeBridge.markImaMediaPlaybackEvidence(
-                trigger,
-                player == null ? -1L : player.getCurrentPosition(),
-                player == null ? -1L : player.getDuration());
         GoogleImaPlaybackStartGate.Decision decision =
                 playbackStartGate.onMediaPlaybackObserved();
         if (decision == GoogleImaPlaybackStartGate.Decision.IGNORE) return;

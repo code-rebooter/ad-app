@@ -4,6 +4,7 @@ import com.google.common.io.BaseEncoding
 import com.google.gson.JsonParser
 import com.smart.android.googleima.GoogleImaAuditEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -629,66 +630,58 @@ class GoogleImaRuntimeAuditReporterTest {
     }
 
     @Test
-    fun `ima start handshake remains inspectable through omid readiness`() {
-        val reporter = GoogleImaRuntimeAuditReporter("request-handshake")
+    fun `ima measurement state remains passive and inspectable`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-measurement")
         reporter.record(
             event(
-                "ima_start_handshake",
+                "ima_measurement_state",
                 10L,
                 mapOf(
-                    "phase" to "video_ad_play",
-                    "trigger" to "",
-                    "core_start_send_count" to "0",
-                    "ima_started" to "false",
+                    "phase" to "ima_started",
+                    "trigger" to "ad_event_started",
+                    "terminal_event" to "",
+                    "ima_started" to "true",
                     "omid_started" to "false",
-                    "measurement_ready" to "false",
-                    "last_progress_seconds" to "-1.0",
-                    "last_duration_seconds" to "-1.0"
+                    "measurement_complete" to "false"
                 )
             )
         )
         reporter.record(
             event(
-                "ima_start_handshake",
+                "ima_measurement_state",
                 20L,
-                mapOf(
-                    "phase" to "core_start_recovery_requested",
-                    "trigger" to "first_quartile_without_started",
-                    "core_start_send_count" to "1",
-                    "ima_started" to "false",
-                    "omid_started" to "false",
-                    "measurement_ready" to "false",
-                    "last_progress_seconds" to "4.0",
-                    "last_duration_seconds" to "16.0"
-                )
-            )
-        )
-        reporter.record(
-            event(
-                "ima_start_handshake",
-                30L,
                 mapOf(
                     "phase" to "omid_session_started",
                     "trigger" to "",
-                    "core_start_send_count" to "2",
+                    "terminal_event" to "",
                     "ima_started" to "true",
                     "omid_started" to "true",
-                    "measurement_ready" to "true",
-                    "last_progress_seconds" to "4.2",
-                    "last_duration_seconds" to "16.0"
+                    "measurement_complete" to "true"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "ima_measurement_state",
+                30L,
+                mapOf(
+                    "phase" to "measurement_terminal",
+                    "trigger" to "",
+                    "terminal_event" to "COMPLETED",
+                    "ima_started" to "true",
+                    "omid_started" to "true",
+                    "measurement_complete" to "true"
                 )
             )
         )
 
-        val events = buildSummary(reporter)["ima_playback_audit"].asJsonObject
-            .getAsJsonArray("start_handshake_events")
+        val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+        val events = playback.getAsJsonArray("measurement_state_events")
         assertEquals(3, events.size())
-        assertEquals(
-            "first_quartile_without_started",
-            events[1].asJsonObject["trigger"].asString
-        )
-        assertEquals(2, events[2].asJsonObject["core_start_send_count"].asInt)
-        assertTrue(events[2].asJsonObject["measurement_ready"].asBoolean)
+        assertEquals("ad_event_started", events[0].asJsonObject["trigger"].asString)
+        assertEquals("COMPLETED", events[2].asJsonObject["terminal_event"].asString)
+        assertTrue(events[2].asJsonObject["measurement_complete"].asBoolean)
+        assertFalse(playback["measurement_incomplete"].asBoolean)
     }
 
     @Test

@@ -129,42 +129,6 @@ class LsapClassPatcherGoogleImaTest {
     }
 
     @Test
-    void 'native core start audit preserves ad media info before local reuse'() {
-        String entry = 'com/google/ads/interactivemedia/v3/impl/zzbl.class'
-        byte[] patched = LsapClassPatcher.patchGoogleImaParameters(
-            entry,
-            nativeVideoDisplayClass()
-        )
-
-        ClassNode node = new ClassNode()
-        new ClassReader(patched).accept(node, 0)
-        MethodNode method = node.methods.find {
-            it.name == 'zzb' && it.desc ==
-                '(Lcom/google/ads/interactivemedia/v3/impl/JavaScriptMessage$MsgType;' +
-                'Lcom/google/ads/interactivemedia/v3/api/player/AdMediaInfo;' +
-                'Ljava/lang/Object;)V'
-        } as MethodNode
-        MethodInsnNode audit = method.instructions.toArray().find {
-            it instanceof MethodInsnNode &&
-                it.owner == 'com/smart/android/googleima/internal/GoogleImaRuntimeBridge' &&
-                it.name == 'auditImaCoreOutbound'
-        } as MethodInsnNode
-        List<VarInsnNode> auditArguments = []
-        AbstractInsnNode cursor = audit.previous
-        while (cursor != null && auditArguments.size() < 3) {
-            if (cursor instanceof VarInsnNode) auditArguments.add(0, cursor as VarInsnNode)
-            cursor = cursor.previous
-        }
-
-        assertEquals([1, 4, 3], auditArguments.collect { it.var })
-        List<VarInsnNode> firstVariables = method.instructions.toArray()
-            .findAll { it instanceof VarInsnNode }
-            .take(2) as List<VarInsnNode>
-        assertEquals([ALOAD, ASTORE], firstVariables.collect { it.opcode })
-        assertEquals([2, 4], firstVariables.collect { it.var })
-    }
-
-    @Test
     void 'native network request is bound to its audit before async dispatch'() {
         String entry = 'com/google/ads/interactivemedia/v3/impl/zzbs.class'
         byte[] patched = LsapClassPatcher.patchGoogleImaParameters(

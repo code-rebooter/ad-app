@@ -16,7 +16,6 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import com.google.ads.interactivemedia.v3.api.AdsRequest;
-import com.google.ads.interactivemedia.v3.api.player.VideoProgressUpdate;
 import com.google.ads.interactivemedia.v3.impl.data.zzby;
 import com.google.ads.interactivemedia.v3.impl.data.zzbz;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
@@ -327,16 +326,18 @@ public final class GoogleImaRuntimeBridge {
 
     @Keep
     public static AdvertisingIdClient.Info getAdvertisingIdInfoForUrl(Context context) {
+        AuditState auditOwner = currentAudit();
         AdvertisingResolution resolution = resolveAdvertisingId(context);
         URL_IDENTITY_FALLBACK.set(resolution.localFallback);
-        emitAdvertisingIdentityResolution("url", resolution);
+        emitAdvertisingIdentityResolution(auditOwner, "url", resolution);
         return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
     }
 
     @Keep
     public static AdvertisingIdClient.Info getAdvertisingIdInfoForV2(Context context) {
+        AuditState auditOwner = currentAudit();
         AdvertisingResolution resolution = resolveAdvertisingId(context);
-        emitAdvertisingIdentityResolution("v2", resolution);
+        emitAdvertisingIdentityResolution(auditOwner, "v2", resolution);
         return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
     }
 
@@ -357,8 +358,13 @@ public final class GoogleImaRuntimeBridge {
     }
 
     private static void emitAdvertisingIdentityResolution(
+            AuditState state,
             String usage,
             AdvertisingResolution resolution) {
+        if (state == null) {
+            PropertyLog.w(TAG, "audit=orphan event=identity_resolution usage=" + safe(usage));
+            return;
+        }
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("identity_usage", safe(usage));
         fields.put("rdid_source", resolution.localFallback ? "fallback" : "gms");
@@ -367,7 +373,7 @@ public final class GoogleImaRuntimeBridge {
                 resolution.localFallback ? resolution.resolutionSource : ""
         );
         fields.put("limited_ad_tracking", Boolean.toString(resolution.limitedAdTracking));
-        emitCurrent("identity_control", fields, null);
+        emit(state, "identity_control", fields, null);
     }
 
     private static AdvertisingResolution resolveAdvertisingId(Context context) {
@@ -433,112 +439,23 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
-    public static void onImaVideoAdPlay(Object adMediaInfo) {
-        AuditState state = currentAudit();
-        if (state == null) return;
-        synchronized (AUDIT_LOCK) {
-            if (activeAudit != state) return;
-            state.startHandshake.onPlay(
-                    adMediaInfo,
-                    !state.activeOmidSessionIds.isEmpty());
-        }
-        emitHandshake(state, "video_ad_play", "", null);
-    }
-
-    @Keep
-    public static int prepareImaCoreStart(Object adMediaInfo, Object progressObject) {
-        float progressSeconds = -1f;
-        float durationSeconds = -1f;
-        if (progressObject instanceof VideoProgressUpdate) {
-            VideoProgressUpdate progress = (VideoProgressUpdate) progressObject;
-            progressSeconds = progress.getCurrentTime();
-            durationSeconds = progress.getDuration();
-        }
-        synchronized (AUDIT_LOCK) {
-            if (activeAudit == null) return GoogleImaStartHandshakeState.ACTION_NONE;
-            return activeAudit.startHandshake.prepareStart(
-                    adMediaInfo,
-                    progressSeconds,
-                    durationSeconds);
-        }
-    }
-
-    @Keep
-    public static void auditImaCoreOutbound(
-            Object messageType,
-            Object adMediaInfo,
-            Object payload) {
-        if (!"start".equals(String.valueOf(messageType))) return;
-        AuditState state = currentAudit();
-        if (state == null) return;
-        boolean accepted;
-        synchronized (AUDIT_LOCK) {
-            accepted = activeAudit == state &&
-                    state.startHandshake.onCoreStartSent(adMediaInfo);
-        }
-        if (accepted) emitHandshake(state, "core_start_outbound", "", payload);
-    }
-
-    @Keep
-    public static void markImaMediaPlaybackEvidence(
-            String trigger,
-            long positionMs,
-            long durationMs) {
-        AuditState state = currentAudit();
-        if (state == null) return;
-        boolean changed;
-        synchronized (AUDIT_LOCK) {
-            changed = activeAudit == state && state.startHandshake.markMediaEvidence();
-        }
-        if (!changed) return;
-        Map<String, String> extra = new LinkedHashMap<>();
-        extra.put("position_ms", String.valueOf(positionMs));
-        extra.put("duration_ms", String.valueOf(durationMs));
-        emitHandshake(state, "media_evidence", safe(trigger), extra);
-    }
-
-    @Keep
     public static void markImaStarted(String source) {
         AuditState state = currentAudit();
         if (state == null) return;
         boolean changed;
         synchronized (AUDIT_LOCK) {
-            changed = activeAudit == state && state.startHandshake.markImaStarted();
+            if (activeAudit != state) return;
+            changed = !state.imaStartedObserved;
+            state.imaStartedObserved = true;
         }
-        if (changed) emitHandshake(state, "ima_started", safe(source), null);
-    }
-
-    @Keep
-    public static void requestImaCoreStartRecovery(String trigger) {
-        AuditState state = currentAudit();
-        if (state == null) return;
-        boolean changed;
-        synchronized (AUDIT_LOCK) {
-            changed = activeAudit == state && state.startHandshake.requestRecovery();
-        }
-        if (changed) emitHandshake(state, "core_start_recovery_requested", safe(trigger), null);
-    }
-
-    @Keep
-    public static boolean isCurrentImaMeasurementReady() {
-        synchronized (AUDIT_LOCK) {
-            return activeAudit != null && activeAudit.startHandshake.isMeasurementReady();
-        }
-    }
-
-    @Keep
-    public static boolean hasCurrentImaStarted() {
-        synchronized (AUDIT_LOCK) {
-            return activeAudit != null && activeAudit.startHandshake.isImaStarted();
-        }
+        if (changed) emitMeasurementState(state, "ima_started", safe(source), "");
     }
 
     @Keep
     public static void auditImaMeasurementTerminal(String terminalEvent) {
         AuditState state = currentAudit();
-        if (state != null) {
-            emitHandshake(state, "measurement_terminal", safe(terminalEvent), null);
-        }
+        if (state == null) return;
+        emitMeasurementState(state, "measurement_terminal", "", safe(terminalEvent));
     }
 
     @Keep
@@ -649,12 +566,14 @@ public final class GoogleImaRuntimeBridge {
             PropertyLog.w(TAG, "audit=orphan event=omid_bridge method=" + method);
             return;
         }
-        if (state != null && "startSession".equals(method) && !sessionId.isEmpty()) {
+        if ("startSession".equals(method) && !sessionId.isEmpty()) {
+            boolean changed;
             synchronized (AUDIT_LOCK) {
                 state.activeOmidSessionIds.add(sessionId);
-                state.startHandshake.markOmidStarted();
+                changed = !state.omidStartedObserved;
+                state.omidStartedObserved = true;
             }
-            emitHandshake(state, "omid_session_started", "", null);
+            if (changed) emitMeasurementState(state, "omid_session_started", "", "");
         }
         List<String> activeSessionIds = currentOmidSessionIds(state);
         if (sessionId.isEmpty() && activeSessionIds.size() == 1) {
@@ -931,22 +850,25 @@ public final class GoogleImaRuntimeBridge {
         }
     }
 
-    private static void emitHandshake(
+    private static void emitMeasurementState(
             AuditState state,
             String phase,
             String trigger,
-            Object payload) {
-        GoogleImaStartHandshakeState handshake = state.startHandshake;
+            String terminalEvent) {
+        boolean imaStarted;
+        boolean omidStarted;
+        synchronized (AUDIT_LOCK) {
+            imaStarted = state.imaStartedObserved;
+            omidStarted = state.omidStartedObserved;
+        }
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("phase", safe(phase));
         fields.put("trigger", safe(trigger));
-        fields.put("core_start_send_count", String.valueOf(handshake.getCoreStartSendCount()));
-        fields.put("ima_started", String.valueOf(handshake.isImaStarted()));
-        fields.put("omid_started", String.valueOf(handshake.isOmidStarted()));
-        fields.put("measurement_ready", String.valueOf(handshake.isMeasurementReady()));
-        fields.put("last_progress_seconds", String.valueOf(handshake.getLastProgressSeconds()));
-        fields.put("last_duration_seconds", String.valueOf(handshake.getLastDurationSeconds()));
-        emit(state, "ima_start_handshake", fields, payload == null ? null : String.valueOf(payload));
+        fields.put("terminal_event", safe(terminalEvent));
+        fields.put("ima_started", String.valueOf(imaStarted));
+        fields.put("omid_started", String.valueOf(omidStarted));
+        fields.put("measurement_complete", String.valueOf(imaStarted && omidStarted));
+        emit(state, "ima_measurement_state", fields, null);
     }
 
     private static Map<String, String> fields(String name, String value) {
@@ -1084,10 +1006,10 @@ public final class GoogleImaRuntimeBridge {
     private static final class AuditState {
         final GoogleImaAdListener listener;
         final LinkedHashSet<String> activeOmidSessionIds = new LinkedHashSet<>();
-        final GoogleImaStartHandshakeState startHandshake =
-                new GoogleImaStartHandshakeState();
         int nativeResponseSequence;
         boolean imaCoreVolumeObserved;
+        boolean imaStartedObserved;
+        boolean omidStartedObserved;
         float lastImaCoreReportedVolume = -1.0f;
 
         AuditState(GoogleImaAdListener listener) {

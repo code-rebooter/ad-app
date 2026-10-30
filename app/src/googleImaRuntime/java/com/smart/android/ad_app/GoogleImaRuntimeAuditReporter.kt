@@ -23,7 +23,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private val verificationScripts = mutableListOf<VerificationScript>()
     private val webResources = linkedMapOf<String, WebResourceStatus>()
     private val soundSignals = linkedMapOf<String, SoundSignalStatus>()
-    private val startHandshakeEvents = mutableListOf<StartHandshakeRecord>()
+    private val measurementStateEvents = mutableListOf<MeasurementStateRecord>()
     private val identityControlEvents = mutableListOf<IdentityControlRecord>()
     private val omidCalls = linkedMapOf<String, Int>()
     private val omidSessions = linkedMapOf<String, OmidSessionStatus>()
@@ -99,7 +99,7 @@ internal class GoogleImaRuntimeAuditReporter(
                 "web_resource" -> recordWebResource(event)
                 "sound_signal" -> recordSoundSignal(event)
                 "identity_control" -> recordIdentityControl(event)
-                "ima_start_handshake" -> recordStartHandshake(event)
+                "ima_measurement_state" -> recordMeasurementState(event)
                 "omid_bridge" -> recordOmid(event)
                 "ima_ad_event" -> recordImaAdEvent(event)
                 "effective_ad_start" -> recordEffectiveAdStart(event)
@@ -248,18 +248,16 @@ internal class GoogleImaRuntimeAuditReporter(
         )
     }
 
-    private fun recordStartHandshake(event: GoogleImaAuditEvent) {
-        startHandshakeEvents += StartHandshakeRecord(
+    private fun recordMeasurementState(event: GoogleImaAuditEvent) {
+        measurementStateEvents += MeasurementStateRecord(
             elapsedRealtimeMs = event.elapsedRealtimeMs,
             phase = event.fields["phase"].orEmpty(),
             trigger = event.fields["trigger"].orEmpty(),
-            coreStartSendCount = event.fields["core_start_send_count"]?.toIntOrNull() ?: 0,
+            terminalEvent = event.fields["terminal_event"].orEmpty(),
             imaStarted = event.fields["ima_started"]?.toBooleanStrictOrNull() ?: false,
             omidStarted = event.fields["omid_started"]?.toBooleanStrictOrNull() ?: false,
-            measurementReady = event.fields["measurement_ready"]
-                ?.toBooleanStrictOrNull() ?: false,
-            lastProgressSeconds = event.fields["last_progress_seconds"]?.toFloatOrNull() ?: -1f,
-            lastDurationSeconds = event.fields["last_duration_seconds"]?.toFloatOrNull() ?: -1f
+            measurementComplete = event.fields["measurement_complete"]
+                ?.toBooleanStrictOrNull() ?: false
         )
     }
 
@@ -689,19 +687,20 @@ internal class GoogleImaRuntimeAuditReporter(
                     }
                 ),
                 "ima_playback_audit" to linkedMapOf(
-                    "start_handshake_events" to startHandshakeEvents.map { event ->
+                    "measurement_state_events" to measurementStateEvents.map { event ->
                         linkedMapOf(
                             "elapsed_realtime_ms" to event.elapsedRealtimeMs,
                             "phase" to event.phase,
                             "trigger" to event.trigger,
-                            "core_start_send_count" to event.coreStartSendCount,
+                            "terminal_event" to event.terminalEvent,
                             "ima_started" to event.imaStarted,
                             "omid_started" to event.omidStarted,
-                            "measurement_ready" to event.measurementReady,
-                            "last_progress_seconds" to event.lastProgressSeconds,
-                            "last_duration_seconds" to event.lastDurationSeconds
+                            "measurement_complete" to event.measurementComplete
                         )
                     },
+                    "measurement_incomplete" to (measurementStateEvents
+                        .lastOrNull { it.phase == "measurement_terminal" }
+                        ?.measurementComplete == false),
                     "ima_event_counts" to imaAdEventCounts,
                     "ima_event_timeline" to imaAdEvents.map { event ->
                         linkedMapOf(
@@ -1224,16 +1223,14 @@ internal class GoogleImaRuntimeAuditReporter(
         val limitedAdTracking: Boolean?
     )
 
-    private data class StartHandshakeRecord(
+    private data class MeasurementStateRecord(
         val elapsedRealtimeMs: Long,
         val phase: String,
         val trigger: String,
-        val coreStartSendCount: Int,
+        val terminalEvent: String,
         val imaStarted: Boolean,
         val omidStarted: Boolean,
-        val measurementReady: Boolean,
-        val lastProgressSeconds: Float,
-        val lastDurationSeconds: Float
+        val measurementComplete: Boolean
     )
 
     private data class WebResourceStatus(

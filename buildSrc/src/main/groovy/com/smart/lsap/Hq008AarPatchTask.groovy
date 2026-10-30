@@ -255,9 +255,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 46) {
+        if (modifiedClasses != 45) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 46"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 45"
             )
         }
 
@@ -474,20 +474,6 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '(Ljava/lang/Object;I)I', 1, 'IMA client-side player volume events')
         requireCallCount(clientVideoDisplay, runtimeBridge, 'bindAsyncAuditOwner',
             '(Ljava/lang/Object;)V', 1, 'IMA client-side volume audit ownership')
-        requireCallCount(clientVideoDisplay, runtimeBridge, 'onImaVideoAdPlay',
-            '(Ljava/lang/Object;)V', 1, 'IMA client-side ad play handshake reset')
-        requireCallCount(clientVideoDisplay, runtimeBridge, 'prepareImaCoreStart',
-            '(Ljava/lang/Object;Ljava/lang/Object;)I', 1,
-            'IMA client-side Core start gate')
-
-        byte[] nativeVideoDisplay = requireClass(
-            classEntries,
-            'com/google/ads/interactivemedia/v3/impl/zzbl.class'
-        )
-        requireCallCount(nativeVideoDisplay, runtimeBridge, 'auditImaCoreOutbound',
-            '(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V', 1,
-            'IMA native-to-Core start audit')
-
         byte[] streamVideoDisplay = requireClass(
             classEntries,
             'com/google/ads/interactivemedia/v3/impl/zzcb.class'

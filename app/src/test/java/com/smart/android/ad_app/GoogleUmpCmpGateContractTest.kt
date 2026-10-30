@@ -60,11 +60,15 @@ class GoogleUmpCmpGateContractTest {
 
         assertTrue(
             "Explicit accepted or rejected actions should be applied to an existing consent state",
-            source.contains("showSilentPrivacyOptionsForm(activity, action)")
+            source.contains("showSilentPrivacyOptionsForm(activity, action, sessionId)")
         )
         assertTrue(
             "Privacy options availability should gate stored-consent rewriting",
             source.contains("shouldApplyStoredConsentViaPrivacyOptions(")
+        )
+        assertTrue(
+            "Every asynchronous UMP callback should be scoped to its originating session",
+            source.contains("isActiveSession(sessionId, activity")
         )
     }
 

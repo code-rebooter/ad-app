@@ -255,9 +255,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 45) {
+        if (modifiedClasses != 46) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 45"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 46"
             )
         }
 
@@ -442,7 +442,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(nativeViewability, 'android/view/View', 'isShown', '()Z', 0,
             'IMA native view-hidden gate')
         requireCallCount(nativeViewability, runtimeBridge, 'forceUnmutedNativeVolume',
-            '()D', 1, 'IMA native ActiveView reported volume')
+            '(Ljava/lang/Object;)D', 1, 'IMA native ActiveView reported volume')
+        requireCallCount(nativeViewability, runtimeBridge, 'bindAsyncAuditOwner',
+            '(Ljava/lang/Object;)V', 1, 'IMA native ActiveView audit ownership')
         requireCallCount(nativeViewability, 'android/media/AudioManager', 'getStreamVolume',
             '(I)I', 0, 'IMA native ActiveView physical stream volume read')
         requireCallCount(nativeViewability, 'android/media/AudioManager', 'getStreamMaxVolume',
@@ -469,14 +471,31 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             'com/google/ads/interactivemedia/v3/impl/zzg.class'
         )
         requireCallCount(clientVideoDisplay, runtimeBridge, 'forceUnmutedVolumePercentage',
-            '(I)I', 1, 'IMA client-side player volume events')
+            '(Ljava/lang/Object;I)I', 1, 'IMA client-side player volume events')
+        requireCallCount(clientVideoDisplay, runtimeBridge, 'bindAsyncAuditOwner',
+            '(Ljava/lang/Object;)V', 1, 'IMA client-side volume audit ownership')
+        requireCallCount(clientVideoDisplay, runtimeBridge, 'onImaVideoAdPlay',
+            '(Ljava/lang/Object;)V', 1, 'IMA client-side ad play handshake reset')
+        requireCallCount(clientVideoDisplay, runtimeBridge, 'prepareImaCoreStart',
+            '(Ljava/lang/Object;Ljava/lang/Object;)I', 1,
+            'IMA client-side Core start gate')
+
+        byte[] nativeVideoDisplay = requireClass(
+            classEntries,
+            'com/google/ads/interactivemedia/v3/impl/zzbl.class'
+        )
+        requireCallCount(nativeVideoDisplay, runtimeBridge, 'auditImaCoreOutbound',
+            '(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V', 1,
+            'IMA native-to-Core start audit')
 
         byte[] streamVideoDisplay = requireClass(
             classEntries,
             'com/google/ads/interactivemedia/v3/impl/zzcb.class'
         )
         requireCallCount(streamVideoDisplay, runtimeBridge, 'forceUnmutedVolumePercentage',
-            '(I)I', 2, 'IMA stream player start and volume events')
+            '(Ljava/lang/Object;I)I', 2, 'IMA stream player start and volume events')
+        requireCallCount(streamVideoDisplay, runtimeBridge, 'bindAsyncAuditOwner',
+            '(Ljava/lang/Object;)V', 1, 'IMA stream volume audit ownership')
 
         byte[] omidVisibilityReason = requireClass(
             classEntries,
@@ -605,16 +624,20 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(nativeNetworkAudit, runtimeBridge, 'auditNativeResponse',
             '(Ljava/lang/Object;Ljava/lang/Object;)V', 1,
             'IMA native XHR VAST response audit')
+        requireCallCount(nativeNetworkAudit, runtimeBridge, 'bindNativeRequestAudit',
+            '(Ljava/lang/Object;)V', 1,
+            'IMA native XHR request audit ownership')
 
         byte[] omidBridgeAudit = requireClass(
             classEntries,
             'com/google/ads/interactivemedia/v3/internal/zzcy.class'
         )
         requireCallCount(omidBridgeAudit, runtimeBridge, 'auditOmidBridge',
-            '(Ljava/lang/String;[Ljava/lang/Object;)V', 1,
+            '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)V', 1,
             'IMA OMID JavaScript bridge audit')
         requireCallCount(omidBridgeAudit, runtimeBridge, 'forceUnmutedOmidArguments',
-            '(Ljava/lang/String;[Ljava/lang/Object;)[Ljava/lang/Object;', 1,
+            '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)' +
+            '[Ljava/lang/Object;', 1,
             'IMA OMID reported device volume')
 
         byte[] ordinaryIdentity = requireClass(
@@ -701,9 +724,17 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             videoAdPlayer,
             'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
             'forceUnmutedVolumePercentage',
-            '(I)I',
+            '(Ljava/lang/Object;I)I',
             1,
             'Media3 IMA VideoAdPlayer reported volume'
+        )
+        requireCallCount(
+            videoAdPlayer,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+            'bindAsyncAuditOwner',
+            '(Ljava/lang/Object;)V',
+            1,
+            'Media3 IMA VideoAdPlayer audit ownership'
         )
     }
 

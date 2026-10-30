@@ -628,6 +628,115 @@ class GoogleImaRuntimeAuditReporterTest {
         )
     }
 
+    @Test
+    fun `ima start handshake remains inspectable through omid readiness`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-handshake")
+        reporter.record(
+            event(
+                "ima_start_handshake",
+                10L,
+                mapOf(
+                    "phase" to "video_ad_play",
+                    "trigger" to "",
+                    "core_start_send_count" to "0",
+                    "ima_started" to "false",
+                    "omid_started" to "false",
+                    "measurement_ready" to "false",
+                    "last_progress_seconds" to "-1.0",
+                    "last_duration_seconds" to "-1.0"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "ima_start_handshake",
+                20L,
+                mapOf(
+                    "phase" to "core_start_recovery_requested",
+                    "trigger" to "first_quartile_without_started",
+                    "core_start_send_count" to "1",
+                    "ima_started" to "false",
+                    "omid_started" to "false",
+                    "measurement_ready" to "false",
+                    "last_progress_seconds" to "4.0",
+                    "last_duration_seconds" to "16.0"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "ima_start_handshake",
+                30L,
+                mapOf(
+                    "phase" to "omid_session_started",
+                    "trigger" to "",
+                    "core_start_send_count" to "2",
+                    "ima_started" to "true",
+                    "omid_started" to "true",
+                    "measurement_ready" to "true",
+                    "last_progress_seconds" to "4.2",
+                    "last_duration_seconds" to "16.0"
+                )
+            )
+        )
+
+        val events = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+            .getAsJsonArray("start_handshake_events")
+        assertEquals(3, events.size())
+        assertEquals(
+            "first_quartile_without_started",
+            events[1].asJsonObject["trigger"].asString
+        )
+        assertEquals(2, events[2].asJsonObject["core_start_send_count"].asInt)
+        assertTrue(events[2].asJsonObject["measurement_ready"].asBoolean)
+    }
+
+    @Test
+    fun `rdid resolution source distinguishes gms from local fallback`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-rdid-source")
+        reporter.record(
+            event(
+                "identity_control",
+                10L,
+                mapOf(
+                    "identity_usage" to "url",
+                    "rdid_source" to "fallback",
+                    "rdid_fallback_source" to "shared_local",
+                    "limited_ad_tracking" to "false"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "identity_control",
+                20L,
+                mapOf(
+                    "identity_usage" to "v2",
+                    "rdid_source" to "gms",
+                    "rdid_fallback_source" to "",
+                    "limited_ad_tracking" to "false"
+                )
+            )
+        )
+
+        val identity = buildSummary(reporter)["identity_control_audit"].asJsonObject
+        assertEquals(2, identity["rdid_resolution_count"].asInt)
+        assertEquals(1, identity["rdid_gms_count"].asInt)
+        assertEquals(1, identity["rdid_fallback_count"].asInt)
+        assertEquals("gms", identity["last_rdid_source"].asString)
+        assertEquals("shared_local", identity["last_rdid_fallback_source"].asString)
+
+        val decisions = identity["decisions"].asJsonArray
+        assertEquals("url", decisions[0].asJsonObject["identity_usage"].asString)
+        assertEquals("fallback", decisions[0].asJsonObject["rdid_source"].asString)
+        assertEquals(
+            "shared_local",
+            decisions[0].asJsonObject["rdid_fallback_source"].asString
+        )
+        assertEquals("v2", decisions[1].asJsonObject["identity_usage"].asString)
+        assertEquals("gms", decisions[1].asJsonObject["rdid_source"].asString)
+    }
+
     private fun gunzipBase64(value: String): String {
         val compressed = BaseEncoding.base64().decode(value)
         return GZIPInputStream(ByteArrayInputStream(compressed))

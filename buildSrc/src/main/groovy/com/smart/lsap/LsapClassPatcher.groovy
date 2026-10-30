@@ -1105,17 +1105,40 @@ final class LsapClassPatcher implements Opcodes {
         node.methods.each { MethodNode method ->
             if (entryName ==
                 'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class' &&
+                method.name == '<init>') {
+                method.instructions.toArray().findAll { instruction ->
+                    instruction.opcode == RETURN
+                }.each { AbstractInsnNode returnInstruction ->
+                    InsnList bind = new InsnList()
+                    bind.add(new VarInsnNode(ALOAD, 0))
+                    bind.add(new MethodInsnNode(
+                        INVOKESTATIC,
+                        'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+                        'bindAsyncAuditOwner',
+                        '(Ljava/lang/Object;)V',
+                        false
+                    ))
+                    method.instructions.insertBefore(returnInstruction, bind)
+                    changed = true
+                }
+            }
+            if (entryName ==
+                'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class' &&
                 method.name == 'getVolume' && method.desc == '()I') {
                 method.instructions.toArray().findAll { instruction ->
                     instruction.opcode == IRETURN
                 }.each { AbstractInsnNode returnInstruction ->
-                    method.instructions.insertBefore(returnInstruction, new MethodInsnNode(
-                        INVOKESTATIC,
-                        'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
-                        'forceUnmutedVolumePercentage',
-                        '(I)I',
-                        false
+                    InsnList control = new InsnList()
+                    control.add(new VarInsnNode(ALOAD, 0))
+                    control.add(new InsnNode(SWAP))
+                    control.add(new MethodInsnNode(
+                            INVOKESTATIC,
+                            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+                            'forceUnmutedVolumePercentage',
+                            '(Ljava/lang/Object;I)I',
+                            false
                     ))
+                    method.instructions.insertBefore(returnInstruction, control)
                     changed = true
                 }
             }
@@ -1250,6 +1273,27 @@ final class LsapClassPatcher implements Opcodes {
         String runtimeBridge =
             'com/smart/android/googleima/internal/GoogleImaRuntimeBridge'
         boolean changed = false
+        if (entryName in [
+            'com/google/ads/interactivemedia/v3/impl/zzb.class',
+            'com/google/ads/interactivemedia/v3/impl/zzg.class',
+            'com/google/ads/interactivemedia/v3/impl/zzcb.class'
+        ] && method.name == '<init>') {
+            method.instructions.toArray().findAll { instruction ->
+                instruction.opcode == RETURN
+            }.each { AbstractInsnNode returnInstruction ->
+                InsnList bind = new InsnList()
+                bind.add(new VarInsnNode(ALOAD, 0))
+                bind.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'bindAsyncAuditOwner',
+                    '(Ljava/lang/Object;)V',
+                    false
+                ))
+                method.instructions.insertBefore(returnInstruction, bind)
+                changed = true
+            }
+        }
         method.instructions.toArray().findAll { instruction ->
             instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
                 instruction.owner == 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge' &&
@@ -1301,19 +1345,142 @@ final class LsapClassPatcher implements Opcodes {
             }
         }
 
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzg.class') {
+            if (method.name == 'onPlay' && method.desc ==
+                '(Lcom/google/ads/interactivemedia/v3/api/player/AdMediaInfo;)V') {
+                clearMethod(method)
+                method.instructions.add(new VarInsnNode(ALOAD, 1))
+                method.instructions.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'onImaVideoAdPlay',
+                    '(Ljava/lang/Object;)V',
+                    false
+                ))
+                method.instructions.add(new InsnNode(RETURN))
+                return true
+            }
+            if (method.name == 'onAdProgress' && method.desc ==
+                '(Lcom/google/ads/interactivemedia/v3/api/player/AdMediaInfo;' +
+                'Lcom/google/ads/interactivemedia/v3/api/player/VideoProgressUpdate;)V') {
+                int actionLocal = method.maxLocals
+                method.maxLocals += 1
+                LabelNode checkRelease = new LabelNode()
+                LabelNode continueOriginal = new LabelNode()
+                InsnList control = new InsnList()
+                control.add(new VarInsnNode(ALOAD, 1))
+                control.add(new VarInsnNode(ALOAD, 2))
+                control.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'prepareImaCoreStart',
+                    '(Ljava/lang/Object;Ljava/lang/Object;)I',
+                    false
+                ))
+                control.add(new VarInsnNode(ISTORE, actionLocal))
+                control.add(new VarInsnNode(ILOAD, actionLocal))
+                control.add(new InsnNode(ICONST_1))
+                control.add(new JumpInsnNode(IF_ICMPNE, checkRelease))
+                control.add(new VarInsnNode(ALOAD, 0))
+                control.add(new FieldInsnNode(
+                    GETFIELD,
+                    'com/google/ads/interactivemedia/v3/impl/zzg',
+                    'zza',
+                    'Ljava/util/HashMap;'
+                ))
+                control.add(new VarInsnNode(ALOAD, 1))
+                control.add(new InsnNode(ICONST_1))
+                control.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    'java/lang/Boolean',
+                    'valueOf',
+                    '(Z)Ljava/lang/Boolean;',
+                    false
+                ))
+                control.add(new MethodInsnNode(
+                    INVOKEVIRTUAL,
+                    'java/util/HashMap',
+                    'put',
+                    '(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;',
+                    false
+                ))
+                control.add(new InsnNode(POP))
+                control.add(new JumpInsnNode(GOTO, continueOriginal))
+                control.add(checkRelease)
+                control.add(new VarInsnNode(ILOAD, actionLocal))
+                control.add(new InsnNode(ICONST_2))
+                control.add(new JumpInsnNode(IF_ICMPNE, continueOriginal))
+                control.add(new VarInsnNode(ALOAD, 0))
+                control.add(new FieldInsnNode(
+                    GETFIELD,
+                    'com/google/ads/interactivemedia/v3/impl/zzg',
+                    'zza',
+                    'Ljava/util/HashMap;'
+                ))
+                control.add(new VarInsnNode(ALOAD, 1))
+                control.add(new MethodInsnNode(
+                    INVOKEVIRTUAL,
+                    'java/util/HashMap',
+                    'remove',
+                    '(Ljava/lang/Object;)Ljava/lang/Object;',
+                    false
+                ))
+                control.add(new InsnNode(POP))
+                control.add(continueOriginal)
+                method.instructions.insert(control)
+                changed = true
+            }
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzbl.class' &&
+            method.name == 'zzb' && method.desc ==
+            '(Lcom/google/ads/interactivemedia/v3/impl/JavaScriptMessage$MsgType;' +
+            'Lcom/google/ads/interactivemedia/v3/api/player/AdMediaInfo;' +
+            'Ljava/lang/Object;)V') {
+            int adMediaInfoLocal = method.maxLocals
+            method.maxLocals += 1
+            InsnList preserveAdMediaInfo = new InsnList()
+            preserveAdMediaInfo.add(new VarInsnNode(ALOAD, 2))
+            preserveAdMediaInfo.add(new VarInsnNode(ASTORE, adMediaInfoLocal))
+            method.instructions.insert(preserveAdMediaInfo)
+            List<TypeInsnNode> messageAllocations = method.instructions.toArray().findAll {
+                it instanceof TypeInsnNode && it.opcode == NEW &&
+                    it.desc == 'com/google/ads/interactivemedia/v3/impl/JavaScriptMessage'
+            } as List<TypeInsnNode>
+            if (messageAllocations.size() == 1) {
+                InsnList audit = new InsnList()
+                audit.add(new VarInsnNode(ALOAD, 1))
+                audit.add(new VarInsnNode(ALOAD, adMediaInfoLocal))
+                audit.add(new VarInsnNode(ALOAD, 3))
+                audit.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'auditImaCoreOutbound',
+                    '(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V',
+                    false
+                ))
+                method.instructions.insertBefore(messageAllocations[0], audit)
+                changed = true
+            }
+        }
+
         method.instructions.toArray().findAll { instruction ->
             instruction instanceof MethodInsnNode &&
                 instruction.owner == 'com/google/ads/interactivemedia/v3/impl/data/zzco' &&
                 instruction.name == 'volumePercentage' &&
                 instruction.desc == '(I)Lcom/google/ads/interactivemedia/v3/impl/data/zzco;'
         }.each { MethodInsnNode call ->
-            method.instructions.insertBefore(call, new MethodInsnNode(
-                INVOKESTATIC,
-                runtimeBridge,
-                'forceUnmutedVolumePercentage',
-                '(I)I',
-                false
+            InsnList control = new InsnList()
+            control.add(new VarInsnNode(ALOAD, 0))
+            control.add(new InsnNode(SWAP))
+            control.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'forceUnmutedVolumePercentage',
+                    '(Ljava/lang/Object;I)I',
+                    false
             ))
+            method.instructions.insertBefore(call, control)
             changed = true
         }
 
@@ -1417,20 +1584,47 @@ final class LsapClassPatcher implements Opcodes {
             return true
         }
 
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzbs.class' &&
+            method.name == 'zzc' && method.desc ==
+            '(Lcom/google/ads/interactivemedia/v3/impl/JavaScriptMessage$MsgType;' +
+            'Ljava/lang/String;Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)V') {
+            List<TypeInsnNode> requestTasks = method.instructions.toArray().findAll {
+                it instanceof TypeInsnNode && it.opcode == NEW &&
+                    it.desc == 'com/google/ads/interactivemedia/v3/impl/zzbm'
+            } as List<TypeInsnNode>
+            if (requestTasks.size() == 1) {
+                InsnList bind = new InsnList()
+                bind.add(new VarInsnNode(ALOAD, 3))
+                bind.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'bindNativeRequestAudit',
+                    '(Ljava/lang/Object;)V',
+                    false
+                ))
+                method.instructions.insertBefore(requestTasks[0], bind)
+                return true
+            }
+        }
+
         if (entryName == 'com/google/ads/interactivemedia/v3/internal/zzcy.class' &&
             method.name == 'zzb' &&
             method.desc == '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)V') {
             InsnList control = new InsnList()
+            control.add(new VarInsnNode(ALOAD, 1))
             control.add(new VarInsnNode(ALOAD, 2))
             control.add(new VarInsnNode(ALOAD, 3))
             control.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
                 'forceUnmutedOmidArguments',
-                '(Ljava/lang/String;[Ljava/lang/Object;)[Ljava/lang/Object;', false))
+                '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)' +
+                '[Ljava/lang/Object;', false))
             control.add(new VarInsnNode(ASTORE, 3))
+            control.add(new VarInsnNode(ALOAD, 1))
             control.add(new VarInsnNode(ALOAD, 2))
             control.add(new VarInsnNode(ALOAD, 3))
             control.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
-                'auditOmidBridge', '(Ljava/lang/String;[Ljava/lang/Object;)V', false))
+                'auditOmidBridge',
+                '(Landroid/webkit/WebView;Ljava/lang/String;[Ljava/lang/Object;)V', false))
             method.instructions.insert(control)
             return true
         }
@@ -1848,11 +2042,12 @@ final class LsapClassPatcher implements Opcodes {
         ))
         replacement.add(new VarInsnNode(ASTORE, 4))
 
+        replacement.add(new VarInsnNode(ALOAD, 0))
         replacement.add(new MethodInsnNode(
             INVOKESTATIC,
             'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
             'forceUnmutedNativeVolume',
-            '()D',
+            '(Ljava/lang/Object;)D',
             false
         ))
         replacement.add(new VarInsnNode(DSTORE, 6))

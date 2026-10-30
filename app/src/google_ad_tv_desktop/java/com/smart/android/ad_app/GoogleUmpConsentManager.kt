@@ -49,9 +49,12 @@ object GoogleUmpConsentManager {
     }
 
     private const val TAG = "GoogleUmpConsent"
+    internal const val EXTRA_SESSION_ID =
+        "com.smart.android.ad_app.extra.GOOGLE_UMP_CONSENT_SESSION_ID"
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingCallbacks = mutableListOf<(Result) -> Unit>()
+    private val sessionGate = GoogleUmpConsentSessionGate()
 
     private var state = State.IDLE
     private var consentInformation: ConsentInformation? = null
@@ -89,9 +92,11 @@ object GoogleUmpConsentManager {
 
             activeAction = action
             state = State.STARTING_ACTIVITY
+            val sessionId = sessionGate.start()
             runCatching {
                 appContext.startActivity(
                     Intent(appContext, GoogleUmpConsentActivity::class.java).apply {
+                        putExtra(EXTRA_SESSION_ID, sessionId)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     }
@@ -99,6 +104,7 @@ object GoogleUmpConsentManager {
             }.onFailure { error ->
                 Log.e(TAG, "无法启动 UMP consent Activity", error)
                 finishFlow(
+                    sessionId = sessionId,
                     action = action,
                     errorMessage = error.message ?: "Unable to start UMP consent Activity",
                     allowRetry = true
@@ -107,9 +113,14 @@ object GoogleUmpConsentManager {
         }
     }
 
-    internal fun runConsentFlow(activity: Activity) {
+    internal fun runConsentFlow(activity: Activity, sessionId: Long) {
         mainHandler.post {
-            if (state == State.GATHERING_CONSENT) {
+            if (state == State.GATHERING_CONSENT && sessionGate.isActive(sessionId, activity)) {
+                return@post
+            }
+            if (state != State.STARTING_ACTIVITY || !sessionGate.attach(sessionId, activity)) {
+                Log.w(TAG, "忽略过期 UMP Activity，sessionId=$sessionId，state=$state")
+                if (!activity.isFinishing) activity.finish()
                 return@post
             }
 
@@ -129,6 +140,9 @@ object GoogleUmpConsentManager {
                 activity,
                 requestParameters,
                 {
+                    if (!isActiveSession(sessionId, activity, "consent_info_success")) {
+                        return@requestConsentInfoUpdate
+                    }
                     Log.i(
                         TAG,
                         "UMP consent 信息更新完成，status=${information.getConsentStatus()}，" +
@@ -138,14 +152,22 @@ object GoogleUmpConsentManager {
                     )
                     if (information.canRequestAds()) {
                         if (shouldApplyStoredConsentViaPrivacyOptions(action, information)) {
-                            showSilentPrivacyOptionsForm(activity, action)
+                            showSilentPrivacyOptionsForm(activity, action, sessionId)
                         } else {
-                            finishFlow(action = action, errorMessage = null, allowRetry = false)
+                            finishFlow(
+                                sessionId = sessionId,
+                                activity = activity,
+                                action = action,
+                                errorMessage = null,
+                                allowRetry = false
+                            )
                         }
                     } else {
                         when (action) {
                             ConsentAction.CHECK_ONLY -> {
                                 finishFlow(
+                                    sessionId = sessionId,
+                                    activity = activity,
                                     action = action,
                                     errorMessage = "UMP consent is required before ad request",
                                     allowRetry = true
@@ -153,6 +175,8 @@ object GoogleUmpConsentManager {
                             }
                             ConsentAction.DEFER_WHEN_REQUIRED -> {
                                 finishFlow(
+                                    sessionId = sessionId,
+                                    activity = activity,
                                     action = action,
                                     errorMessage = "UMP consent deferred by remote decision",
                                     allowRetry = true,
@@ -161,17 +185,22 @@ object GoogleUmpConsentManager {
                             }
                             ConsentAction.ACCEPT_ALL,
                             ConsentAction.REJECT -> {
-                                loadAndShowSilentConsentForm(activity, action)
+                                loadAndShowSilentConsentForm(activity, action, sessionId)
                             }
                         }
                     }
                 },
                 { requestError ->
+                    if (!isActiveSession(sessionId, activity, "consent_info_failure")) {
+                        return@requestConsentInfoUpdate
+                    }
                     Log.w(
                         TAG,
                         "UMP consent 信息更新失败，canRequestAds=${information.canRequestAds()}，error=${requestError.message}"
                     )
                     finishFlow(
+                        sessionId = sessionId,
+                        activity = activity,
                         action = action,
                         errorMessage = requestError.message,
                         allowRetry = !information.canRequestAds()
@@ -198,8 +227,10 @@ object GoogleUmpConsentManager {
 
     private fun loadAndShowSilentConsentForm(
         activity: Activity,
-        action: ConsentAction
+        action: ConsentAction,
+        sessionId: Long
     ) {
+        if (!isActiveSession(sessionId, activity, "load_consent_form")) return
         val information = consentInformation
             ?: UserMessagingPlatform.getConsentInformation(activity.applicationContext).also {
                 consentInformation = it
@@ -208,6 +239,8 @@ object GoogleUmpConsentManager {
             val message = "UMP consent form is unavailable after consent info update"
             Log.w(TAG, "$message，${buildStoredConsentSnapshot(activity.applicationContext)}")
             finishFlow(
+                sessionId = sessionId,
+                activity = activity,
                 action = action,
                 errorMessage = message,
                 allowRetry = !information.canRequestAds()
@@ -220,8 +253,7 @@ object GoogleUmpConsentManager {
             activity.applicationContext,
             { consentForm ->
                 mainHandler.post {
-                    if (state != State.GATHERING_CONSENT || hostActivityRef?.get() !== activity) {
-                        Log.w(TAG, "UMP consent 表单已加载，但宿主 Activity 已失效")
+                    if (!isActiveSession(sessionId, activity, "consent_form_loaded")) {
                         return@post
                     }
                     Log.i(TAG, "UMP consent 表单加载完成，开始静默执行 action=$action")
@@ -234,7 +266,17 @@ object GoogleUmpConsentManager {
                         }
                     ) { result ->
                         mainHandler.post {
+                            if (!isActiveSession(
+                                    sessionId,
+                                    activity,
+                                    "consent_form_completed"
+                                )
+                            ) {
+                                return@post
+                            }
                             completeAfterConsentForm(
+                                sessionId = sessionId,
+                                activity = activity,
                                 action = action,
                                 formError = result.formError,
                                 localErrorMessage = result.localErrorMessage
@@ -245,11 +287,16 @@ object GoogleUmpConsentManager {
             },
             { loadError ->
                 mainHandler.post {
+                    if (!isActiveSession(sessionId, activity, "consent_form_load_failure")) {
+                        return@post
+                    }
                     Log.w(
                         TAG,
                         "UMP consent 表单加载失败，canRequestAds=${information.canRequestAds()}，error=${loadError.message}"
                     )
                     finishFlow(
+                        sessionId = sessionId,
+                        activity = activity,
                         action = action,
                         errorMessage = loadError.message,
                         allowRetry = !information.canRequestAds()
@@ -261,15 +308,22 @@ object GoogleUmpConsentManager {
 
     private fun showSilentPrivacyOptionsForm(
         activity: Activity,
-        action: ConsentAction
+        action: ConsentAction,
+        sessionId: Long
     ) {
+        if (!isActiveSession(sessionId, activity, "show_privacy_options")) return
         Log.i(TAG, "UMP 已有 consent 状态，开始通过 privacy options 静默改写 action=$action")
         GoogleUmpSilentConsentFormRunner.showPrivacyOptionsAndApplyDecisionSilently(
             activity = activity,
             decisionMode = decisionModeFor(action)
         ) { result ->
             mainHandler.post {
+                if (!isActiveSession(sessionId, activity, "privacy_options_completed")) {
+                    return@post
+                }
                 completeAfterConsentForm(
+                    sessionId = sessionId,
+                    activity = activity,
                     action = action,
                     formError = result.formError,
                     localErrorMessage = result.localErrorMessage
@@ -298,15 +352,17 @@ object GoogleUmpConsentManager {
         }
     }
 
-    internal fun onHostActivityDestroyed(activity: Activity) {
+    internal fun onHostActivityDestroyed(activity: Activity, sessionId: Long) {
         mainHandler.post {
-            if (hostActivityRef?.get() !== activity) {
+            if (!sessionGate.isActive(sessionId, activity) || hostActivityRef?.get() !== activity) {
                 return@post
             }
             hostActivityRef?.clear()
             hostActivityRef = null
             if (!finishingActivity && state == State.GATHERING_CONSENT) {
                 finishFlow(
+                    sessionId = sessionId,
+                    activity = activity,
                     action = activeAction,
                     errorMessage = "UMP consent Activity was destroyed before completion",
                     allowRetry = true
@@ -316,10 +372,13 @@ object GoogleUmpConsentManager {
     }
 
     private fun completeAfterConsentForm(
+        sessionId: Long,
+        activity: Activity,
         action: ConsentAction,
         formError: FormError?,
         localErrorMessage: String? = null
     ) {
+        if (!isActiveSession(sessionId, activity, "complete_consent_form")) return
         val information = consentInformation
         val canRequestAds = information?.canRequestAds() == true
         val snapshot = hostActivityRef
@@ -337,6 +396,8 @@ object GoogleUmpConsentManager {
             )
         }
         finishFlow(
+            sessionId = sessionId,
+            activity = activity,
             action = action,
             errorMessage = errorMessage,
             allowRetry = errorMessage != null && !canRequestAds
@@ -407,11 +468,18 @@ object GoogleUmpConsentManager {
     }
 
     private fun finishFlow(
+        sessionId: Long,
+        activity: Activity? = null,
         action: ConsentAction,
         errorMessage: String?,
         allowRetry: Boolean,
         deferred: Boolean = false
     ) {
+        val cleared = sessionGate.clear(sessionId, activity)
+        if (!cleared) {
+            Log.w(TAG, "忽略过期 UMP 收口，sessionId=$sessionId，action=$action")
+            return
+        }
         val result = buildResult(
             context = hostActivityRef?.get()?.applicationContext,
             action = action,
@@ -432,5 +500,19 @@ object GoogleUmpConsentManager {
         }
         hostActivityRef?.clear()
         hostActivityRef = null
+    }
+
+    private fun isActiveSession(
+        sessionId: Long,
+        activity: Activity,
+        callback: String
+    ): Boolean {
+        val active = state == State.GATHERING_CONSENT &&
+            sessionGate.isActive(sessionId, activity) &&
+            hostActivityRef?.get() === activity
+        if (!active) {
+            Log.w(TAG, "忽略过期 UMP 回调，callback=$callback，sessionId=$sessionId，state=$state")
+        }
+        return active
     }
 }

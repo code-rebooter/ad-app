@@ -23,6 +23,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private val verificationScripts = mutableListOf<VerificationScript>()
     private val webResources = linkedMapOf<String, WebResourceStatus>()
     private val soundSignals = linkedMapOf<String, SoundSignalStatus>()
+    private val startHandshakeEvents = mutableListOf<StartHandshakeRecord>()
     private val identityControlEvents = mutableListOf<IdentityControlRecord>()
     private val omidCalls = linkedMapOf<String, Int>()
     private val omidSessions = linkedMapOf<String, OmidSessionStatus>()
@@ -98,6 +99,7 @@ internal class GoogleImaRuntimeAuditReporter(
                 "web_resource" -> recordWebResource(event)
                 "sound_signal" -> recordSoundSignal(event)
                 "identity_control" -> recordIdentityControl(event)
+                "ima_start_handshake" -> recordStartHandshake(event)
                 "omid_bridge" -> recordOmid(event)
                 "ima_ad_event" -> recordImaAdEvent(event)
                 "effective_ad_start" -> recordEffectiveAdStart(event)
@@ -237,7 +239,27 @@ internal class GoogleImaRuntimeAuditReporter(
         identityControlEvents += IdentityControlRecord(
             elapsedRealtimeMs = event.elapsedRealtimeMs,
             originalIdless = event.fields["original_idless"]?.toBooleanStrictOrNull(),
-            effectiveIdless = event.fields["effective_idless"]?.toBooleanStrictOrNull()
+            effectiveIdless = event.fields["effective_idless"]?.toBooleanStrictOrNull(),
+            identityUsage = event.fields["identity_usage"].orEmpty(),
+            rdidSource = event.fields["rdid_source"].orEmpty(),
+            rdidFallbackSource = event.fields["rdid_fallback_source"].orEmpty(),
+            limitedAdTracking = event.fields["limited_ad_tracking"]
+                ?.toBooleanStrictOrNull()
+        )
+    }
+
+    private fun recordStartHandshake(event: GoogleImaAuditEvent) {
+        startHandshakeEvents += StartHandshakeRecord(
+            elapsedRealtimeMs = event.elapsedRealtimeMs,
+            phase = event.fields["phase"].orEmpty(),
+            trigger = event.fields["trigger"].orEmpty(),
+            coreStartSendCount = event.fields["core_start_send_count"]?.toIntOrNull() ?: 0,
+            imaStarted = event.fields["ima_started"]?.toBooleanStrictOrNull() ?: false,
+            omidStarted = event.fields["omid_started"]?.toBooleanStrictOrNull() ?: false,
+            measurementReady = event.fields["measurement_ready"]
+                ?.toBooleanStrictOrNull() ?: false,
+            lastProgressSeconds = event.fields["last_progress_seconds"]?.toFloatOrNull() ?: -1f,
+            lastDurationSeconds = event.fields["last_duration_seconds"]?.toFloatOrNull() ?: -1f
         )
     }
 
@@ -639,15 +661,47 @@ internal class GoogleImaRuntimeAuditReporter(
                     "idless_override_count" to identityControlEvents.count {
                         it.originalIdless == true && it.effectiveIdless == false
                     },
+                    "rdid_resolution_count" to identityControlEvents.count {
+                        it.rdidSource.isNotBlank()
+                    },
+                    "rdid_gms_count" to identityControlEvents.count {
+                        it.rdidSource == "gms"
+                    },
+                    "rdid_fallback_count" to identityControlEvents.count {
+                        it.rdidSource == "fallback"
+                    },
+                    "last_rdid_source" to identityControlEvents
+                        .lastOrNull { it.rdidSource.isNotBlank() }
+                        ?.rdidSource.orEmpty(),
+                    "last_rdid_fallback_source" to identityControlEvents
+                        .lastOrNull { it.rdidSource == "fallback" }
+                        ?.rdidFallbackSource.orEmpty(),
                     "decisions" to identityControlEvents.map { decision ->
                         linkedMapOf(
                             "elapsed_realtime_ms" to decision.elapsedRealtimeMs,
                             "original_idless" to decision.originalIdless,
-                            "effective_idless" to decision.effectiveIdless
+                            "effective_idless" to decision.effectiveIdless,
+                            "identity_usage" to decision.identityUsage,
+                            "rdid_source" to decision.rdidSource,
+                            "rdid_fallback_source" to decision.rdidFallbackSource,
+                            "limited_ad_tracking" to decision.limitedAdTracking
                         )
                     }
                 ),
                 "ima_playback_audit" to linkedMapOf(
+                    "start_handshake_events" to startHandshakeEvents.map { event ->
+                        linkedMapOf(
+                            "elapsed_realtime_ms" to event.elapsedRealtimeMs,
+                            "phase" to event.phase,
+                            "trigger" to event.trigger,
+                            "core_start_send_count" to event.coreStartSendCount,
+                            "ima_started" to event.imaStarted,
+                            "omid_started" to event.omidStarted,
+                            "measurement_ready" to event.measurementReady,
+                            "last_progress_seconds" to event.lastProgressSeconds,
+                            "last_duration_seconds" to event.lastDurationSeconds
+                        )
+                    },
                     "ima_event_counts" to imaAdEventCounts,
                     "ima_event_timeline" to imaAdEvents.map { event ->
                         linkedMapOf(
@@ -1163,7 +1217,23 @@ internal class GoogleImaRuntimeAuditReporter(
     private data class IdentityControlRecord(
         val elapsedRealtimeMs: Long,
         val originalIdless: Boolean?,
-        val effectiveIdless: Boolean?
+        val effectiveIdless: Boolean?,
+        val identityUsage: String,
+        val rdidSource: String,
+        val rdidFallbackSource: String,
+        val limitedAdTracking: Boolean?
+    )
+
+    private data class StartHandshakeRecord(
+        val elapsedRealtimeMs: Long,
+        val phase: String,
+        val trigger: String,
+        val coreStartSendCount: Int,
+        val imaStarted: Boolean,
+        val omidStarted: Boolean,
+        val measurementReady: Boolean,
+        val lastProgressSeconds: Float,
+        val lastDurationSeconds: Float
     )
 
     private data class WebResourceStatus(

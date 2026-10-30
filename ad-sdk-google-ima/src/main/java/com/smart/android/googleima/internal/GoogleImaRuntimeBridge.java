@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -15,6 +16,7 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import com.google.ads.interactivemedia.v3.api.AdsRequest;
+import com.google.ads.interactivemedia.v3.api.player.VideoProgressUpdate;
 import com.google.ads.interactivemedia.v3.impl.data.zzby;
 import com.google.ads.interactivemedia.v3.impl.data.zzbz;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
@@ -28,11 +30,14 @@ import com.smart.android.googleima.GoogleImaAdListener;
 import com.smart.android.googleima.GoogleImaAuditEvent;
 import com.smart.android.googleima.logging.PropertyLog;
 
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -56,7 +61,13 @@ public final class GoogleImaRuntimeBridge {
     private static final String HOST_BRIDGE =
             "com.smart.android.ad_app.Hq008XhsxAarRuntimeBridge";
     private static final Map<Object, Context> MS_OWNERS = new WeakHashMap<>();
-    private static final Map<WebView, Boolean> AUDITED_WEB_VIEWS = new WeakHashMap<>();
+    private static final ReferenceQueue<Object> AUDIT_OWNER_QUEUE = new ReferenceQueue<>();
+    private static final Map<IdentityWeakReference, AuditState> NATIVE_REQUEST_AUDITS =
+            new HashMap<>();
+    private static final Map<IdentityWeakReference, AuditState> ASYNC_OWNER_AUDITS =
+            new HashMap<>();
+    private static final Map<WebView, WebViewAuditBinding> AUDITED_WEB_VIEWS =
+            new WeakHashMap<>();
     private static final ThreadLocal<Boolean> URL_IDENTITY_FALLBACK = new ThreadLocal<>();
     private static final Object AUDIT_LOCK = new Object();
     private static final String AUDIT_JS_BRIDGE = "__smartImaAudit";
@@ -196,11 +207,27 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
-    public static int forceUnmutedVolumePercentage(int physicalVolumePercentage) {
+    public static void bindAsyncAuditOwner(Object owner) {
+        if (owner == null) return;
+        synchronized (AUDIT_LOCK) {
+            if (activeAudit == null) {
+                PropertyLog.w(TAG, "audit=orphan event=async_owner_bind");
+                return;
+            }
+            putAuditOwner(ASYNC_OWNER_AUDITS, owner, activeAudit);
+        }
+    }
+
+    @Keep
+    public static int forceUnmutedVolumePercentage(
+            Object owner,
+            int physicalVolumePercentage) {
         emitSoundSignal(
+                auditForAsyncOwner(owner),
                 "ima_core_volume_percentage",
                 String.valueOf(physicalVolumePercentage),
-                String.valueOf(REPORTED_VOLUME_PERCENTAGE));
+                String.valueOf(REPORTED_VOLUME_PERCENTAGE),
+                Collections.emptyList());
         return REPORTED_VOLUME_PERCENTAGE;
     }
 
@@ -219,24 +246,31 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
-    public static double forceUnmutedNativeVolume() {
+    public static double forceUnmutedNativeVolume(Object owner) {
         emitSoundSignal(
+                auditForAsyncOwner(owner),
                 "activeview_native_volume",
                 "physical_read_blocked",
-                String.valueOf(REPORTED_NATIVE_VOLUME));
+                String.valueOf(REPORTED_NATIVE_VOLUME),
+                Collections.emptyList());
         return REPORTED_NATIVE_VOLUME;
     }
 
     @Keep
-    public static Object[] forceUnmutedOmidArguments(String methodName, Object[] arguments) {
+    public static Object[] forceUnmutedOmidArguments(
+            WebView webView,
+            String methodName,
+            Object[] arguments) {
         Object[] actual = arguments == null ? new Object[0] : arguments;
         if (!"setDeviceVolume".equals(methodName) || actual.length == 0) return actual;
         Object[] normalized = actual.clone();
+        AuditState state = auditForWebView(webView);
         emitSoundSignal(
+                state,
                 "omid_device_volume",
                 String.valueOf(actual[0]),
                 String.valueOf(REPORTED_OMID_VOLUME),
-                currentOmidSessionIds());
+                currentOmidSessionIds(state));
         normalized[0] = Float.valueOf(REPORTED_OMID_VOLUME);
         return normalized;
     }
@@ -260,32 +294,49 @@ public final class GoogleImaRuntimeBridge {
             String physicalValue,
             String reportedValue,
             List<String> sessionIds) {
+        AuditState state;
+        synchronized (AUDIT_LOCK) {
+            state = activeAudit;
+        }
+        emitSoundSignal(state, signal, physicalValue, reportedValue, sessionIds);
+    }
+
+    private static void emitSoundSignal(
+            AuditState state,
+            String signal,
+            String physicalValue,
+            String reportedValue,
+            List<String> sessionIds) {
+        if (state == null) {
+            PropertyLog.w(TAG, "audit=orphan event=sound_signal signal=" + safe(signal));
+            return;
+        }
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("signal", signal);
         fields.put("physical_value", safe(physicalValue));
         fields.put("reported_value", safe(reportedValue));
         if (!sessionIds.isEmpty()) fields.put("session_ids", joinValues(sessionIds));
-        AuditState state;
         synchronized (AUDIT_LOCK) {
-            state = activeAudit;
-            if (state != null && "ima_core_volume_percentage".equals(signal)) {
+            if ("ima_core_volume_percentage".equals(signal)) {
                 state.imaCoreVolumeObserved = true;
                 state.lastImaCoreReportedVolume = REPORTED_VOLUME_PERCENTAGE / 100.0f;
             }
         }
-        if (state != null) emit(state, "sound_signal", fields, null);
+        emit(state, "sound_signal", fields, null);
     }
 
     @Keep
     public static AdvertisingIdClient.Info getAdvertisingIdInfoForUrl(Context context) {
         AdvertisingResolution resolution = resolveAdvertisingId(context);
         URL_IDENTITY_FALLBACK.set(resolution.localFallback);
+        emitAdvertisingIdentityResolution("url", resolution);
         return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
     }
 
     @Keep
     public static AdvertisingIdClient.Info getAdvertisingIdInfoForV2(Context context) {
         AdvertisingResolution resolution = resolveAdvertisingId(context);
+        emitAdvertisingIdentityResolution("v2", resolution);
         return new AdvertisingIdClient.Info(resolution.id, resolution.limitedAdTracking);
     }
 
@@ -305,6 +356,20 @@ public final class GoogleImaRuntimeBridge {
         return false;
     }
 
+    private static void emitAdvertisingIdentityResolution(
+            String usage,
+            AdvertisingResolution resolution) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("identity_usage", safe(usage));
+        fields.put("rdid_source", resolution.localFallback ? "fallback" : "gms");
+        fields.put(
+                "rdid_fallback_source",
+                resolution.localFallback ? resolution.resolutionSource : ""
+        );
+        fields.put("limited_ad_tracking", Boolean.toString(resolution.limitedAdTracking));
+        emitCurrent("identity_control", fields, null);
+    }
+
     private static AdvertisingResolution resolveAdvertisingId(Context context) {
         boolean lastKnownLat = false;
         try {
@@ -317,7 +382,8 @@ public final class GoogleImaRuntimeBridge {
                     return new AdvertisingResolution(
                             original.getId(),
                             lastKnownLat,
-                            false
+                            false,
+                            "gms"
                     );
                 }
             }
@@ -331,7 +397,12 @@ public final class GoogleImaRuntimeBridge {
             lastKnownLat = local.limitedAdTracking;
             if (ImaSharedAdvertisingIdentity.isUsable(local.id)) {
                 PropertyLog.i(TAG, "control=advertisingId source=shared_local");
-                return new AdvertisingResolution(local.id, lastKnownLat, true);
+                return new AdvertisingResolution(
+                        local.id,
+                        lastKnownLat,
+                        true,
+                        "shared_local"
+                );
             }
         } catch (RuntimeException | LinkageError failure) {
             PropertyLog.w(
@@ -343,7 +414,7 @@ public final class GoogleImaRuntimeBridge {
 
         String tclId = ImaSharedAdvertisingIdentity.readOrCreateTclId(context);
         PropertyLog.i(TAG, "control=advertisingId source=tcl_persisted");
-        return new AdvertisingResolution(tclId, lastKnownLat, true);
+        return new AdvertisingResolution(tclId, lastKnownLat, true, "tcl_persisted");
     }
 
     @Keep
@@ -362,6 +433,115 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
+    public static void onImaVideoAdPlay(Object adMediaInfo) {
+        AuditState state = currentAudit();
+        if (state == null) return;
+        synchronized (AUDIT_LOCK) {
+            if (activeAudit != state) return;
+            state.startHandshake.onPlay(
+                    adMediaInfo,
+                    !state.activeOmidSessionIds.isEmpty());
+        }
+        emitHandshake(state, "video_ad_play", "", null);
+    }
+
+    @Keep
+    public static int prepareImaCoreStart(Object adMediaInfo, Object progressObject) {
+        float progressSeconds = -1f;
+        float durationSeconds = -1f;
+        if (progressObject instanceof VideoProgressUpdate) {
+            VideoProgressUpdate progress = (VideoProgressUpdate) progressObject;
+            progressSeconds = progress.getCurrentTime();
+            durationSeconds = progress.getDuration();
+        }
+        synchronized (AUDIT_LOCK) {
+            if (activeAudit == null) return GoogleImaStartHandshakeState.ACTION_NONE;
+            return activeAudit.startHandshake.prepareStart(
+                    adMediaInfo,
+                    progressSeconds,
+                    durationSeconds);
+        }
+    }
+
+    @Keep
+    public static void auditImaCoreOutbound(
+            Object messageType,
+            Object adMediaInfo,
+            Object payload) {
+        if (!"start".equals(String.valueOf(messageType))) return;
+        AuditState state = currentAudit();
+        if (state == null) return;
+        boolean accepted;
+        synchronized (AUDIT_LOCK) {
+            accepted = activeAudit == state &&
+                    state.startHandshake.onCoreStartSent(adMediaInfo);
+        }
+        if (accepted) emitHandshake(state, "core_start_outbound", "", payload);
+    }
+
+    @Keep
+    public static void markImaMediaPlaybackEvidence(
+            String trigger,
+            long positionMs,
+            long durationMs) {
+        AuditState state = currentAudit();
+        if (state == null) return;
+        boolean changed;
+        synchronized (AUDIT_LOCK) {
+            changed = activeAudit == state && state.startHandshake.markMediaEvidence();
+        }
+        if (!changed) return;
+        Map<String, String> extra = new LinkedHashMap<>();
+        extra.put("position_ms", String.valueOf(positionMs));
+        extra.put("duration_ms", String.valueOf(durationMs));
+        emitHandshake(state, "media_evidence", safe(trigger), extra);
+    }
+
+    @Keep
+    public static void markImaStarted(String source) {
+        AuditState state = currentAudit();
+        if (state == null) return;
+        boolean changed;
+        synchronized (AUDIT_LOCK) {
+            changed = activeAudit == state && state.startHandshake.markImaStarted();
+        }
+        if (changed) emitHandshake(state, "ima_started", safe(source), null);
+    }
+
+    @Keep
+    public static void requestImaCoreStartRecovery(String trigger) {
+        AuditState state = currentAudit();
+        if (state == null) return;
+        boolean changed;
+        synchronized (AUDIT_LOCK) {
+            changed = activeAudit == state && state.startHandshake.requestRecovery();
+        }
+        if (changed) emitHandshake(state, "core_start_recovery_requested", safe(trigger), null);
+    }
+
+    @Keep
+    public static boolean isCurrentImaMeasurementReady() {
+        synchronized (AUDIT_LOCK) {
+            return activeAudit != null && activeAudit.startHandshake.isMeasurementReady();
+        }
+    }
+
+    @Keep
+    public static boolean hasCurrentImaStarted() {
+        synchronized (AUDIT_LOCK) {
+            return activeAudit != null && activeAudit.startHandshake.isImaStarted();
+        }
+    }
+
+    @Keep
+    public static void auditImaMeasurementTerminal(String terminalEvent) {
+        AuditState state = currentAudit();
+        if (state != null) {
+            emitHandshake(state, "measurement_terminal", safe(terminalEvent), null);
+        }
+    }
+
+    @Keep
     public static void endAudit(GoogleImaAdListener listener, String reason) {
         AuditState state;
         synchronized (AUDIT_LOCK) {
@@ -373,13 +553,28 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
+    public static void bindNativeRequestAudit(Object requestObject) {
+        if (requestObject == null) return;
+        synchronized (AUDIT_LOCK) {
+            if (activeAudit == null) {
+                PropertyLog.w(TAG, "audit=orphan event=native_request_bind");
+                return;
+            }
+            putAuditOwner(NATIVE_REQUEST_AUDITS, requestObject, activeAudit);
+        }
+    }
+
+    @Keep
     public static void auditNativeResponse(Object requestObject, Object responseObject) {
         if (!(requestObject instanceof zzby) || !(responseObject instanceof zzbz)) return;
         AuditState state;
         int responseIndex;
         synchronized (AUDIT_LOCK) {
-            state = activeAudit;
-            if (state == null) return;
+            state = removeAuditOwner(NATIVE_REQUEST_AUDITS, requestObject);
+            if (state == null) {
+                PropertyLog.w(TAG, "audit=orphan event=native_response");
+                return;
+            }
             responseIndex = ++state.nativeResponseSequence;
         }
 
@@ -403,6 +598,7 @@ public final class GoogleImaRuntimeBridge {
     }
 
     private static void auditWebVastResponse(
+            AuditState state,
             String captureSource,
             String method,
             String url,
@@ -411,11 +607,12 @@ public final class GoogleImaRuntimeBridge {
             String content) {
         String safeContent = safe(content);
         if (!isVastXml(safeContent)) return;
-        AuditState state;
         int responseIndex;
         synchronized (AUDIT_LOCK) {
-            state = activeAudit;
-            if (state == null) return;
+            if (state == null) {
+                PropertyLog.w(TAG, "audit=orphan event=web_vast_response");
+                return;
+            }
             responseIndex = ++state.nativeResponseSequence;
         }
         Map<String, String> fields = new LinkedHashMap<>();
@@ -435,7 +632,10 @@ public final class GoogleImaRuntimeBridge {
     }
 
     @Keep
-    public static void auditOmidBridge(String methodName, Object[] arguments) {
+    public static void auditOmidBridge(
+            WebView webView,
+            String methodName,
+            Object[] arguments) {
         String method = safe(methodName);
         Object[] args = arguments == null ? new Object[0] : arguments;
         String payload = null;
@@ -444,13 +644,19 @@ public final class GoogleImaRuntimeBridge {
         fields.put("argument_count", String.valueOf(args.length));
         fields.put("argument_types", argumentTypes(args));
         String sessionId = findSessionId(method, args);
-        AuditState state = currentAudit();
+        AuditState state = auditForWebView(webView);
+        if (state == null) {
+            PropertyLog.w(TAG, "audit=orphan event=omid_bridge method=" + method);
+            return;
+        }
         if (state != null && "startSession".equals(method) && !sessionId.isEmpty()) {
             synchronized (AUDIT_LOCK) {
-                if (activeAudit == state) state.activeOmidSessionIds.add(sessionId);
+                state.activeOmidSessionIds.add(sessionId);
+                state.startHandshake.markOmidStarted();
             }
+            emitHandshake(state, "omid_session_started", "", null);
         }
-        List<String> activeSessionIds = currentOmidSessionIds();
+        List<String> activeSessionIds = currentOmidSessionIds(state);
         if (sessionId.isEmpty() && activeSessionIds.size() == 1) {
             sessionId = activeSessionIds.get(0);
         }
@@ -475,7 +681,7 @@ public final class GoogleImaRuntimeBridge {
         if (state != null) emit(state, "omid_bridge", fields, payload);
         if (state != null && "finishSession".equals(method) && !sessionId.isEmpty()) {
             synchronized (AUDIT_LOCK) {
-                if (activeAudit == state) state.activeOmidSessionIds.remove(sessionId);
+                state.activeOmidSessionIds.remove(sessionId);
             }
         }
     }
@@ -483,32 +689,96 @@ public final class GoogleImaRuntimeBridge {
     @Keep
     public static void setAuditedWebViewClient(WebView webView, WebViewClient client) {
         if (webView == null) return;
-        installWebViewNetworkAudit(webView);
-        if (client instanceof AuditingWebViewClient || currentAudit() == null) {
+        AuditState state = bindWebViewAudit(webView);
+        installWebViewNetworkAudit(webView, state);
+        if (client instanceof AuditingWebViewClient || state == null) {
             webView.setWebViewClient(client);
             return;
         }
-        webView.setWebViewClient(new AuditingWebViewClient(client));
+        webView.setWebViewClient(new AuditingWebViewClient(client, state));
     }
 
-    private static void installWebViewNetworkAudit(WebView webView) {
+    private static AuditState bindWebViewAudit(WebView webView) {
         synchronized (AUDITED_WEB_VIEWS) {
-            if (AUDITED_WEB_VIEWS.containsKey(webView)) return;
+            WebViewAuditBinding existing = AUDITED_WEB_VIEWS.get(webView);
+            if (existing != null) return existing.state;
+            AuditState state = currentAudit();
+            if (state != null) {
+                AUDITED_WEB_VIEWS.put(webView, new WebViewAuditBinding(state));
+            }
+            return state;
+        }
+    }
+
+    private static AuditState auditForWebView(WebView webView) {
+        if (webView == null) return null;
+        synchronized (AUDITED_WEB_VIEWS) {
+            WebViewAuditBinding binding = AUDITED_WEB_VIEWS.get(webView);
+            return binding == null ? null : binding.state;
+        }
+    }
+
+    private static AuditState auditForAsyncOwner(Object owner) {
+        if (owner == null) return null;
+        synchronized (AUDIT_LOCK) {
+            return getAuditOwner(ASYNC_OWNER_AUDITS, owner);
+        }
+    }
+
+    private static void putAuditOwner(
+            Map<IdentityWeakReference, AuditState> owners,
+            Object owner,
+            AuditState state) {
+        drainAuditOwnerQueue();
+        owners.put(new IdentityWeakReference(owner, AUDIT_OWNER_QUEUE), state);
+    }
+
+    private static AuditState getAuditOwner(
+            Map<IdentityWeakReference, AuditState> owners,
+            Object owner) {
+        drainAuditOwnerQueue();
+        return owners.get(new IdentityWeakReference(owner, null));
+    }
+
+    private static AuditState removeAuditOwner(
+            Map<IdentityWeakReference, AuditState> owners,
+            Object owner) {
+        drainAuditOwnerQueue();
+        return owners.remove(new IdentityWeakReference(owner, null));
+    }
+
+    private static void drainAuditOwnerQueue() {
+        IdentityWeakReference cleared;
+        while ((cleared = (IdentityWeakReference) AUDIT_OWNER_QUEUE.poll()) != null) {
+            NATIVE_REQUEST_AUDITS.remove(cleared);
+            ASYNC_OWNER_AUDITS.remove(cleared);
+        }
+    }
+
+    private static void installWebViewNetworkAudit(WebView webView, AuditState state) {
+        if (state == null) return;
+        synchronized (AUDITED_WEB_VIEWS) {
+            WebViewAuditBinding binding = AUDITED_WEB_VIEWS.get(webView);
+            if (binding == null || binding.networkAuditInstalled) return;
             try {
-                webView.addJavascriptInterface(new AuditJavascriptBridge(), AUDIT_JS_BRIDGE);
+                webView.addJavascriptInterface(
+                        new AuditJavascriptBridge(state),
+                        AUDIT_JS_BRIDGE);
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                     WebViewCompat.addDocumentStartJavaScript(
                             webView,
                             AUDIT_NETWORK_SCRIPT,
                             Collections.singleton("*"));
-                    AUDITED_WEB_VIEWS.put(webView, Boolean.TRUE);
+                    binding.documentStartInstalled = true;
                     PropertyLog.i(TAG, "audit=vast webview_document_start=true");
                 } else {
-                    AUDITED_WEB_VIEWS.put(webView, Boolean.FALSE);
+                    binding.documentStartInstalled = false;
                     PropertyLog.w(TAG, "audit=vast webview_document_start=false");
                 }
+                binding.networkAuditInstalled = true;
             } catch (Throwable error) {
-                AUDITED_WEB_VIEWS.put(webView, Boolean.FALSE);
+                binding.documentStartInstalled = false;
+                binding.networkAuditInstalled = true;
                 PropertyLog.w(TAG, "audit=vast webview_install_failed", error);
             }
         }
@@ -516,7 +786,8 @@ public final class GoogleImaRuntimeBridge {
 
     private static void injectFallbackWebViewNetworkAudit(WebView webView, String phase) {
         synchronized (AUDITED_WEB_VIEWS) {
-            if (!Boolean.FALSE.equals(AUDITED_WEB_VIEWS.get(webView))) return;
+            WebViewAuditBinding binding = AUDITED_WEB_VIEWS.get(webView);
+            if (binding == null || binding.documentStartInstalled) return;
         }
         try {
             webView.evaluateJavascript(AUDIT_NETWORK_SCRIPT, null);
@@ -609,6 +880,7 @@ public final class GoogleImaRuntimeBridge {
     }
 
     private static void auditWebResource(
+            AuditState state,
             String phase,
             String url,
             String method,
@@ -622,7 +894,11 @@ public final class GoogleImaRuntimeBridge {
         if (mainFrame != null) fields.put("main_frame", String.valueOf(mainFrame));
         if (errorCode != null) fields.put("error_code", String.valueOf(errorCode));
         if (errorDescription != null) fields.put("error", errorDescription);
-        emitCurrent("web_resource", fields, null);
+        if (state == null) {
+            PropertyLog.w(TAG, "audit=orphan event=web_resource phase=" + safe(phase));
+            return;
+        }
+        emit(state, "web_resource", fields, null);
     }
 
     private static AuditState currentAudit() {
@@ -653,6 +929,24 @@ public final class GoogleImaRuntimeBridge {
         } catch (Throwable error) {
             PropertyLog.w(TAG, "audit callback failed event=" + eventType, error);
         }
+    }
+
+    private static void emitHandshake(
+            AuditState state,
+            String phase,
+            String trigger,
+            Object payload) {
+        GoogleImaStartHandshakeState handshake = state.startHandshake;
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("phase", safe(phase));
+        fields.put("trigger", safe(trigger));
+        fields.put("core_start_send_count", String.valueOf(handshake.getCoreStartSendCount()));
+        fields.put("ima_started", String.valueOf(handshake.isImaStarted()));
+        fields.put("omid_started", String.valueOf(handshake.isOmidStarted()));
+        fields.put("measurement_ready", String.valueOf(handshake.isMeasurementReady()));
+        fields.put("last_progress_seconds", String.valueOf(handshake.getLastProgressSeconds()));
+        fields.put("last_duration_seconds", String.valueOf(handshake.getLastDurationSeconds()));
+        emit(state, "ima_start_handshake", fields, payload == null ? null : String.valueOf(payload));
     }
 
     private static Map<String, String> fields(String name, String value) {
@@ -686,12 +980,12 @@ public final class GoogleImaRuntimeBridge {
         return last instanceof String ? safe((String) last) : "";
     }
 
-    private static List<String> currentOmidSessionIds() {
+    private static List<String> currentOmidSessionIds(AuditState state) {
         synchronized (AUDIT_LOCK) {
-            if (activeAudit == null || activeAudit.activeOmidSessionIds.isEmpty()) {
+            if (state == null || state.activeOmidSessionIds.isEmpty()) {
                 return Collections.emptyList();
             }
-            return new ArrayList<>(activeAudit.activeOmidSessionIds);
+            return new ArrayList<>(state.activeOmidSessionIds);
         }
     }
 
@@ -790,6 +1084,8 @@ public final class GoogleImaRuntimeBridge {
     private static final class AuditState {
         final GoogleImaAdListener listener;
         final LinkedHashSet<String> activeOmidSessionIds = new LinkedHashSet<>();
+        final GoogleImaStartHandshakeState startHandshake =
+                new GoogleImaStartHandshakeState();
         int nativeResponseSequence;
         boolean imaCoreVolumeObserved;
         float lastImaCoreReportedVolume = -1.0f;
@@ -799,23 +1095,64 @@ public final class GoogleImaRuntimeBridge {
         }
     }
 
+    private static final class WebViewAuditBinding {
+        final AuditState state;
+        boolean networkAuditInstalled;
+        boolean documentStartInstalled;
+
+        WebViewAuditBinding(AuditState actualState) {
+            state = actualState;
+        }
+    }
+
+    static final class IdentityWeakReference extends WeakReference<Object> {
+        private final int identityHash;
+
+        IdentityWeakReference(Object referent, ReferenceQueue<Object> queue) {
+            super(referent, queue);
+            identityHash = System.identityHashCode(referent);
+        }
+
+        @Override
+        public int hashCode() {
+            return identityHash;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof IdentityWeakReference)) return false;
+            Object referent = get();
+            return referent != null && referent == ((IdentityWeakReference) other).get();
+        }
+    }
+
     private static final class AdvertisingResolution {
         final String id;
         final boolean limitedAdTracking;
         final boolean localFallback;
+        final String resolutionSource;
 
         AdvertisingResolution(
                 String actualId,
                 boolean actualLimitedAdTracking,
-                boolean actualLocalFallback
+                boolean actualLocalFallback,
+                String actualResolutionSource
         ) {
             id = actualId;
             limitedAdTracking = actualLimitedAdTracking;
             localFallback = actualLocalFallback;
+            resolutionSource = actualResolutionSource;
         }
     }
 
     private static final class AuditJavascriptBridge {
+        private final AuditState state;
+
+        AuditJavascriptBridge(AuditState actualState) {
+            state = actualState;
+        }
+
         @JavascriptInterface
         public void onVastResponse(
                 String captureSource,
@@ -824,15 +1161,24 @@ public final class GoogleImaRuntimeBridge {
                 int status,
                 String contentType,
                 String content) {
-            auditWebVastResponse(captureSource, method, url, status, contentType, content);
+            auditWebVastResponse(
+                    state,
+                    captureSource,
+                    method,
+                    url,
+                    status,
+                    contentType,
+                    content);
         }
     }
 
     private static final class AuditingWebViewClient extends WebViewClient {
         private final WebViewClient delegate;
+        private final AuditState state;
 
-        AuditingWebViewClient(WebViewClient delegate) {
+        AuditingWebViewClient(WebViewClient delegate, AuditState actualState) {
             this.delegate = delegate == null ? new WebViewClient() : delegate;
+            state = actualState;
         }
 
         @SuppressWarnings("deprecation")
@@ -849,7 +1195,7 @@ public final class GoogleImaRuntimeBridge {
         @SuppressWarnings("deprecation")
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
-            auditWebResource("request", url, "GET", null, null, null);
+            auditWebResource(state, "request", url, "GET", null, null, null);
             return delegate.shouldInterceptRequest(view, url);
         }
 
@@ -858,6 +1204,7 @@ public final class GoogleImaRuntimeBridge {
                 WebView view,
                 WebResourceRequest request) {
             auditWebResource(
+                    state,
                     "request",
                     request.getUrl().toString(),
                     request.getMethod(),
@@ -869,21 +1216,21 @@ public final class GoogleImaRuntimeBridge {
 
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            auditWebResource("page_started", url, null, true, null, null);
+            auditWebResource(state, "page_started", url, null, true, null, null);
             injectFallbackWebViewNetworkAudit(view, "page_started");
             delegate.onPageStarted(view, url, favicon);
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            auditWebResource("page_finished", url, null, true, null, null);
+            auditWebResource(state, "page_finished", url, null, true, null, null);
             injectFallbackWebViewNetworkAudit(view, "page_finished");
             delegate.onPageFinished(view, url);
         }
 
         @Override
         public void onLoadResource(WebView view, String url) {
-            auditWebResource("load", url, null, null, null, null);
+            auditWebResource(state, "load", url, null, null, null, null);
             delegate.onLoadResource(view, url);
         }
 
@@ -894,7 +1241,14 @@ public final class GoogleImaRuntimeBridge {
                 int errorCode,
                 String description,
                 String failingUrl) {
-            auditWebResource("error", failingUrl, null, null, errorCode, description);
+            auditWebResource(
+                    state,
+                    "error",
+                    failingUrl,
+                    null,
+                    null,
+                    errorCode,
+                    description);
             delegate.onReceivedError(view, errorCode, description, failingUrl);
         }
 
@@ -904,6 +1258,7 @@ public final class GoogleImaRuntimeBridge {
                 WebResourceRequest request,
                 WebResourceError error) {
             auditWebResource(
+                    state,
                     "error",
                     request.getUrl().toString(),
                     request.getMethod(),
@@ -919,6 +1274,7 @@ public final class GoogleImaRuntimeBridge {
                 WebResourceRequest request,
                 WebResourceResponse errorResponse) {
             auditWebResource(
+                    state,
                     "http_error",
                     request.getUrl().toString(),
                     request.getMethod(),
@@ -926,6 +1282,45 @@ public final class GoogleImaRuntimeBridge {
                     errorResponse.getStatusCode(),
                     errorResponse.getReasonPhrase());
             delegate.onReceivedHttpError(view, request, errorResponse);
+        }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("phase", "render_process_gone");
+            fields.put("did_crash", String.valueOf(detail != null && detail.didCrash()));
+            if (detail != null) {
+                fields.put("renderer_priority_at_exit", String.valueOf(detail.rendererPriorityAtExit()));
+            }
+            emit(state, "web_resource", fields, null);
+            boolean handled = false;
+            try {
+                handled = delegate.onRenderProcessGone(view, detail);
+            } catch (RuntimeException | LinkageError failure) {
+                PropertyLog.w(
+                        TAG,
+                        "audit=webview event=render_process_gone delegate_failure=" +
+                                failure.getClass().getSimpleName());
+            } finally {
+                synchronized (AUDITED_WEB_VIEWS) {
+                    AUDITED_WEB_VIEWS.remove(view);
+                }
+            }
+            if (!handled && view != null) {
+                try {
+                    view.destroy();
+                    handled = true;
+                } catch (RuntimeException | LinkageError failure) {
+                    PropertyLog.w(
+                            TAG,
+                            "audit=webview event=render_process_gone destroy_failure=" +
+                                    failure.getClass().getSimpleName());
+                }
+            }
+            PropertyLog.w(
+                    TAG,
+                    "audit=webview event=render_process_gone handled=" + handled);
+            return handled;
         }
     }
 }

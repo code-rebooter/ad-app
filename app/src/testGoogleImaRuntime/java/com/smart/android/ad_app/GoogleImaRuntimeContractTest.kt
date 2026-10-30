@@ -44,6 +44,10 @@ class GoogleImaRuntimeContractTest {
         val imaManager = readProjectFile(
             "app/src/googleImaRuntime/java/com/smart/android/ad_app/GoogleImaAdManager.kt"
         )
+        val imaPlayer = readProjectFile(
+            "ad-sdk-google-ima/src/main/java/com/smart/android/googleima/" +
+                "GoogleImaAdPlayerView.java"
+        )
 
         assertTrue(moduleBuild.contains("com.smart.android.googleima.controlled:interactivemedia:3.35.1"))
         assertTrue(
@@ -74,6 +78,7 @@ class GoogleImaRuntimeContractTest {
         assertTrue(runtimeBridge.contains("getAdvertisingIdInfoForUrl"))
         assertTrue(runtimeBridge.contains("getAdvertisingIdInfoForV2"))
         assertTrue(runtimeBridge.contains("shouldCollectAppSet"))
+        assertTrue(runtimeBridge.contains("forceIdentifierInfoCollection"))
         assertTrue(runtimeBridge.contains("source=shared_local"))
         assertTrue(runtimeBridge.contains("source=tcl_persisted"))
         assertTrue(runtimeBridge.contains("forceUnmutedVolumePercentage"))
@@ -88,6 +93,7 @@ class GoogleImaRuntimeContractTest {
         assertTrue(patcher.contains("patchGoogleAdsIdentifierDiagnostics"))
         assertTrue(patcher.contains("patchGoogleAppSetTelemetry"))
         assertTrue(patcher.contains("patchGoogleMedia3ImaVolume"))
+        assertTrue(patcher.contains("getControlledAdProgressInfo"))
         assertTrue(patcher.contains("usesClientTelemetry"))
         assertTrue(patcher.contains("instruction.operand == 27601"))
         assertTrue(patcher.contains("auditNativeResponse"))
@@ -95,12 +101,30 @@ class GoogleImaRuntimeContractTest {
         assertTrue(patcher.contains("getAdvertisingIdInfoForUrl"))
         assertTrue(patcher.contains("getAdvertisingIdInfoForV2"))
         assertTrue(patcher.contains("shouldCollectAppSet"))
+        assertTrue(patcher.contains("forceIdentifierInfoCollection"))
+        assertTrue(imaManager.contains("startSource=\$normalizedSource"))
+        assertTrue(imaManager.contains("AD_IMA_STARTED_LATE"))
+        assertTrue(imaManager.contains("lastImaProgressAt"))
+        assertTrue(imaManager.contains("pausePlaybackBudget"))
+        assertTrue(imaManager.contains("resetCurrentAdMetadata"))
+        assertTrue(imaManager.contains("hardRemainingMs"))
+        assertTrue(imaManager.contains("pendingRenderedFirstFrameAt"))
+        assertTrue(imaManager.contains("pendingMaxPositionMs"))
+        assertTrue(imaManager.contains("isCurrentSegmentActive(session)"))
+        assertTrue(imaManager.contains("cancelPlaybackStartTimeout(session)"))
+        val fingerprintBody = Regex(
+            "static String adFingerprint\\(Ad ad\\) \\{([\\s\\S]*?)\\n    \\}"
+        ).find(imaPlayer)?.groupValues?.get(1).orEmpty()
+        assertFalse(fingerprintBody.contains("pod.totalAds"))
 
         assertTrue(auditReporter.contains("IMA_RUNTIME_AUDIT"))
         assertTrue(auditReporter.contains("verification_scripts"))
         assertTrue(auditReporter.contains("omid_runtime_audit"))
+        assertTrue(auditReporter.contains("identity_control_audit"))
         assertTrue(auditReporter.contains("vast_artifacts"))
         assertTrue(auditReporter.contains("gzip+base64"))
+        assertTrue(auditReporter.contains("effective_ad_start"))
+        assertTrue(auditReporter.contains("fields[\"ad_instance_id\"]"))
         assertFalse(consentReporter.contains("IMA_VAST_ARTIFACT"))
         assertFalse(consentReporter.contains("reportArtifact"))
         assertEquals(

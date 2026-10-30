@@ -26,4 +26,11 @@ final class GoogleImaAdPodPolicy {
         }
         return CompletedAction.WAIT_FOR_METADATA;
     }
+
+    static boolean shouldArmNextAdStartTimeout(
+            boolean previousAdCompleted,
+            boolean transitionTimeoutActive,
+            boolean adBreakCompletionTimeoutActive) {
+        return previousAdCompleted || transitionTimeoutActive || adBreakCompletionTimeoutActive;
+    }
 }

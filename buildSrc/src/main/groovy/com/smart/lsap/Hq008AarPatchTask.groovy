@@ -161,9 +161,10 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             ]
         } else if (targetFlavor.get() == 'google_media3_ima') {
             metadataLines = [
-                'patchVersion=google-media3-ima-volume-normalization-1',
+                'patchVersion=google-media3-ima-runtime-control-2',
                 'soundReportingPolicy=force-unmuted-video-ad-player-volume-query',
                 'playbackVolumePolicy=preserve-host-selected-physical-player-volume',
+                'adProgressPolicy=expose-current-ads-manager-progress-read-only',
                 "originalAarSha256=${actualHash}",
                 "patchedClassesJarSha256=${sha256(patchedClasses)}",
                 "targetFlavor=${targetFlavor.get()}",
@@ -632,6 +633,8 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             0, 'IMA ordinary direct GMS Advertising ID read')
         requireCallCount(ordinaryIdentity, runtimeBridge, 'shouldCollectAppSet',
             '(Z)Z', 1, 'IMA AppSet fallback suppression')
+        requireCallCount(ordinaryIdentity, runtimeBridge, 'forceIdentifierInfoCollection',
+            '(Z)Z', 1, 'IMA IDless identity construction override')
 
         byte[] v2Identity = requireClass(
             classEntries,
@@ -653,11 +656,23 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 2) {
+        if (modifiedClasses != 3) {
             throw new GradleException(
-                "Media3 IMA patch changed ${modifiedClasses} classes; expected exactly 2"
+                "Media3 IMA patch changed ${modifiedClasses} classes; expected exactly 3"
             )
         }
+        byte[] imaAdsLoader = requireClass(
+            classEntries,
+            'androidx/media3/exoplayer/ima/ImaAdsLoader.class'
+        )
+        requireCallCount(
+            imaAdsLoader,
+            'androidx/media3/exoplayer/ima/AdTagLoader',
+            'getControlledAdProgressInfo',
+            '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+            1,
+            'Media3 IMA current AdProgressInfo bridge'
+        )
         byte[] adTagLoader = requireClass(
             classEntries,
             'androidx/media3/exoplayer/ima/AdTagLoader.class'
@@ -669,6 +684,14 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '(Lcom/google/ads/interactivemedia/v3/api/AdsRequest;)V',
             1,
             'Media3 IMA AdsRequest videoPlayMuted normalization'
+        )
+        requireCallCount(
+            adTagLoader,
+            'com/google/ads/interactivemedia/v3/api/BaseManager',
+            'getAdProgressInfo',
+            '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+            1,
+            'Media3 IMA AdsManager progress source'
         )
         byte[] videoAdPlayer = requireClass(
             classEntries,

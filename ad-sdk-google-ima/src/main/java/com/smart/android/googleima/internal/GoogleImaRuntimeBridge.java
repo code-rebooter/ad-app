@@ -296,6 +296,15 @@ public final class GoogleImaRuntimeBridge {
         return configured && !localFallback;
     }
 
+    @Keep
+    public static boolean forceIdentifierInfoCollection(boolean originalIdless) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("original_idless", Boolean.toString(originalIdless));
+        fields.put("effective_idless", "false");
+        emitCurrent("identity_control", fields, null);
+        return false;
+    }
+
     private static AdvertisingResolution resolveAdvertisingId(Context context) {
         boolean lastKnownLat = false;
         try {

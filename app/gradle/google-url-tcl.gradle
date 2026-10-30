@@ -93,4 +93,8 @@ if (useGoogleImaRuntime) {
         java.srcDirs = ['src/testGoogleImaRuntime/java']
         kotlin.srcDirs = ['src/testGoogleImaRuntime/java']
     }
+    android.sourceSets.maybeCreate('testGoogle_ad_tv_desktop_ambientlightDebug').with {
+        java.srcDirs = ['src/testGoogleImaRuntime/java']
+        kotlin.srcDirs = ['src/testGoogleImaRuntime/java']
+    }
 }

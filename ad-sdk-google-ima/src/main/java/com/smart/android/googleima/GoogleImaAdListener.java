@@ -7,7 +7,21 @@ public interface GoogleImaAdListener {
 
     default void onAdStarted() {}
 
+    default void onAdStarted(String source) {
+        onAdStarted();
+    }
+
+    default void onAdMediaStartEvidence(String source, String adInstanceId) {}
+
+    default void onAdStarted(String source, GoogleImaAdInfo adInfo) {
+        onAdStarted(source);
+    }
+
     default void onAdFirstFrameRendered() {}
+
+    default void onAdFirstFrameRendered(String adInstanceId) {
+        onAdFirstFrameRendered();
+    }
 
     default void onAdCompleted(String event) {}
 

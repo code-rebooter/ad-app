@@ -43,6 +43,13 @@ class AdPlaybackPolicyTest {
     }
 
     @Test
+    fun `hard playback deadline keeps a bounded buffering allowance`() {
+        assertEquals(210_000L, AdPlaybackPolicy.resolvePlaybackHardTimeoutMs(15_000L))
+        assertEquals(219_000L, AdPlaybackPolicy.resolvePlaybackHardTimeoutMs(39_000L))
+        assertEquals(751_000L, AdPlaybackPolicy.resolvePlaybackHardTimeoutMs(571_000L))
+    }
+
+    @Test
     fun `playback timeout reasons should be classified consistently`() {
         assertTrue(AdPlaybackPolicy.isTimeoutReason("request_start_timeout"))
         assertTrue(AdPlaybackPolicy.isTimeoutReason("playback_buffer_timeout"))

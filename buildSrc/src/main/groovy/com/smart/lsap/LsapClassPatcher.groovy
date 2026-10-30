@@ -1018,6 +1018,7 @@ final class LsapClassPatcher implements Opcodes {
 
     static byte[] patchGoogleMedia3ImaVolume(String entryName, byte[] bytes) {
         if (!(entryName in [
+            'androidx/media3/exoplayer/ima/ImaAdsLoader.class',
             'androidx/media3/exoplayer/ima/AdTagLoader.class',
             'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class'
         ])) {
@@ -1027,6 +1028,80 @@ final class LsapClassPatcher implements Opcodes {
         ClassReader reader = new ClassReader(bytes)
         reader.accept(node, ClassReader.EXPAND_FRAMES)
         boolean changed = false
+        if (entryName == 'androidx/media3/exoplayer/ima/AdTagLoader.class' &&
+            !node.methods.any {
+                it.name == 'getControlledAdProgressInfo' &&
+                    it.desc == '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;'
+            }) {
+            MethodNode progress = new MethodNode(
+                ACC_PUBLIC,
+                'getControlledAdProgressInfo',
+                '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+                null,
+                null
+            )
+            LabelNode hasManager = new LabelNode()
+            progress.instructions.add(new VarInsnNode(ALOAD, 0))
+            progress.instructions.add(new FieldInsnNode(
+                GETFIELD,
+                'androidx/media3/exoplayer/ima/AdTagLoader',
+                'adsManager',
+                'Lcom/google/ads/interactivemedia/v3/api/AdsManager;'
+            ))
+            progress.instructions.add(new InsnNode(DUP))
+            progress.instructions.add(new JumpInsnNode(IFNONNULL, hasManager))
+            progress.instructions.add(new InsnNode(POP))
+            progress.instructions.add(new InsnNode(ACONST_NULL))
+            progress.instructions.add(new InsnNode(ARETURN))
+            progress.instructions.add(hasManager)
+            progress.instructions.add(new MethodInsnNode(
+                INVOKEINTERFACE,
+                'com/google/ads/interactivemedia/v3/api/BaseManager',
+                'getAdProgressInfo',
+                '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+                true
+            ))
+            progress.instructions.add(new InsnNode(ARETURN))
+            node.methods.add(progress)
+            changed = true
+        }
+        if (entryName == 'androidx/media3/exoplayer/ima/ImaAdsLoader.class' &&
+            !node.methods.any {
+                it.name == 'getControlledAdProgressInfo' &&
+                    it.desc == '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;'
+            }) {
+            MethodNode progress = new MethodNode(
+                ACC_PUBLIC,
+                'getControlledAdProgressInfo',
+                '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+                null,
+                null
+            )
+            LabelNode hasLoader = new LabelNode()
+            progress.instructions.add(new VarInsnNode(ALOAD, 0))
+            progress.instructions.add(new FieldInsnNode(
+                GETFIELD,
+                'androidx/media3/exoplayer/ima/ImaAdsLoader',
+                'currentAdTagLoader',
+                'Landroidx/media3/exoplayer/ima/AdTagLoader;'
+            ))
+            progress.instructions.add(new InsnNode(DUP))
+            progress.instructions.add(new JumpInsnNode(IFNONNULL, hasLoader))
+            progress.instructions.add(new InsnNode(POP))
+            progress.instructions.add(new InsnNode(ACONST_NULL))
+            progress.instructions.add(new InsnNode(ARETURN))
+            progress.instructions.add(hasLoader)
+            progress.instructions.add(new MethodInsnNode(
+                INVOKEVIRTUAL,
+                'androidx/media3/exoplayer/ima/AdTagLoader',
+                'getControlledAdProgressInfo',
+                '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;',
+                false
+            ))
+            progress.instructions.add(new InsnNode(ARETURN))
+            node.methods.add(progress)
+            changed = true
+        }
         node.methods.each { MethodNode method ->
             if (entryName ==
                 'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class' &&
@@ -1247,6 +1322,33 @@ final class LsapClassPatcher implements Opcodes {
             '(Lcom/google/ads/interactivemedia/v3/api/BaseRequest;' +
             'Lcom/google/ads/interactivemedia/v3/internal/zzeu;Ljava/lang/String;)' +
             'Lcom/google/ads/interactivemedia/v3/impl/data/zzbn;') {
+            boolean identifierDecisionPending = false
+            method.instructions.toArray().each { instruction ->
+                if (instruction instanceof MethodInsnNode &&
+                    instruction.opcode == INVOKESPECIAL &&
+                    instruction.owner == 'com/google/ads/interactivemedia/v3/internal/zzez' &&
+                    instruction.name == 'zzb' &&
+                    instruction.desc ==
+                        '(Lcom/google/ads/interactivemedia/v3/internal/zzeu;)' +
+                        'Ljava/lang/Boolean;') {
+                    identifierDecisionPending = true
+                } else if (identifierDecisionPending &&
+                    instruction instanceof MethodInsnNode &&
+                    instruction.opcode == INVOKEVIRTUAL &&
+                    instruction.owner == 'java/lang/Boolean' &&
+                    instruction.name == 'booleanValue' &&
+                    instruction.desc == '()Z') {
+                    method.instructions.insert(instruction, new MethodInsnNode(
+                        INVOKESTATIC,
+                        runtimeBridge,
+                        'forceIdentifierInfoCollection',
+                        '(Z)Z',
+                        false
+                    ))
+                    identifierDecisionPending = false
+                    changed = true
+                }
+            }
             method.instructions.toArray().findAll { instruction ->
                 instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
                     instruction.owner ==

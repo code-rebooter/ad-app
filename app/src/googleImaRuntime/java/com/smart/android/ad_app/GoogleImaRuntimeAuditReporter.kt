@@ -23,6 +23,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private val verificationScripts = mutableListOf<VerificationScript>()
     private val webResources = linkedMapOf<String, WebResourceStatus>()
     private val soundSignals = linkedMapOf<String, SoundSignalStatus>()
+    private val identityControlEvents = mutableListOf<IdentityControlRecord>()
     private val omidCalls = linkedMapOf<String, Int>()
     private val omidSessions = linkedMapOf<String, OmidSessionStatus>()
     private val imaAdEventCounts = linkedMapOf<String, Int>()
@@ -96,8 +97,10 @@ internal class GoogleImaRuntimeAuditReporter(
                 "native_xhr_response" -> recordNativeXhr(event)
                 "web_resource" -> recordWebResource(event)
                 "sound_signal" -> recordSoundSignal(event)
+                "identity_control" -> recordIdentityControl(event)
                 "omid_bridge" -> recordOmid(event)
                 "ima_ad_event" -> recordImaAdEvent(event)
+                "effective_ad_start" -> recordEffectiveAdStart(event)
                 "player_state", "playback_progress", "first_frame", "terminal_snapshot" ->
                     recordPlayerSnapshot(event)
                 "playback_error" -> recordPlaybackError(event)
@@ -230,6 +233,14 @@ internal class GoogleImaRuntimeAuditReporter(
         }
     }
 
+    private fun recordIdentityControl(event: GoogleImaAuditEvent) {
+        identityControlEvents += IdentityControlRecord(
+            elapsedRealtimeMs = event.elapsedRealtimeMs,
+            originalIdless = event.fields["original_idless"]?.toBooleanStrictOrNull(),
+            effectiveIdless = event.fields["effective_idless"]?.toBooleanStrictOrNull()
+        )
+    }
+
     private fun recordOmid(event: GoogleImaAuditEvent) {
         val method = event.fields["method"].orEmpty()
         if (method.isBlank()) return
@@ -279,7 +290,7 @@ internal class GoogleImaRuntimeAuditReporter(
         val fields = event.fields
         val imaEvent = fields["ima_event"].orEmpty()
         val adBaseKey = buildAdBaseKey(fields)
-        val adKey = resolveAdKey(imaEvent, adBaseKey)
+        val adKey = resolveAdKey(imaEvent, fields, adBaseKey)
         val adData = fields
             .filterKeys { it.startsWith(AD_DATA_PREFIX) }
             .mapKeys { it.key.removePrefix(AD_DATA_PREFIX) }
@@ -314,16 +325,19 @@ internal class GoogleImaRuntimeAuditReporter(
                 adStatus?.loadedAtMs = event.elapsedRealtimeMs
             }
             "STARTED" -> {
-                activeAdKey = adKey
-                activeAdBaseKey = adBaseKey
-                if (pendingAdKey == adKey) pendingAdKey = ""
-                if (pendingAdBaseKey == adBaseKey) pendingAdBaseKey = ""
-                currentAdMaxPositionMs = -1L
-                adStatus?.apply {
-                    startedAtMs = event.elapsedRealtimeMs
-                    maxPositionMs = -1L
-                    terminalEvent = ""
-                    completedAtMs = null
+                if (adStatus?.terminalEvent.isNullOrBlank()) {
+                    activeAdKey = adKey
+                    activeAdBaseKey = adBaseKey
+                    if (pendingAdKey == adKey) pendingAdKey = ""
+                    if (pendingAdBaseKey == adBaseKey) pendingAdBaseKey = ""
+                    if (adStatus?.startedAtMs == null) {
+                        currentAdMaxPositionMs = -1L
+                        adStatus?.apply {
+                            startedAtMs = event.elapsedRealtimeMs
+                            startSource = "ima"
+                            maxPositionMs = -1L
+                        }
+                    }
                 }
             }
             "COMPLETED", "SKIPPED" -> {
@@ -354,6 +368,27 @@ internal class GoogleImaRuntimeAuditReporter(
         fields["pod_index"]?.toIntOrNull()?.takeIf { it >= 0 }?.let {
             lastPodIndex = it
         }
+    }
+
+    private fun recordEffectiveAdStart(event: GoogleImaAuditEvent) {
+        val fields = event.fields
+        val adBaseKey = buildAdBaseKey(fields)
+        val adKey = resolveAdKey("STARTED", fields, adBaseKey)
+        if (adKey.isBlank()) return
+        val status = adPlaybackStates.getOrPut(adKey) { AdPlaybackStatus(adKey) }.apply {
+            updateMetadata(fields)
+        }
+        if (status.terminalEvent.isNotBlank()) return
+        activeAdKey = adKey
+        activeAdBaseKey = adBaseKey
+        if (pendingAdKey == adKey) pendingAdKey = ""
+        if (pendingAdBaseKey == adBaseKey) pendingAdBaseKey = ""
+        if (status.startedAtMs == null) {
+            status.startedAtMs = event.elapsedRealtimeMs
+            status.maxPositionMs = -1L
+            currentAdMaxPositionMs = -1L
+        }
+        status.startSource = fields["start_source"].orEmpty().ifBlank { status.startSource }
     }
 
     private fun recordPlayerSnapshot(event: GoogleImaAuditEvent) {
@@ -393,6 +428,7 @@ internal class GoogleImaRuntimeAuditReporter(
         val buffered = fields["buffered_position_ms"]?.toLongOrNull() ?: -1L
         val isPlaying = fields["is_playing"]?.toBooleanStrictOrNull() ?: false
         val trigger = fields["trigger"].orEmpty()
+        val snapshotAdKey = fields["ad_instance_id"].orEmpty().ifBlank { activeAdKey }
         if (isPlayingAd) {
             lastAdPlayerState = state
             lastAdPlayerPositionMs = position
@@ -403,10 +439,16 @@ internal class GoogleImaRuntimeAuditReporter(
                 trigger.startsWith("ima_SKIPPED")
             if (position >= 0L && !terminalTransitionSnapshot) {
                 maxAdPositionMs = maxOf(maxAdPositionMs, position)
-                currentAdMaxPositionMs = maxOf(currentAdMaxPositionMs, position)
-                adPlaybackStates[activeAdKey]?.let { status ->
+                if (snapshotAdKey.isBlank()) {
+                    currentAdMaxPositionMs = maxOf(currentAdMaxPositionMs, position)
+                }
+                adPlaybackStates[snapshotAdKey]
+                    ?.takeIf { it.terminalEvent.isBlank() }
+                    ?.let { status ->
                     status.maxPositionMs = maxOf(status.maxPositionMs, position)
-                    currentAdMaxPositionMs = status.maxPositionMs
+                    if (snapshotAdKey == activeAdKey) {
+                        currentAdMaxPositionMs = status.maxPositionMs
+                    }
                 }
             }
         } else {
@@ -494,7 +536,7 @@ internal class GoogleImaRuntimeAuditReporter(
         val adProgressRatio = activeAdStatus?.playbackRatio()
         return gson.toJson(
             linkedMapOf(
-                "schema_version" to 5,
+                "schema_version" to 6,
                 "audit_scope" to "pure_ima_request_playback_omid",
                 "request_id" to requestId,
                 "terminal_reason" to terminalReason,
@@ -592,6 +634,19 @@ internal class GoogleImaRuntimeAuditReporter(
                         "last_observed_at_ms" to status.lastObservedAtMs
                     )
                 },
+                "identity_control_audit" to linkedMapOf(
+                    "decision_count" to identityControlEvents.size,
+                    "idless_override_count" to identityControlEvents.count {
+                        it.originalIdless == true && it.effectiveIdless == false
+                    },
+                    "decisions" to identityControlEvents.map { decision ->
+                        linkedMapOf(
+                            "elapsed_realtime_ms" to decision.elapsedRealtimeMs,
+                            "original_idless" to decision.originalIdless,
+                            "effective_idless" to decision.effectiveIdless
+                        )
+                    }
+                ),
                 "ima_playback_audit" to linkedMapOf(
                     "ima_event_counts" to imaAdEventCounts,
                     "ima_event_timeline" to imaAdEvents.map { event ->
@@ -616,6 +671,7 @@ internal class GoogleImaRuntimeAuditReporter(
                     "ad_instances" to adPlaybackStates.values.map { status ->
                         linkedMapOf<String, Any?>(
                             "ad_key" to status.adKey,
+                            "ad_instance_id" to status.adKey,
                             "ima_ad_id" to status.imaAdId,
                             "creative_id" to status.creativeId,
                             "creative_ad_id" to status.creativeAdId,
@@ -626,6 +682,7 @@ internal class GoogleImaRuntimeAuditReporter(
                             "pod_index" to status.podIndex,
                             "loaded_at_ms" to status.loadedAtMs,
                             "started_at_ms" to status.startedAtMs,
+                            "start_source" to status.startSource,
                             "completed_at_ms" to status.completedAtMs,
                             "terminal_event" to status.terminalEvent,
                             "max_position_ms" to status.maxPositionMs,
@@ -745,7 +802,16 @@ internal class GoogleImaRuntimeAuditReporter(
         )
     }
 
-    private fun resolveAdKey(imaEvent: String, adBaseKey: String): String {
+    private fun resolveAdKey(
+        imaEvent: String,
+        fields: Map<String, String>,
+        adBaseKey: String
+    ): String {
+        fields["ad_instance_id"].orEmpty().takeIf { it.isNotBlank() }?.let { return it }
+        return resolveLegacyAdKey(imaEvent, adBaseKey)
+    }
+
+    private fun resolveLegacyAdKey(imaEvent: String, adBaseKey: String): String {
         fun activeMatches(): Boolean = activeAdKey.isNotBlank() &&
             (adBaseKey.isBlank() || activeAdBaseKey == adBaseKey)
         fun pendingMatches(): Boolean = pendingAdKey.isNotBlank() &&
@@ -1044,6 +1110,7 @@ internal class GoogleImaRuntimeAuditReporter(
         var podIndex: Int = -1,
         var loadedAtMs: Long? = null,
         var startedAtMs: Long? = null,
+        var startSource: String = "",
         var completedAtMs: Long? = null,
         var terminalEvent: String = "",
         var maxPositionMs: Long = -1L
@@ -1091,6 +1158,12 @@ internal class GoogleImaRuntimeAuditReporter(
         var lastReportedValue: String = "",
         var lastSessionIds: List<String> = emptyList(),
         var lastObservedAtMs: Long = 0L
+    )
+
+    private data class IdentityControlRecord(
+        val elapsedRealtimeMs: Long,
+        val originalIdless: Boolean?,
+        val effectiveIdless: Boolean?
     )
 
     private data class WebResourceStatus(

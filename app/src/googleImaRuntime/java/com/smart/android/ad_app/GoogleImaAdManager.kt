@@ -8,6 +8,7 @@ import com.google.gson.JsonElement
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.google.GoogleGamAdConfigParser
 import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
+import com.smart.android.googleima.GoogleImaAdInfo
 import com.smart.android.googleima.GoogleImaAdListener
 import com.smart.android.googleima.GoogleImaAdPlayerView
 import com.smart.android.googleima.GoogleImaPlaybackError
@@ -181,60 +182,16 @@ internal object GoogleImaAdManager : IAdManager {
                 trace(session, "AD_LOADED")
             }
 
-            override fun onAdStarted() = onMain {
-                if (!isRunning(session) || !checkSignal(session, "ad_started")) return@onMain
-                val now = SystemClock.elapsedRealtime()
-                session.segmentCount += 1
-                session.currentSegmentPlaybackEvidenceAt = null
-                session.currentSegmentRenderedFirstFrameAt = null
-                session.currentSegment = SegmentAudit(
-                    index = session.segmentCount,
-                    startedAtMs = now,
-                    adDurationMs = session.currentAdDurationMs,
-                    totalAds = session.totalAds,
-                    adPosition = session.adPosition,
-                    podIndex = session.podIndex
-                ).also(session.segments::add)
-                resetSegmentProgress(session, now)
-                armPlaybackTimeout(session)
-                armPlaybackStartTimeout(session, session.segmentCount)
-                Hq008FloatingFlowGuard.markActiveStage(
-                    session.id,
-                    "ima_playing_segment_${session.segmentCount}"
-                )
-                if (session.startedAt == null) {
-                    session.requestTimeout?.let(main::removeCallbacks)
-                    session.requestTimeout = null
-                    if (session.loadedAt == null) session.loadedAt = now
-                    session.startedAt = now
-                    Hq008AdReporter.reportStarted(
-                        session.id,
-                        session.adId,
-                        AdDisplayConfig.isHiddenMode(),
-                        null,
-                        session.diagnostics()
-                    )
-                    trace(
-                        session,
-                        "AD_STARTED",
-                        session.podDetails()
-                    )
-                    if (!session.hostStartDelivered) {
-                        session.hostStartDelivered = true
-                        session.onStart?.invoke()
-                    }
-                } else {
-                    trace(
-                        session,
-                        "AD_SEGMENT_STARTED",
-                        "segment=${session.segmentCount},${session.podDetails()}"
-                    )
-                }
+            override fun onAdMediaStartEvidence(source: String, adInstanceId: String) = onMain {
+                handleMediaStartEvidence(session, source, adInstanceId)
             }
 
-            override fun onAdFirstFrameRendered() = onMain {
-                if (!isRunning(session)) return@onMain
-                markSegmentRenderedFirstFrame(session, SystemClock.elapsedRealtime())
+            override fun onAdStarted(source: String, adInfo: GoogleImaAdInfo) = onMain {
+                handleAdStarted(session, source, adInfo)
+            }
+
+            override fun onAdFirstFrameRendered(adInstanceId: String) = onMain {
+                handleRenderedFirstFrame(session, adInstanceId)
             }
 
             override fun onAdCompleted(event: String) = onMain {
@@ -270,6 +227,154 @@ internal object GoogleImaAdManager : IAdManager {
                 )
             }
         })
+    }
+
+    private fun handleMediaStartEvidence(
+        session: Session,
+        source: String,
+        adInstanceId: String
+    ) {
+        if (!isRunning(session) || adInstanceId.isBlank()) return
+        if (session.segmentsByInstanceId[adInstanceId]?.terminalEvent?.isNotBlank() == true) return
+        val now = SystemClock.elapsedRealtime()
+        session.requestTimeout?.let(main::removeCallbacks)
+        session.requestTimeout = null
+        session.pendingMediaEvidenceAt[adInstanceId] = now
+        if (session.firstPlaybackEvidenceAt == null) session.firstPlaybackEvidenceAt = now
+        Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_media_evidence")
+        trace(
+            session,
+            "AD_MEDIA_START_EVIDENCE",
+            "adInstanceId=$adInstanceId,source=$source,formalStartPending=true"
+        )
+    }
+
+    private fun handleAdStarted(session: Session, source: String, adInfo: GoogleImaAdInfo) {
+        if (!isRunning(session) || !checkSignal(session, "ad_started")) return
+        val now = SystemClock.elapsedRealtime()
+        val normalizedSource = source.ifBlank { "ima" }
+        val adInstanceId = adInfo.instanceId
+        if (adInstanceId.isBlank()) {
+            fail(session, "ad_started_without_instance_id")
+            return
+        }
+        session.segmentsByInstanceId[adInstanceId]?.let { existing ->
+            if (existing.terminalEvent.isNotBlank()) {
+                session.lateImaStartedCount += 1
+                trace(
+                    session,
+                    "AD_START_IGNORED_AFTER_TERMINAL",
+                    "adInstanceId=$adInstanceId,segment=${existing.index}," +
+                        "terminalEvent=${existing.terminalEvent}"
+                )
+                return
+            }
+            if (session.currentSegment === existing) {
+                trace(
+                    session,
+                    "AD_START_DUPLICATE_IGNORED",
+                    "adInstanceId=$adInstanceId,segment=${existing.index},source=$normalizedSource"
+                )
+                return
+            }
+        }
+        applyAdInfo(session, adInfo)
+        session.segmentCount += 1
+        session.currentSegmentPlaybackEvidenceAt = null
+        session.currentSegmentRenderedFirstFrameAt = null
+        session.currentSegmentImaProgressCount = 0
+        session.currentSegment = SegmentAudit(
+            index = session.segmentCount,
+            startedAtMs = now,
+            startSource = normalizedSource,
+            adInstanceId = adInstanceId,
+            imaAdId = adInfo.adId,
+            creativeId = adInfo.creativeId,
+            universalAdId = adInfo.universalAdIdValue,
+            adDurationMs = session.currentAdDurationMs,
+            totalAds = session.totalAds,
+            adPosition = session.adPosition,
+            podIndex = session.podIndex
+        ).also { segment ->
+            session.segments.add(segment)
+            session.segmentsByInstanceId[adInstanceId] = segment
+        }
+        session.lastStartSource = normalizedSource
+        if (session.startSource.isBlank()) session.startSource = normalizedSource
+        resetSegmentProgress(session, now)
+        armPlaybackTimeout(session, "segment_start")
+        session.pendingMediaEvidenceAt.remove(adInstanceId)?.let { evidenceAt ->
+            markSegmentPlaybackEvidence(
+                session,
+                evidenceAt,
+                adInstanceId,
+                "sdk_media_evidence"
+            )
+        }
+        session.pendingRenderedFirstFrameAt.remove(adInstanceId)?.let { firstFrameAt ->
+            markSegmentRenderedFirstFrame(session, firstFrameAt, adInstanceId)
+        }
+        session.pendingMaxPositionMs.remove(adInstanceId)?.let { maxPositionMs ->
+            session.currentSegment?.maxPositionMs = maxOf(
+                session.currentSegment?.maxPositionMs ?: -1L,
+                maxPositionMs
+            )
+        }
+        if (session.currentSegmentPlaybackEvidenceAt == null) {
+            armPlaybackStartTimeout(session, session.currentSegment!!)
+        }
+        session.pendingTerminalEvents.remove(adInstanceId)?.let { terminal ->
+            applyTerminalToSegment(session, session.currentSegment!!, terminal)
+        }
+        Hq008FloatingFlowGuard.markActiveStage(
+            session.id,
+            "ima_playing_segment_${session.segmentCount}"
+        )
+        if (session.startedAt == null) {
+            session.requestTimeout?.let(main::removeCallbacks)
+            session.requestTimeout = null
+            if (session.loadedAt == null) session.loadedAt = now
+            session.startedAt = now
+            Hq008AdReporter.reportStarted(
+                session.id,
+                session.adId,
+                AdDisplayConfig.isHiddenMode(),
+                null,
+                session.diagnostics()
+            )
+            trace(
+                session,
+                "AD_STARTED",
+                "adInstanceId=$adInstanceId,startSource=$normalizedSource,${session.podDetails()}"
+            )
+            if (!session.hostStartDelivered) {
+                session.hostStartDelivered = true
+                session.onStart?.invoke()
+            }
+        } else {
+            trace(
+                session,
+                "AD_SEGMENT_STARTED",
+                "segment=${session.segmentCount},adInstanceId=$adInstanceId," +
+                    "startSource=$normalizedSource," +
+                    session.podDetails()
+            )
+        }
+    }
+
+    private fun applyAdInfo(session: Session, adInfo: GoogleImaAdInfo) {
+        if (session.currentAdInstanceId != adInfo.instanceId) {
+            resetCurrentAdMetadata(session, adInfo.instanceId)
+        }
+        session.currentAdInstanceId = adInfo.instanceId
+        session.currentImaAdId = adInfo.adId
+        session.currentCreativeId = adInfo.creativeId
+        session.currentUniversalAdId = adInfo.universalAdIdValue
+        session.currentAdDurationMs = adInfo.durationMs.takeIf { it > 0L } ?: -1L
+        session.podMaxDurationMs = adInfo.podMaxDurationMs.takeIf { it > 0L } ?: -1L
+        session.totalAds = adInfo.totalAds.takeIf { it > 0 } ?: -1
+        session.adPosition = adInfo.adPosition.takeIf { it > 0 } ?: -1
+        session.podIndex = adInfo.podIndex.takeIf { it >= 0 } ?: -1
     }
 
     private fun checkSignal(session: Session, stage: String): Boolean {
@@ -383,36 +488,164 @@ internal object GoogleImaAdManager : IAdManager {
         }.also { main.postDelayed(it, session.timeoutMs) }
     }
 
-    private fun armPlaybackTimeout(session: Session) {
-        session.playbackTimeout?.let(main::removeCallbacks)
+    private fun armPlaybackTimeout(session: Session, trigger: String) {
+        val now = SystemClock.elapsedRealtime()
+        cancelPlaybackDeadlineCallbacks(session)
         val playbackTimeoutMs = AdPlaybackPolicy.resolvePlaybackTimeoutMs(
             session.currentAdDurationMs.takeIf { it > 0L }
         )
+        val hardTimeoutMs = AdPlaybackPolicy.resolvePlaybackHardTimeoutMs(
+            session.currentAdDurationMs.takeIf { it > 0L }
+        )
         session.playbackTimeoutMs = playbackTimeoutMs
-        session.playbackTimeout = Runnable {
-            if (isRunning(session)) fail(session, "playback_deadline_exceeded")
-        }.also { main.postDelayed(it, playbackTimeoutMs) }
+        session.playbackHardTimeoutMs = hardTimeoutMs
+        session.playbackBudget.start(
+            nowMs = now,
+            totalMs = playbackTimeoutMs,
+            hardTimeoutMs = hardTimeoutMs,
+            paused = session.bufferingSinceAt != null
+        )
+        session.segmentBufferingBaselineMs = session.bufferingTotalMs
+        schedulePlaybackBudgetTimeout(session)
+        schedulePlaybackHardTimeout(session)
         val flowGuardExtended = Hq008FloatingFlowGuard.extendActiveForPlayback(
             session.id,
-            playbackTimeoutMs
+            hardTimeoutMs
         )
         session.flowGuardExtensionAttempts += 1
         if (flowGuardExtended) session.flowGuardExtensionSuccesses += 1
         trace(
             session,
             "AD_PLAYBACK_DEADLINE",
-            "adDurationMs=${session.currentAdDurationMs},playbackTimeoutMs=$playbackTimeoutMs," +
+            "trigger=$trigger,adDurationMs=${session.currentAdDurationMs}," +
+                "playbackTimeoutMs=$playbackTimeoutMs,hardTimeoutMs=$hardTimeoutMs," +
+                "bufferingGraceLimitMs=${AdPlaybackPolicy.PLAYBACK_BUFFERING_GRACE_LIMIT_MS}," +
                 "flowGuardExtended=$flowGuardExtended,${session.podDetails()}"
         )
     }
 
-    private fun armPlaybackStartTimeout(session: Session, segment: Int) {
+    private fun updatePlaybackTimeoutMetadata(session: Session, trigger: String) {
+        if (!isCurrentSegmentActive(session)) return
+        val now = SystemClock.elapsedRealtime()
+        val playbackTimeoutMs = AdPlaybackPolicy.resolvePlaybackTimeoutMs(
+            session.currentAdDurationMs.takeIf { it > 0L }
+        )
+        val hardTimeoutMs = AdPlaybackPolicy.resolvePlaybackHardTimeoutMs(
+            session.currentAdDurationMs.takeIf { it > 0L }
+        )
+        cancelPlaybackDeadlineCallbacks(session)
+        session.playbackBudget.update(
+            nowMs = now,
+            totalMs = playbackTimeoutMs,
+            hardTimeoutMs = hardTimeoutMs,
+            paused = session.bufferingSinceAt != null
+        )
+        session.playbackTimeoutMs = playbackTimeoutMs
+        session.playbackHardTimeoutMs = hardTimeoutMs
+        schedulePlaybackBudgetTimeout(session)
+        schedulePlaybackHardTimeout(session)
+        val hardRemainingMs = session.playbackBudget.hardRemaining(now).coerceAtLeast(1L)
+        val flowGuardExtended = Hq008FloatingFlowGuard.extendActiveForPlayback(
+            session.id,
+            hardRemainingMs
+        )
+        session.flowGuardExtensionAttempts += 1
+        if (flowGuardExtended) session.flowGuardExtensionSuccesses += 1
+        trace(
+            session,
+            "AD_PLAYBACK_DEADLINE_UPDATED",
+            "trigger=$trigger,adDurationMs=${session.currentAdDurationMs}," +
+                "playbackTimeoutMs=$playbackTimeoutMs,hardTimeoutMs=$hardTimeoutMs," +
+                "remainingMs=${session.playbackBudget.remaining(now)}," +
+                "hardRemainingMs=$hardRemainingMs," +
+                "bufferingPaused=${session.bufferingSinceAt != null}," +
+                "flowGuardExtended=$flowGuardExtended,${session.podDetails()}"
+        )
+    }
+
+    private fun schedulePlaybackBudgetTimeout(session: Session) {
+        session.playbackTimeout?.let(main::removeCallbacks)
+        session.playbackTimeout = null
+        if (!session.playbackBudget.isRunning) return
+        val remaining = session.playbackBudget.remaining(SystemClock.elapsedRealtime())
+            .coerceAtLeast(0L)
+        session.playbackTimeout = Runnable {
+            if (!isCurrentSegmentActive(session)) return@Runnable
+            val now = SystemClock.elapsedRealtime()
+            if (session.bufferingSinceAt != null) {
+                session.playbackBudget.pause(now)
+                session.playbackTimeout = null
+                return@Runnable
+            }
+            session.playbackBudget.stop(now)
+            session.playbackTimeout = null
+            fail(session, "playback_deadline_exceeded")
+        }.also { main.postDelayed(it, remaining) }
+    }
+
+    private fun schedulePlaybackHardTimeout(session: Session) {
+        session.playbackHardTimeout?.let(main::removeCallbacks)
+        val remaining = session.playbackBudget.hardRemaining(SystemClock.elapsedRealtime())
+        if (remaining < 0L) return
+        session.playbackHardTimeout = Runnable {
+            session.playbackHardTimeout = null
+            if (!isCurrentSegmentActive(session)) return@Runnable
+            val bufferedThisSegment = session.bufferingTotalMs -
+                session.segmentBufferingBaselineMs +
+                (session.bufferingSinceAt?.let { bufferingAt ->
+                    (SystemClock.elapsedRealtime() - bufferingAt).coerceAtLeast(0L)
+                } ?: 0L)
+            fail(
+                session,
+                if (bufferedThisSegment > 0L) {
+                    "playback_buffer_timeout:hard_deadline"
+                } else {
+                    "playback_hard_deadline_exceeded"
+                }
+            )
+        }.also { main.postDelayed(it, remaining) }
+    }
+
+    private fun pausePlaybackBudget(session: Session, now: Long) {
+        if (!isCurrentSegmentActive(session) || !session.playbackBudget.isRunning) return
+        session.playbackBudget.pause(now)
+        session.playbackTimeout?.let(main::removeCallbacks)
+        session.playbackTimeout = null
+    }
+
+    private fun resumePlaybackBudget(session: Session, now: Long) {
+        if (!isCurrentSegmentActive(session) || session.playbackBudget.isRunning) return
+        if (!session.playbackBudget.resume(now)) {
+            fail(session, "playback_deadline_exceeded")
+            return
+        }
+        schedulePlaybackBudgetTimeout(session)
+    }
+
+    private fun cancelPlaybackDeadlineCallbacks(session: Session) {
+        session.playbackTimeout?.let(main::removeCallbacks)
+        session.playbackTimeout = null
+        session.playbackHardTimeout?.let(main::removeCallbacks)
+        session.playbackHardTimeout = null
+    }
+
+    private fun cancelPlaybackDeadlineTimers(session: Session) {
+        session.playbackBudget.stop(SystemClock.elapsedRealtime())
+        cancelPlaybackDeadlineCallbacks(session)
+    }
+
+    private fun cancelPlaybackStartTimeout(session: Session) {
         session.playbackStartTimeout?.let(main::removeCallbacks)
+        session.playbackStartTimeout = null
+    }
+
+    private fun armPlaybackStartTimeout(session: Session, segment: SegmentAudit) {
+        cancelPlaybackStartTimeout(session)
         session.playbackStartTimeout = Runnable {
-            if (isRunning(session) &&
-                session.segmentCount == segment &&
+            if (isCurrentSegmentActive(session) &&
+                session.currentSegment === segment &&
                 session.currentSegmentPlaybackEvidenceAt == null) {
-                fail(session, "playback_start_timeout:segment=$segment")
+                fail(session, "playback_start_timeout:segment=${segment.index}")
             }
         }.also { main.postDelayed(it, AdPlaybackPolicy.FIRST_FRAME_TIMEOUT_MS) }
     }
@@ -420,15 +653,107 @@ internal object GoogleImaAdManager : IAdManager {
     private fun cancelSessionTimers(session: Session) {
         session.requestTimeout?.let(main::removeCallbacks)
         session.requestTimeout = null
-        session.playbackTimeout?.let(main::removeCallbacks)
-        session.playbackTimeout = null
-        session.playbackStartTimeout?.let(main::removeCallbacks)
-        session.playbackStartTimeout = null
+        cancelPlaybackDeadlineTimers(session)
+        cancelPlaybackStartTimeout(session)
     }
 
     private fun handleImaAdEvent(session: Session, event: GoogleImaAuditEvent) {
         val fields = event.fields
         val imaEvent = fields["ima_event"].orEmpty()
+        val eventDisposition = fields["event_disposition"].orEmpty()
+        val eventInstanceId = fields["ad_instance_id"].orEmpty()
+        val adInstanceId = eventInstanceId.ifBlank {
+            session.currentSegment?.adInstanceId.orEmpty()
+        }
+        val segment = session.segmentsByInstanceId[adInstanceId]
+        val isCurrentAd = adInstanceId.isNotBlank() &&
+            session.currentSegment?.adInstanceId == adInstanceId
+        val isActiveCurrentAd = isCurrentAd && segment?.terminalEvent.isNullOrBlank()
+        val previousAdDurationMs = if (isActiveCurrentAd) session.currentAdDurationMs else -1L
+        val canPromoteLoadedMetadata = imaEvent == "LOADED" &&
+            (session.currentSegment == null ||
+                session.currentSegment?.terminalEvent?.isNotBlank() == true)
+        if (canPromoteLoadedMetadata || isActiveCurrentAd) {
+            updateSessionAdMetadata(session, fields, adInstanceId)
+        }
+        segment?.let { updateSegmentAdMetadata(it, fields) }
+        val currentDurationChanged = isActiveCurrentAd &&
+            session.currentAdDurationMs != previousAdDurationMs
+        if (currentDurationChanged && session.currentSegment != null) {
+            updatePlaybackTimeoutMetadata(session, "ima_${imaEvent.lowercase()}_metadata")
+        }
+        session.lastImaEvent = imaEvent
+        if (imaEvent == "AD_PROGRESS" && session.startedAt != null) {
+            session.imaProgressCount += 1
+            if (isActiveCurrentAd) session.currentSegmentImaProgressCount += 1
+            val progressPositionMs = GoogleImaProgressFields.positionMs(fields)
+            if (isActiveCurrentAd &&
+                session.imaProgressEvidence.observe(adInstanceId, progressPositionMs)) {
+                session.lastImaProgressAt = event.elapsedRealtimeMs
+                session.lastImaProgressPositionMs = progressPositionMs
+                session.validImaProgressCount += 1
+            }
+        }
+        if (imaEvent == "STARTED") {
+            when {
+                segment == null -> trace(
+                    session,
+                    "AD_IMA_STARTED_UNMATCHED",
+                    "adInstanceId=$adInstanceId,eventDisposition=$eventDisposition"
+                )
+                segment.terminalEvent.isNotBlank() -> {
+                    session.lateImaStartedCount += 1
+                    trace(
+                        session,
+                        "AD_IMA_STARTED_AFTER_TERMINAL",
+                        "adInstanceId=$adInstanceId,segment=${segment.index}," +
+                            "terminalEvent=${segment.terminalEvent}"
+                    )
+                }
+                segment.startSource == "media_fallback" && isCurrentAd -> {
+                    session.lateImaStartedCount += 1
+                    trace(
+                        session,
+                        "AD_IMA_STARTED_LATE",
+                        "segment=${segment.index},adInstanceId=$adInstanceId," +
+                            "startSource=media_fallback,${session.podDetails()}"
+                    )
+                }
+            }
+        }
+        if (imaEvent == "COMPLETED" || imaEvent == "SKIPPED") {
+            val terminal = TerminalAudit.from(event, imaEvent, fields)
+            if (segment == null && adInstanceId.isNotBlank()) {
+                session.pendingTerminalEvents[adInstanceId] = terminal
+            } else if (segment != null) {
+                applyTerminalToSegment(session, segment, terminal)
+            }
+        }
+
+        if (imaEvent !in setOf("AD_PROGRESS", "CUEPOINTS_CHANGED", "LOG")) {
+            trace(
+                session,
+                "AD_IMA_EVENT",
+                "imaEvent=$imaEvent,adInstanceId=$adInstanceId," +
+                    "eventDisposition=$eventDisposition,${session.podDetails()}"
+            )
+        }
+    }
+
+    private fun updateSessionAdMetadata(
+        session: Session,
+        fields: Map<String, String>,
+        adInstanceId: String
+    ) {
+        if (adInstanceId.isNotBlank() && session.currentAdInstanceId != adInstanceId) {
+            resetCurrentAdMetadata(session, adInstanceId)
+        }
+        if (adInstanceId.isNotBlank()) session.currentAdInstanceId = adInstanceId
+        fields["ima_ad_id"]?.takeIf { it.isNotBlank() }?.let { session.currentImaAdId = it }
+        fields["creative_id"]?.takeIf { it.isNotBlank() }?.let { session.currentCreativeId = it }
+        fields["universal_ad_id_value"]?.takeIf { it.isNotBlank() }?.let {
+            session.currentUniversalAdId = it
+        }
         fields["ad_duration_ms"]?.toLongOrNull()?.takeIf { it > 0L }?.let {
             session.currentAdDurationMs = it
         }
@@ -444,37 +769,62 @@ internal object GoogleImaAdManager : IAdManager {
         fields["pod_index"]?.toIntOrNull()?.takeIf { it >= 0 }?.let {
             session.podIndex = it
         }
-        session.lastImaEvent = imaEvent
-        if (imaEvent == "COMPLETED" || imaEvent == "SKIPPED") {
-            session.currentSegment?.apply {
-                completedAtMs = event.elapsedRealtimeMs
-                terminalEvent = imaEvent
-                adDurationMs = session.currentAdDurationMs
-                totalAds = session.totalAds
-                adPosition = session.adPosition
-                podIndex = session.podIndex
-                renderCallbackMissing = renderedFirstFrameAtMs == null
-            }
-            if (session.currentSegment?.renderCallbackMissing == true) {
-                trace(
-                    session,
-                    "AD_RENDER_CALLBACK_MISSING",
-                    "segment=${session.segmentCount},imaEvent=$imaEvent,${session.podDetails()}"
-                )
-            }
-        }
+    }
 
-        if (imaEvent !in setOf("AD_PROGRESS", "CUEPOINTS_CHANGED", "LOG")) {
+    private fun resetCurrentAdMetadata(session: Session, adInstanceId: String) {
+        session.currentAdInstanceId = adInstanceId
+        session.currentImaAdId = ""
+        session.currentCreativeId = ""
+        session.currentUniversalAdId = ""
+        session.currentAdDurationMs = -1L
+        session.podMaxDurationMs = -1L
+        session.totalAds = -1
+        session.adPosition = -1
+        session.podIndex = -1
+    }
+
+    private fun updateSegmentAdMetadata(segment: SegmentAudit, fields: Map<String, String>) {
+        fields["ima_ad_id"]?.takeIf { it.isNotBlank() }?.let { segment.imaAdId = it }
+        fields["creative_id"]?.takeIf { it.isNotBlank() }?.let { segment.creativeId = it }
+        fields["universal_ad_id_value"]?.takeIf { it.isNotBlank() }?.let {
+            segment.universalAdId = it
+        }
+        fields["ad_duration_ms"]?.toLongOrNull()?.takeIf { it > 0L }?.let {
+            segment.adDurationMs = it
+        }
+        fields["total_ads"]?.toIntOrNull()?.takeIf { it > 0 }?.let { segment.totalAds = it }
+        fields["ad_position"]?.toIntOrNull()?.takeIf { it > 0 }?.let { segment.adPosition = it }
+        fields["pod_index"]?.toIntOrNull()?.takeIf { it >= 0 }?.let { segment.podIndex = it }
+    }
+
+    private fun applyTerminalToSegment(
+        session: Session,
+        segment: SegmentAudit,
+        terminal: TerminalAudit
+    ) {
+        if (segment.terminalEvent.isNotBlank()) return
+        segment.completedAtMs = terminal.atMs
+        segment.terminalEvent = terminal.event
+        if (terminal.adDurationMs > 0L) segment.adDurationMs = terminal.adDurationMs
+        if (terminal.totalAds > 0) segment.totalAds = terminal.totalAds
+        if (terminal.adPosition > 0) segment.adPosition = terminal.adPosition
+        if (terminal.podIndex >= 0) segment.podIndex = terminal.podIndex
+        segment.renderCallbackMissing = segment.renderedFirstFrameAtMs == null
+        if (segment.renderCallbackMissing) {
             trace(
                 session,
-                "AD_IMA_EVENT",
-                "imaEvent=$imaEvent,${session.podDetails()}"
+                "AD_RENDER_CALLBACK_MISSING",
+                "segment=${segment.index},adInstanceId=${segment.adInstanceId}," +
+                    "imaEvent=${terminal.event}"
             )
         }
-
-        if (imaEvent == "COMPLETED" || imaEvent == "SKIPPED") {
-            session.playbackTimeout?.let(main::removeCallbacks)
-            session.playbackTimeout = null
+        session.pendingMediaEvidenceAt.remove(segment.adInstanceId)
+        session.pendingRenderedFirstFrameAt.remove(segment.adInstanceId)
+        session.pendingMaxPositionMs.remove(segment.adInstanceId)
+        if (session.currentSegment === segment) {
+            finalizeStallDurations(session, terminal.atMs)
+            cancelPlaybackStartTimeout(session)
+            cancelPlaybackDeadlineTimers(session)
             val flowGuardExtended = Hq008FloatingFlowGuard.extendActiveForPlayback(
                 session.id,
                 AdPlaybackPolicy.AD_POD_TRANSITION_TIMEOUT_MS +
@@ -485,7 +835,8 @@ internal object GoogleImaAdManager : IAdManager {
             trace(
                 session,
                 "AD_FLOW_GUARD_EXTENDED",
-                "imaEvent=$imaEvent,flowGuardExtended=$flowGuardExtended"
+                "imaEvent=${terminal.event},adInstanceId=${segment.adInstanceId}," +
+                    "flowGuardExtended=$flowGuardExtended"
             )
         }
     }
@@ -499,6 +850,7 @@ internal object GoogleImaAdManager : IAdManager {
         val playbackState = fields["playback_state"]?.toIntOrNull() ?: -1
         val isPlaying = fields["is_playing"]?.toBooleanStrictOrNull() ?: false
         val isPlayingAd = fields["is_playing_ad"]?.toBooleanStrictOrNull() ?: false
+        val adInstanceId = fields["ad_instance_id"].orEmpty()
         val playWhenReady = fields["play_when_ready"]?.toBooleanStrictOrNull() ?: false
         val playbackSuppressionReason = fields["playback_suppression_reason"]?.toIntOrNull() ?: -1
 
@@ -518,8 +870,17 @@ internal object GoogleImaAdManager : IAdManager {
             session.lastAdPlayerIsPlaying = isPlaying
             if (positionMs >= 0L) {
                 session.maxAdPlayerPositionMs = maxOf(session.maxAdPlayerPositionMs, positionMs)
-                session.currentSegment?.let { segment ->
-                    segment.maxPositionMs = maxOf(segment.maxPositionMs, positionMs)
+                val targetSegment = session.segmentsByInstanceId[adInstanceId]
+                when {
+                    targetSegment != null && targetSegment.terminalEvent.isBlank() -> {
+                        targetSegment.maxPositionMs = maxOf(targetSegment.maxPositionMs, positionMs)
+                    }
+                    targetSegment == null && adInstanceId.isNotBlank() -> {
+                        session.pendingMaxPositionMs[adInstanceId] = maxOf(
+                            session.pendingMaxPositionMs[adInstanceId] ?: -1L,
+                            positionMs
+                        )
+                    }
                 }
             }
         } else {
@@ -539,24 +900,39 @@ internal object GoogleImaAdManager : IAdManager {
                 "trigger=${fields["trigger"].orEmpty()},positionMs=$positionMs," +
                     "durationMs=$durationMs,bufferedPositionMs=$bufferedPositionMs," +
                     "playerState=$playbackState,isPlaying=$isPlaying,isPlayingAd=$isPlayingAd," +
+                    "adInstanceId=$adInstanceId," +
                     "playWhenReady=$playWhenReady," +
                     "playbackSuppressionReason=$playbackSuppressionReason"
             )
         }
 
-        if (session.startedAt == null || !isPlayingAd) {
+        val activeSegment = session.segmentsByInstanceId[adInstanceId]
+        if (session.startedAt == null || !isPlayingAd ||
+            activeSegment == null || activeSegment.terminalEvent.isNotBlank() ||
+            session.currentSegment !== activeSegment) {
             finalizeStallDurations(session, now)
             return
         }
 
-        if (session.currentSegmentPlaybackEvidenceAt == null && (isPlaying || positionMs > 0L)) {
-            markSegmentPlaybackEvidence(session, now)
+        var positionAdvanced = false
+        if (positionMs >= 0L) {
+            when {
+                session.lastProgressPositionMs < 0L -> {
+                    session.lastProgressPositionMs = positionMs
+                    positionAdvanced = positionMs >= MIN_MEDIA_PROGRESS_EVIDENCE_MS
+                }
+                positionMs < session.lastProgressPositionMs -> {
+                    session.lastProgressPositionMs = positionMs
+                }
+                positionMs > session.lastProgressPositionMs -> {
+                    positionAdvanced = true
+                    session.lastProgressPositionMs = positionMs
+                }
+            }
         }
-
-        if (positionMs >= 0L &&
-            (session.lastProgressPositionMs < 0L || positionMs > session.lastProgressPositionMs + 1_000L)) {
-            session.lastProgressPositionMs = positionMs
+        if (positionAdvanced) {
             session.lastProgressAt = now
+            markSegmentPlaybackEvidence(session, now, adInstanceId, "media_position")
         }
 
         if (playbackState == PLAYER_STATE_BUFFERING) {
@@ -564,13 +940,14 @@ internal object GoogleImaAdManager : IAdManager {
             if (session.bufferingSinceAt == null) {
                 session.bufferingSinceAt = now
                 session.bufferingCount += 1
+                pausePlaybackBudget(session, now)
             }
             if (now - (session.bufferingSinceAt ?: now) >= AdPlaybackPolicy.PLAYBACK_STALL_TIMEOUT_MS) {
                 fail(session, "playback_buffer_timeout")
             }
             return
         }
-        finishBuffering(session, now)
+        if (finishBuffering(session, now)) resumePlaybackBudget(session, now)
 
         if (playbackState == PLAYER_STATE_READY && !isPlaying) {
             if (session.readyNotPlayingSinceAt == null) {
@@ -585,28 +962,41 @@ internal object GoogleImaAdManager : IAdManager {
         }
         finishReadyNotPlaying(session, now)
 
-        if (isPlaying && now - session.lastProgressAt >= AdPlaybackPolicy.PLAYBACK_STALL_TIMEOUT_MS) {
+        val lastLivenessAt = maxOf(session.lastProgressAt, session.lastImaProgressAt)
+        if (isPlaying &&
+            now - lastLivenessAt >= AdPlaybackPolicy.PLAYBACK_STALL_TIMEOUT_MS) {
             fail(session, "playback_stalled")
         }
     }
 
-    private fun markSegmentPlaybackEvidence(session: Session, now: Long) {
+    private fun markSegmentPlaybackEvidence(
+        session: Session,
+        now: Long,
+        adInstanceId: String,
+        source: String
+    ) {
+        if (session.currentSegment?.adInstanceId != adInstanceId) return
         if (session.currentSegmentPlaybackEvidenceAt != null) return
         session.currentSegmentPlaybackEvidenceAt = now
         if (session.firstPlaybackEvidenceAt == null) session.firstPlaybackEvidenceAt = now
         session.currentSegment?.playbackEvidenceAtMs = now
-        session.playbackStartTimeout?.let(main::removeCallbacks)
-        session.playbackStartTimeout = null
+        cancelPlaybackStartTimeout(session)
         trace(
             session,
             "AD_PLAYBACK_EVIDENCE",
-            "segment=${session.segmentCount},source=active_playback," +
+            "segment=${session.segmentCount},adInstanceId=$adInstanceId,source=$source,startSource=" +
+                "${session.lastStartSource}," +
                 "hidden=${AdDisplayConfig.isHiddenMode()}"
         )
     }
 
-    private fun markSegmentRenderedFirstFrame(session: Session, now: Long) {
-        markSegmentPlaybackEvidence(session, now)
+    private fun markSegmentRenderedFirstFrame(
+        session: Session,
+        now: Long,
+        adInstanceId: String
+    ) {
+        if (session.currentSegment?.adInstanceId != adInstanceId) return
+        markSegmentPlaybackEvidence(session, now, adInstanceId, "rendered_first_frame")
         if (session.currentSegmentRenderedFirstFrameAt != null) return
         session.currentSegmentRenderedFirstFrameAt = now
         if (session.firstFrameAt == null) session.firstFrameAt = now
@@ -614,14 +1004,40 @@ internal object GoogleImaAdManager : IAdManager {
         trace(
             session,
             "AD_FIRST_FRAME",
-            "segment=${session.segmentCount},source=rendered_callback," +
+            "segment=${session.segmentCount},adInstanceId=$adInstanceId," +
+                "source=rendered_callback," +
                 "hidden=${AdDisplayConfig.isHiddenMode()}"
         )
-        if (!AdDisplayConfig.isHiddenMode()) {
-            session.container.get()?.let { container ->
-                container.animate().cancel()
-                container.animate().alpha(1f).setDuration(150L).start()
-            }
+        showVisibleContainer(session)
+    }
+
+    private fun handleRenderedFirstFrame(session: Session, adInstanceId: String) {
+        if (!isRunning(session) || adInstanceId.isBlank()) return
+        val now = SystemClock.elapsedRealtime()
+        val segment = session.segmentsByInstanceId[adInstanceId]
+        if (segment?.terminalEvent?.isNotBlank() == true) return
+        if (segment != null && session.currentSegment === segment) {
+            markSegmentRenderedFirstFrame(session, now, adInstanceId)
+            return
+        }
+        if (segment != null ||
+            (session.currentAdInstanceId.isNotBlank() &&
+                session.currentAdInstanceId != adInstanceId)) return
+        session.pendingRenderedFirstFrameAt.putIfAbsent(adInstanceId, now)
+        if (session.firstFrameAt == null) session.firstFrameAt = now
+        trace(
+            session,
+            "AD_FIRST_FRAME_BEFORE_FORMAL_START",
+            "adInstanceId=$adInstanceId,hidden=${AdDisplayConfig.isHiddenMode()}"
+        )
+        showVisibleContainer(session)
+    }
+
+    private fun showVisibleContainer(session: Session) {
+        if (AdDisplayConfig.isHiddenMode()) return
+        session.container.get()?.let { container ->
+            container.animate().cancel()
+            container.animate().alpha(1f).setDuration(150L).start()
         }
     }
 
@@ -629,6 +1045,8 @@ internal object GoogleImaAdManager : IAdManager {
         finalizeStallDurations(session, now)
         session.lastProgressPositionMs = -1L
         session.lastProgressAt = now
+        session.lastImaProgressAt = now
+        session.lastImaProgressPositionMs = -1L
     }
 
     private fun finalizeStallDurations(session: Session, now: Long) {
@@ -636,12 +1054,13 @@ internal object GoogleImaAdManager : IAdManager {
         finishReadyNotPlaying(session, now)
     }
 
-    private fun finishBuffering(session: Session, now: Long) {
-        val startedAt = session.bufferingSinceAt ?: return
+    private fun finishBuffering(session: Session, now: Long): Boolean {
+        val startedAt = session.bufferingSinceAt ?: return false
         val duration = (now - startedAt).coerceAtLeast(0L)
         session.bufferingTotalMs += duration
         session.bufferingMaxMs = maxOf(session.bufferingMaxMs, duration)
         session.bufferingSinceAt = null
+        return true
     }
 
     private fun finishReadyNotPlaying(session: Session, now: Long) {
@@ -661,6 +1080,10 @@ internal object GoogleImaAdManager : IAdManager {
     private fun isActive(session: Session): Boolean = current === session && session.active
 
     private fun isRunning(session: Session): Boolean = isActive(session) && !session.finishing
+
+    private fun isCurrentSegmentActive(session: Session): Boolean =
+        isRunning(session) && session.currentSegment != null &&
+            session.currentSegment?.terminalEvent.isNullOrBlank()
 
     private fun beginFinishing(session: Session): Boolean {
         if (!isActive(session) || !session.terminalGate.begin()) return false
@@ -683,6 +1106,11 @@ internal object GoogleImaAdManager : IAdManager {
     private data class SegmentAudit(
         val index: Int,
         val startedAtMs: Long,
+        val startSource: String,
+        val adInstanceId: String,
+        var imaAdId: String,
+        var creativeId: String,
+        var universalAdId: String,
         var playbackEvidenceAtMs: Long? = null,
         var renderedFirstFrameAtMs: Long? = null,
         var completedAtMs: Long? = null,
@@ -704,6 +1132,11 @@ internal object GoogleImaAdManager : IAdManager {
         fun diagnostics(): Map<String, Any?> = mapOf(
             "segment" to index,
             "startedAtMs" to startedAtMs,
+            "startSource" to startSource,
+            "adInstanceId" to adInstanceId,
+            "imaAdId" to imaAdId,
+            "creativeId" to creativeId,
+            "universalAdId" to universalAdId,
             "playbackEvidenceAtMs" to playbackEvidenceAtMs,
             "renderedFirstFrameAtMs" to renderedFirstFrameAtMs,
             "renderCallbackMissing" to renderCallbackMissing,
@@ -717,6 +1150,30 @@ internal object GoogleImaAdManager : IAdManager {
             "playbackRatio" to playbackRatio(),
             "playbackDurationMs" to completedAtMs?.minus(startedAtMs)
         )
+    }
+
+    private data class TerminalAudit(
+        val event: String,
+        val atMs: Long,
+        val adDurationMs: Long,
+        val totalAds: Int,
+        val adPosition: Int,
+        val podIndex: Int
+    ) {
+        companion object {
+            fun from(
+                event: GoogleImaAuditEvent,
+                terminalEvent: String,
+                fields: Map<String, String>
+            ) = TerminalAudit(
+                event = terminalEvent,
+                atMs = event.elapsedRealtimeMs,
+                adDurationMs = fields["ad_duration_ms"]?.toLongOrNull() ?: -1L,
+                totalAds = fields["total_ads"]?.toIntOrNull() ?: -1,
+                adPosition = fields["ad_position"]?.toIntOrNull() ?: -1,
+                podIndex = fields["pod_index"]?.toIntOrNull() ?: -1
+            )
+        }
     }
 
     private class Session(
@@ -734,6 +1191,7 @@ internal object GoogleImaAdManager : IAdManager {
         var player: GoogleImaAdPlayerView? = null
         var requestTimeout: Runnable? = null
         var playbackTimeout: Runnable? = null
+        var playbackHardTimeout: Runnable? = null
         var playbackStartTimeout: Runnable? = null
         var completionRelease: Runnable? = null
         @Volatile var active = true
@@ -753,14 +1211,35 @@ internal object GoogleImaAdManager : IAdManager {
         var finishedAt: Long? = null
         var segmentCount = 0
         val segments = mutableListOf<SegmentAudit>()
+        val segmentsByInstanceId = mutableMapOf<String, SegmentAudit>()
+        val pendingMediaEvidenceAt = mutableMapOf<String, Long>()
+        val pendingRenderedFirstFrameAt = mutableMapOf<String, Long>()
+        val pendingMaxPositionMs = mutableMapOf<String, Long>()
+        val pendingTerminalEvents = mutableMapOf<String, TerminalAudit>()
         var currentSegment: SegmentAudit? = null
+        var currentAdInstanceId = ""
+        var currentImaAdId = ""
+        var currentCreativeId = ""
+        var currentUniversalAdId = ""
         var currentAdDurationMs = -1L
         var podMaxDurationMs = -1L
         var totalAds = -1
         var adPosition = -1
         var podIndex = -1
         var playbackTimeoutMs = -1L
+        var playbackHardTimeoutMs = -1L
+        val playbackBudget = GoogleImaPlaybackBudgetState()
+        var segmentBufferingBaselineMs = 0L
         var lastImaEvent = ""
+        var startSource = ""
+        var lastStartSource = ""
+        var lateImaStartedCount = 0
+        var imaProgressCount = 0
+        var validImaProgressCount = 0
+        var currentSegmentImaProgressCount = 0
+        var lastImaProgressAt = createdAt
+        var lastImaProgressPositionMs = -1L
+        val imaProgressEvidence = GoogleImaProgressEvidence()
         var playerPositionMs = -1L
         var playerDurationMs = -1L
         var playerBufferedPositionMs = -1L
@@ -828,12 +1307,28 @@ internal object GoogleImaAdManager : IAdManager {
                 "finishedAtMs" to finishedAt,
                 "segmentCount" to segmentCount,
                 "segments" to segments.map { it.diagnostics() },
+                "currentAdInstanceId" to currentAdInstanceId,
+                "currentImaAdId" to currentImaAdId,
+                "currentCreativeId" to currentCreativeId,
+                "currentUniversalAdId" to currentUniversalAdId,
                 "adDurationMs" to currentAdDurationMs,
                 "podMaxDurationMs" to podMaxDurationMs,
                 "totalAds" to totalAds,
                 "adPosition" to adPosition,
                 "podIndex" to podIndex,
                 "playbackTimeoutMs" to playbackTimeoutMs,
+                "playbackHardTimeoutMs" to playbackHardTimeoutMs,
+                "playbackBudgetRemainingMs" to playbackBudget.remaining(now),
+                "playbackBudgetRunning" to playbackBudget.isRunning,
+                "playbackHardDeadlineAtMs" to playbackBudget.hardDeadlineAtMs,
+                "startSource" to startSource,
+                "lastStartSource" to lastStartSource,
+                "lateImaStartedCount" to lateImaStartedCount,
+                "imaProgressCount" to imaProgressCount,
+                "validImaProgressCount" to validImaProgressCount,
+                "currentSegmentImaProgressCount" to currentSegmentImaProgressCount,
+                "lastImaProgressPositionMs" to lastImaProgressPositionMs,
+                "lastImaProgressAgeMs" to (now - lastImaProgressAt).coerceAtLeast(0L),
                 "lastImaEvent" to lastImaEvent,
                 "playerPositionMs" to playerPositionMs,
                 "playerDurationMs" to playerDurationMs,
@@ -878,6 +1373,7 @@ internal object GoogleImaAdManager : IAdManager {
 
     private const val PLAYER_STATE_BUFFERING = 2
     private const val PLAYER_STATE_READY = 3
+    private const val MIN_MEDIA_PROGRESS_EVIDENCE_MS = 100L
 }
 
 internal class GoogleImaTerminalGate {

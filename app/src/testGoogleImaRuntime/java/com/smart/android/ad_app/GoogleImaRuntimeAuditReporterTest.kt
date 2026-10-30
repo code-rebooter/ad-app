@@ -305,7 +305,7 @@ class GoogleImaRuntimeAuditReporterTest {
         )
 
         val summary = buildSummary(reporter)
-        assertEquals(5, summary["schema_version"].asInt)
+        assertEquals(6, summary["schema_version"].asInt)
         assertEquals(1, summary["native_xhr_response_count"].asInt)
         val xhr = summary["native_xhr_responses"].asJsonArray.single().asJsonObject
         assertEquals("https://ads.example/signal", xhr["request_url"].asString)
@@ -414,6 +414,7 @@ class GoogleImaRuntimeAuditReporterTest {
             time,
             mapOf(
                 "ima_event" to eventName,
+                "ad_instance_id" to "ima-ad-$position",
                 "ima_ad_id" to adId,
                 "creative_id" to "creative-$adId",
                 "ad_duration_ms" to durationMs.toString(),
@@ -444,8 +445,8 @@ class GoogleImaRuntimeAuditReporterTest {
         reporter.record(adEvent(50L, "LOADED", "ad-2", 30_000L, 2))
 
         val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
-        assertTrue(playback["active_ad_key"].asString.contains("pod:0:1:ad:ad-1"))
-        assertTrue(playback["pending_ad_key"].asString.contains("pod:0:2:ad:ad-2"))
+        assertEquals("ima-ad-1", playback["active_ad_key"].asString)
+        assertEquals("ima-ad-2", playback["pending_ad_key"].asString)
         val second = playback["ad_instances"].asJsonArray
             .map { it.asJsonObject }
             .first { it["ad_position"].asInt == 2 }
@@ -461,6 +462,7 @@ class GoogleImaRuntimeAuditReporterTest {
             time,
             mapOf(
                 "ima_event" to eventName,
+                "ad_instance_id" to "ima-ad-$position",
                 "ima_ad_id" to "same-ad",
                 "creative_id" to "same-creative",
                 "ad_duration_ms" to if (position == 1) "15000" else "30000",
@@ -498,6 +500,82 @@ class GoogleImaRuntimeAuditReporterTest {
         assertEquals(1.0, first["playback_ratio"].asDouble, 0.0)
         assertEquals("", second["terminal_event"].asString)
         assertEquals(-1L, second["max_position_ms"].asLong)
+    }
+
+    @Test
+    fun `fallback start and snapshots stay on sdk instance while late terminal start is ignored`() {
+        val reporter = GoogleImaRuntimeAuditReporter("request-fallback-instance")
+        fun adEvent(time: Long, name: String, instanceId: String, position: Int) = event(
+            "ima_ad_event",
+            time,
+            mapOf(
+                "ima_event" to name,
+                "ad_instance_id" to instanceId,
+                "ima_ad_id" to "material-$position",
+                "creative_id" to "creative-$position",
+                "ad_duration_ms" to "5000",
+                "total_ads" to "2",
+                "ad_position" to position.toString(),
+                "pod_index" to "0"
+            )
+        )
+        reporter.record(adEvent(10L, "LOADED", "ima-ad-1", 1))
+        reporter.record(
+            event(
+                "effective_ad_start",
+                20L,
+                mapOf(
+                    "ad_instance_id" to "ima-ad-1",
+                    "start_source" to "ima",
+                    "ad_duration_ms" to "5000",
+                    "total_ads" to "2",
+                    "ad_position" to "1",
+                    "pod_index" to "0"
+                )
+            )
+        )
+        reporter.record(adEvent(30L, "COMPLETED", "ima-ad-1", 1))
+        reporter.record(adEvent(40L, "LOADED", "ima-ad-2", 2))
+        reporter.record(
+            event(
+                "effective_ad_start",
+                50L,
+                mapOf(
+                    "ad_instance_id" to "ima-ad-2",
+                    "start_source" to "media_fallback",
+                    "ad_duration_ms" to "5000",
+                    "total_ads" to "2",
+                    "ad_position" to "2",
+                    "pod_index" to "0"
+                )
+            )
+        )
+        reporter.record(
+            event(
+                "playback_progress",
+                60L,
+                mapOf(
+                    "ad_instance_id" to "ima-ad-2",
+                    "playback_state" to "3",
+                    "position_ms" to "2000",
+                    "duration_ms" to "5000",
+                    "buffered_position_ms" to "5000",
+                    "is_playing" to "true",
+                    "is_playing_ad" to "true"
+                )
+            )
+        )
+        reporter.record(adEvent(70L, "STARTED", "ima-ad-1", 1))
+
+        val playback = buildSummary(reporter)["ima_playback_audit"].asJsonObject
+        assertEquals("ima-ad-2", playback["active_ad_key"].asString)
+        val instances = playback["ad_instances"].asJsonArray
+            .map { it.asJsonObject }
+            .associateBy { it["ad_instance_id"].asString }
+        assertEquals("COMPLETED", instances.getValue("ima-ad-1")["terminal_event"].asString)
+        assertEquals(5_000L, instances.getValue("ima-ad-1")["max_position_ms"].asLong)
+        assertEquals("media_fallback", instances.getValue("ima-ad-2")["start_source"].asString)
+        assertEquals(2_000L, instances.getValue("ima-ad-2")["max_position_ms"].asLong)
     }
 
     @Test

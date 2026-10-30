@@ -10,12 +10,17 @@ import org.objectweb.asm.tree.MethodNode
 
 import static org.junit.Assert.assertEquals
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC
+import static org.objectweb.asm.Opcodes.ACC_PRIVATE
 import static org.objectweb.asm.Opcodes.ACC_STATIC
 import static org.objectweb.asm.Opcodes.ACONST_NULL
 import static org.objectweb.asm.Opcodes.ALOAD
+import static org.objectweb.asm.Opcodes.ARETURN
+import static org.objectweb.asm.Opcodes.ICONST_0
+import static org.objectweb.asm.Opcodes.IFEQ
 import static org.objectweb.asm.Opcodes.IFNONNULL
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL
 import static org.objectweb.asm.Opcodes.INVOKESTATIC
+import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL
 import static org.objectweb.asm.Opcodes.POP
 import static org.objectweb.asm.Opcodes.RETURN
 import static org.objectweb.asm.Opcodes.V1_8
@@ -67,6 +72,56 @@ class LsapClassPatcherGoogleImaTest {
             bridge,
             'loadWebViewData',
             '(Landroid/webkit/WebView;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V'
+        ))
+    }
+
+    @Test
+    void 'identifier builder overrides the SDK idless early return'() {
+        String entry = 'com/google/ads/interactivemedia/v3/internal/zzez.class'
+
+        byte[] patched = LsapClassPatcher.patchGoogleImaParameters(
+            entry,
+            identifierBuilderClass()
+        )
+
+        assertEquals(1, LsapClassPatcher.countMethodCalls(
+            patched,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+            'forceIdentifierInfoCollection',
+            '(Z)Z'
+        ))
+    }
+
+    @Test
+    void 'media3 ima exposes the current ads manager progress without reflection'() {
+        byte[] adTagLoader = LsapClassPatcher.patchGoogleMedia3ImaVolume(
+            'androidx/media3/exoplayer/ima/AdTagLoader.class',
+            classWithReferenceField(
+                'androidx/media3/exoplayer/ima/AdTagLoader',
+                'adsManager',
+                'Lcom/google/ads/interactivemedia/v3/api/AdsManager;'
+            )
+        )
+        byte[] imaAdsLoader = LsapClassPatcher.patchGoogleMedia3ImaVolume(
+            'androidx/media3/exoplayer/ima/ImaAdsLoader.class',
+            classWithReferenceField(
+                'androidx/media3/exoplayer/ima/ImaAdsLoader',
+                'currentAdTagLoader',
+                'Landroidx/media3/exoplayer/ima/AdTagLoader;'
+            )
+        )
+
+        assertEquals(1, LsapClassPatcher.countMethodCalls(
+            adTagLoader,
+            'com/google/ads/interactivemedia/v3/api/BaseManager',
+            'getAdProgressInfo',
+            '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;'
+        ))
+        assertEquals(1, LsapClassPatcher.countMethodCalls(
+            imaAdsLoader,
+            'androidx/media3/exoplayer/ima/AdTagLoader',
+            'getControlledAdProgressInfo',
+            '()Lcom/google/ads/interactivemedia/v3/api/AdProgressInfo;'
         ))
     }
 
@@ -152,6 +207,91 @@ class LsapClassPatcherGoogleImaTest {
         method.visitInsn(RETURN)
         method.visitMaxs(4, 3)
         method.visitEnd()
+        writer.visitEnd()
+        return writer.toByteArray()
+    }
+
+    private static byte[] identifierBuilderClass() {
+        String owner = 'com/google/ads/interactivemedia/v3/internal/zzez'
+        String request = 'com/google/ads/interactivemedia/v3/api/BaseRequest'
+        String state = 'com/google/ads/interactivemedia/v3/internal/zzeu'
+        String result = 'com/google/ads/interactivemedia/v3/impl/data/zzbn'
+        ClassWriter writer = new ClassWriter(0)
+        writer.visit(V1_8, ACC_PUBLIC, owner, null, 'java/lang/Object', null)
+
+        MethodVisitor idless = writer.visitMethod(
+            ACC_PRIVATE,
+            'zzb',
+            "(L${state};)Ljava/lang/Boolean;",
+            null,
+            null
+        )
+        idless.visitCode()
+        idless.visitInsn(ICONST_0)
+        idless.visitMethodInsn(
+            INVOKESTATIC,
+            'java/lang/Boolean',
+            'valueOf',
+            '(Z)Ljava/lang/Boolean;',
+            false
+        )
+        idless.visitInsn(ARETURN)
+        idless.visitMaxs(1, 2)
+        idless.visitEnd()
+
+        MethodVisitor method = writer.visitMethod(
+            ACC_PUBLIC,
+            'zza',
+            "(L${request};L${state};Ljava/lang/String;)L${result};",
+            null,
+            null
+        )
+        method.visitCode()
+        method.visitVarInsn(ALOAD, 0)
+        method.visitVarInsn(ALOAD, 2)
+        method.visitMethodInsn(
+            INVOKESPECIAL,
+            owner,
+            'zzb',
+            "(L${state};)Ljava/lang/Boolean;",
+            false
+        )
+        method.visitMethodInsn(
+            INVOKEVIRTUAL,
+            'java/lang/Boolean',
+            'booleanValue',
+            '()Z',
+            false
+        )
+        org.objectweb.asm.Label continueIdentity = new org.objectweb.asm.Label()
+        method.visitJumpInsn(IFEQ, continueIdentity)
+        method.visitInsn(ACONST_NULL)
+        method.visitInsn(ARETURN)
+        method.visitLabel(continueIdentity)
+        method.visitInsn(ACONST_NULL)
+        method.visitInsn(ARETURN)
+        method.visitMaxs(2, 4)
+        method.visitEnd()
+        writer.visitEnd()
+        return writer.toByteArray()
+    }
+
+    private static byte[] classWithReferenceField(
+        String owner,
+        String fieldName,
+        String fieldDescriptor
+    ) {
+        ClassWriter writer = new ClassWriter(0)
+        writer.visit(V1_8, ACC_PUBLIC, owner, null, 'java/lang/Object', null)
+        writer.visitField(ACC_PRIVATE, fieldName, fieldDescriptor, null, null).visitEnd()
+
+        MethodVisitor constructor = writer.visitMethod(ACC_PUBLIC, '<init>', '()V', null, null)
+        constructor.visitCode()
+        constructor.visitVarInsn(ALOAD, 0)
+        constructor.visitMethodInsn(INVOKESPECIAL, 'java/lang/Object', '<init>', '()V', false)
+        constructor.visitInsn(RETURN)
+        constructor.visitMaxs(1, 1)
+        constructor.visitEnd()
         writer.visitEnd()
         return writer.toByteArray()
     }

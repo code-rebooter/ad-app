@@ -56,4 +56,24 @@ public final class GoogleImaAdPodPolicyTest {
             GoogleImaAdPodPolicy.onCurrentAdTerminal(3, 2, true)
         );
     }
+
+    @Test
+    public void loadingTheNextAdKeepsAStartupDeadlineUntilPlaybackEvidence() {
+        org.junit.Assert.assertTrue(
+            GoogleImaAdPodPolicy.shouldArmNextAdStartTimeout(true, false, false)
+        );
+        org.junit.Assert.assertTrue(
+            GoogleImaAdPodPolicy.shouldArmNextAdStartTimeout(false, true, false)
+        );
+        org.junit.Assert.assertTrue(
+            GoogleImaAdPodPolicy.shouldArmNextAdStartTimeout(false, false, true)
+        );
+    }
+
+    @Test
+    public void firstAdLoadDoesNotCreateAPodTransitionDeadline() {
+        org.junit.Assert.assertFalse(
+            GoogleImaAdPodPolicy.shouldArmNextAdStartTimeout(false, false, false)
+        );
+    }
 }

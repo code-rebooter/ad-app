@@ -4,6 +4,7 @@ object AdPlaybackPolicy {
     const val CALLBACK_TIMEOUT_MS = 180_000L
     const val FIRST_FRAME_TIMEOUT_MS = 30_000L
     const val PLAYBACK_STALL_TIMEOUT_MS = 60_000L
+    const val PLAYBACK_BUFFERING_GRACE_LIMIT_MS = 120_000L
     const val AD_POD_TRANSITION_TIMEOUT_MS = 30_000L
     const val AD_BREAK_COMPLETION_GRACE_MS = 5_000L
     const val PLAYER_ENDED_GRACE_MS = 1_000L
@@ -29,6 +30,10 @@ object AdPlaybackPolicy {
         }
         return (adDurationMs + PLAYBACK_COMPLETION_GRACE_MS)
             .coerceIn(MIN_PLAYBACK_TIMEOUT_MS, MAX_PLAYBACK_TIMEOUT_MS)
+    }
+
+    fun resolvePlaybackHardTimeoutMs(adDurationMs: Long?): Long {
+        return resolvePlaybackTimeoutMs(adDurationMs) + PLAYBACK_BUFFERING_GRACE_LIMIT_MS
     }
 
     fun isTimeoutReason(reason: String): Boolean {

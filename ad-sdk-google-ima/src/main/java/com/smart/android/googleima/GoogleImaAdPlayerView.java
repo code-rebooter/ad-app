@@ -30,6 +30,7 @@ import com.google.ads.interactivemedia.v3.api.AdEvent;
 import com.google.ads.interactivemedia.v3.api.Ad;
 import com.google.ads.interactivemedia.v3.api.AdError;
 import com.google.ads.interactivemedia.v3.api.AdPodInfo;
+import com.google.ads.interactivemedia.v3.api.AdProgressInfo;
 import com.google.ads.interactivemedia.v3.api.UniversalAdId;
 import com.smart.android.googleima.internal.GoogleImaRuntimeBridge;
 import com.smart.android.googleima.logging.PropertyLog;
@@ -45,6 +46,8 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
     private static final long AD_BREAK_COMPLETION_GRACE_MS = 5_000L;
     private static final long AD_POD_TRANSITION_TIMEOUT_MS = 30_000L;
     private static final long PLAYER_ENDED_GRACE_MS = 1_000L;
+    private static final long MEDIA_START_FALLBACK_GRACE_MS = 2_000L;
+    private static final long MEDIA_START_PROBE_INTERVAL_MS = 200L;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final PlayerView playerView;
@@ -56,7 +59,16 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
     private Runnable adBreakCompletionTimeout;
     private Runnable adPodTransitionTimeout;
     private Runnable playerEndedTimeout;
+    private Runnable mediaStartFallback;
+    private Runnable mediaStartProbePoll;
     private GoogleImaAdListener listener = new GoogleImaAdListener() {};
+    private final GoogleImaPlaybackStartGate playbackStartGate =
+            new GoogleImaPlaybackStartGate();
+    private final GoogleImaMediaStartProbe mediaStartProbe =
+            new GoogleImaMediaStartProbe();
+    private final GoogleImaAdInstanceTracker adInstanceTracker =
+            new GoogleImaAdInstanceTracker();
+    private GoogleImaAdInfo currentAdInfo;
     private boolean terminal;
     private boolean loaded;
     private boolean started;
@@ -104,6 +116,9 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         adBreakHadSkippedAd = false;
         firstFrameRendered = false;
         firstFrameDelivered = false;
+        playbackStartGate.reset();
+        adInstanceTracker.reset();
+        currentAdInfo = null;
 
         GoogleImaRuntimeBridge.beginAudit(this.listener, request.getAdTagUrl());
         runtimeAuditActive = true;
@@ -115,7 +130,14 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
 
         startupTimeout = () -> {
             if (!started) {
-                failOnce(GoogleImaPlaybackError.timeout("ad_startup_timeout"));
+                if (playbackStartGate.hasMediaPlaybackEvidence()) {
+                    applyStartDecision(
+                            playbackStartGate.onMediaFallbackDeadline(),
+                            "startup_timeout",
+                            currentAdInfo);
+                } else {
+                    failOnce(GoogleImaPlaybackError.timeout("ad_startup_timeout"));
+                }
             }
         };
         mainHandler.postDelayed(startupTimeout, request.getAdStartupTimeoutMs());
@@ -137,41 +159,61 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
             .setAdEventListener(event -> {
                 PropertyLog.i(TAG, "IMA event=" + event.getType());
                 AdEvent.AdEventType type = event.getType();
-                emitAdEventAudit(event);
-                if (type == AdEvent.AdEventType.COMPLETED
-                    || type == AdEvent.AdEventType.SKIPPED
-                    || type == AdEvent.AdEventType.CONTENT_RESUME_REQUESTED
-                    || type == AdEvent.AdEventType.ALL_ADS_COMPLETED
-                    || type == AdEvent.AdEventType.AD_BREAK_ENDED) {
-                    emitPlayerSnapshot("player_state", "ima_" + type.name());
-                }
                 if (type == AdEvent.AdEventType.LOADED) {
+                    GoogleImaAdInfo adInfo = resolveAdInfo(event, true);
+                    selectCurrentAd(adInfo);
+                    emitAdEventAudit(event, adInfo, "current");
                     notifyLoadedOnce();
+                    armMediaStartProbe(adInfo);
                 } else if (type == AdEvent.AdEventType.STARTED) {
+                    GoogleImaAdInfo adInfo = resolveAdInfo(event, false);
+                    if (adInstanceTracker.isTerminal(adInfo.getInstanceId())) {
+                        emitAdEventAudit(event, adInfo, "late_after_terminal");
+                        return;
+                    }
+                    if (!adInstanceTracker.isCurrent(adInfo.getInstanceId())) {
+                        selectCurrentAd(adInfo);
+                    }
                     notifyLoadedOnce();
-                    if (currentAdStarted) return;
-                    started = true;
-                    currentAdStarted = true;
-                    currentAdCompleted = false;
-                    firstFrameDelivered = false;
-                    clearAdBreakTimers();
-                    clearStartupTimeout();
-                    listener.onAdStarted();
-                    notifyFirstFrameOnce();
-                    startProgressReporter();
+                    applyStartDecision(playbackStartGate.onImaStarted(), "ima_started", adInfo);
+                    emitAdEventAudit(event, adInfo, "current");
                 } else if (type == AdEvent.AdEventType.CONTENT_RESUME_REQUESTED) {
+                    emitAdEventAudit(event, currentAdInfo, "ad_break");
+                    emitPlayerSnapshot("player_state", "ima_" + type.name());
                     if (started) finishAdBreak(type.name());
                     else failOnce(GoogleImaPlaybackError.internal("content_resumed_before_ad_start"));
                 } else if (type == AdEvent.AdEventType.COMPLETED) {
-                    if (currentAdStarted) handleCurrentAdTerminal(event, type.name());
+                    GoogleImaAdInfo adInfo = resolveAdInfo(event, false);
+                    if (adInstanceTracker.isTerminal(adInfo.getInstanceId())
+                            || !adInstanceTracker.isCurrent(adInfo.getInstanceId())) {
+                        emitAdEventAudit(event, adInfo, "late_or_non_current_terminal");
+                        return;
+                    }
+                    ensureMediaFallbackForTerminal(adInfo);
+                    emitAdEventAudit(event, adInfo, "current");
+                    emitPlayerSnapshot("player_state", "ima_" + type.name());
+                    if (currentAdStarted) handleCurrentAdTerminal(event, adInfo, type.name());
                     else failOnce(GoogleImaPlaybackError.internal("ad_completed_before_start"));
                 } else if (type == AdEvent.AdEventType.ALL_ADS_COMPLETED
                     || type == AdEvent.AdEventType.AD_BREAK_ENDED) {
+                    emitAdEventAudit(event, currentAdInfo, "ad_break");
+                    emitPlayerSnapshot("player_state", "ima_" + type.name());
                     if (started) finishAdBreak(type.name());
                     else failOnce(GoogleImaPlaybackError.internal("ad_break_completed_before_start"));
                 } else if (type == AdEvent.AdEventType.SKIPPED) {
-                    if (currentAdStarted) handleCurrentAdTerminal(event, type.name());
+                    GoogleImaAdInfo adInfo = resolveAdInfo(event, false);
+                    if (adInstanceTracker.isTerminal(adInfo.getInstanceId())
+                            || !adInstanceTracker.isCurrent(adInfo.getInstanceId())) {
+                        emitAdEventAudit(event, adInfo, "late_or_non_current_terminal");
+                        return;
+                    }
+                    ensureMediaFallbackForTerminal(adInfo);
+                    emitAdEventAudit(event, adInfo, "current");
+                    emitPlayerSnapshot("player_state", "ima_" + type.name());
+                    if (currentAdStarted) handleCurrentAdTerminal(event, adInfo, type.name());
                     else failOnce(GoogleImaPlaybackError.internal("ad_skipped_before_start"));
+                } else {
+                    emitAdEventAudit(event, resolveAdInfo(event, false), "current");
                 }
             })
             .setAdErrorListener(event -> failOnce(buildImaError(event == null ? null : event.getError())))
@@ -189,6 +231,7 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
             public void onPlaybackStateChanged(int playbackState) {
                 emitPlayerSnapshot("player_state", "state_changed");
                 if (!terminal && playbackState == Player.STATE_ENDED) {
+                    ensureMediaFallbackForTerminal(currentAdInfo);
                     if (!started) {
                         failOnce(GoogleImaPlaybackError.internal("playback_ended_before_ad_start"));
                     } else {
@@ -206,6 +249,9 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
             public void onRenderedFirstFrame() {
                 firstFrameRendered = true;
                 emitPlayerSnapshot("first_frame", "rendered");
+                if (player != null && player.isPlayingAd() && currentAdInfo != null) {
+                    observeMediaPlayback("first_frame", currentAdInfo);
+                }
                 notifyFirstFrameOnce();
             }
 
@@ -247,16 +293,115 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
     }
 
     private void notifyFirstFrameOnce() {
-        if (terminal || firstFrameDelivered || !currentAdStarted || !firstFrameRendered) return;
+        if (terminal || firstFrameDelivered || !firstFrameRendered || currentAdInfo == null
+                || !adInstanceTracker.isCurrent(currentAdInfo.getInstanceId())
+                || adInstanceTracker.isTerminal(currentAdInfo.getInstanceId())) {
+            return;
+        }
         firstFrameDelivered = true;
-        listener.onAdFirstFrameRendered();
+        listener.onAdFirstFrameRendered(currentAdInfo.getInstanceId());
     }
 
-    private void handleCurrentAdTerminal(AdEvent event, String terminalEvent) {
+    private void observeMediaPlayback(String trigger, GoogleImaAdInfo adInfo) {
+        if (adInfo == null
+                || !adInstanceTracker.isCurrent(adInfo.getInstanceId())
+                || adInstanceTracker.isTerminal(adInfo.getInstanceId())) {
+            return;
+        }
+        GoogleImaPlaybackStartGate.Decision decision =
+                playbackStartGate.onMediaPlaybackObserved();
+        if (decision == GoogleImaPlaybackStartGate.Decision.IGNORE) return;
+        clearMediaStartProbe();
+        clearStartupTimeout();
+        clearAdPodTransitionTimeout();
+        listener.onAdMediaStartEvidence(trigger, adInfo.getInstanceId());
+        if (mediaStartFallback != null) return;
+        mediaStartFallback = () -> {
+            mediaStartFallback = null;
+            applyStartDecision(
+                    playbackStartGate.onMediaFallbackDeadline(),
+                    "media_" + trigger,
+                    adInfo);
+        };
+        mainHandler.postDelayed(mediaStartFallback, MEDIA_START_FALLBACK_GRACE_MS);
+    }
+
+    private void armMediaStartProbe(GoogleImaAdInfo adInfo) {
+        clearMediaStartProbe();
+        if (terminal || player == null || currentAdStarted || adInfo == null) return;
+        String expectedInstanceId = adInfo.getInstanceId();
+        mediaStartProbe.arm(player.getCurrentPosition());
+        mediaStartProbePoll = new Runnable() {
+            @Override
+            public void run() {
+                if (terminal || player == null || currentAdStarted
+                        || playbackStartGate.hasStarted()
+                        || currentAdInfo == null
+                        || !expectedInstanceId.equals(currentAdInfo.getInstanceId())) {
+                    clearMediaStartProbe();
+                    return;
+                }
+                if (mediaStartProbe.observe(
+                        player.isPlayingAd(),
+                        player.isPlaying(),
+                        player.getCurrentPosition())) {
+                    observeMediaPlayback("position_probe", adInfo);
+                    return;
+                }
+                mainHandler.postDelayed(this, MEDIA_START_PROBE_INTERVAL_MS);
+            }
+        };
+        mainHandler.post(mediaStartProbePoll);
+    }
+
+    private void ensureMediaFallbackForTerminal(GoogleImaAdInfo adInfo) {
+        applyStartDecision(
+                playbackStartGate.onTerminalBeforeImaStart(),
+                "terminal_before_ima_started",
+                adInfo);
+    }
+
+    private void applyStartDecision(
+            GoogleImaPlaybackStartGate.Decision decision,
+            String trigger,
+            GoogleImaAdInfo adInfo) {
+        if (decision != GoogleImaPlaybackStartGate.Decision.START_IMA
+                && decision != GoogleImaPlaybackStartGate.Decision.START_MEDIA_FALLBACK) {
+            return;
+        }
+        if (adInfo == null
+                || !adInstanceTracker.isCurrent(adInfo.getInstanceId())
+                || adInstanceTracker.isTerminal(adInfo.getInstanceId())) {
+            return;
+        }
+        started = true;
+        currentAdStarted = true;
+        currentAdCompleted = false;
+        clearAdBreakTimers();
+        clearStartupTimeout();
+        clearMediaStartFallback();
+        clearMediaStartProbe();
+        String source = decision == GoogleImaPlaybackStartGate.Decision.START_IMA
+                ? "ima"
+                : "media_fallback";
+        PropertyLog.i(TAG, "ad start source=" + source + ", trigger=" + trigger);
+        emitEffectiveAdStartAudit(source, trigger, adInfo);
+        listener.onAdStarted(source, adInfo);
+        notifyFirstFrameOnce();
+        startProgressReporter();
+    }
+
+    private void handleCurrentAdTerminal(
+            AdEvent event,
+            GoogleImaAdInfo adInfo,
+            String terminalEvent) {
         currentAdStarted = false;
         currentAdCompleted = true;
         firstFrameRendered = false;
         firstFrameDelivered = false;
+        adInstanceTracker.markTerminal(adInfo.getInstanceId());
+        clearMediaStartFallback();
+        clearMediaStartProbe();
         AdPodSnapshot pod = AdPodSnapshot.from(event == null ? null : event.getAd());
         boolean skipped = "SKIPPED".equals(terminalEvent);
         if (skipped) adBreakHadSkippedAd = true;
@@ -341,20 +486,61 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         mainHandler.postDelayed(progressReporter, PROGRESS_INTERVAL_MS);
     }
 
-    private void emitAdEventAudit(AdEvent event) {
+    private void emitAdEventAudit(
+            AdEvent event,
+            @Nullable GoogleImaAdInfo adInfo,
+            String disposition) {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("ima_event", event.getType().name());
-        AdPodSnapshot pod = AdPodSnapshot.from(event.getAd());
-        fields.put("ad_duration_ms", Long.toString(pod.adDurationMs));
-        fields.put("pod_max_duration_ms", Long.toString(pod.podMaxDurationMs));
-        fields.put("total_ads", Integer.toString(pod.totalAds));
-        fields.put("ad_position", Integer.toString(pod.adPosition));
-        fields.put("pod_index", Integer.toString(pod.podIndex));
+        fields.put("event_disposition", safe(disposition));
+        fields.put("ad_instance_id", adInfo == null ? "" : adInfo.getInstanceId());
+        fields.put("ad_duration_ms", Long.toString(
+                adInfo == null ? -1L : adInfo.getDurationMs()));
+        fields.put("pod_max_duration_ms", Long.toString(
+                adInfo == null ? -1L : adInfo.getPodMaxDurationMs()));
+        fields.put("total_ads", Integer.toString(
+                adInfo == null ? -1 : adInfo.getTotalAds()));
+        fields.put("ad_position", Integer.toString(
+                adInfo == null ? -1 : adInfo.getAdPosition()));
+        fields.put("pod_index", Integer.toString(
+                adInfo == null ? -1 : adInfo.getPodIndex()));
         putAdIdentity(fields, event.getAd());
         Map<String, String> adData = event.getAdData();
         if (adData != null) {
             for (Map.Entry<String, String> item : adData.entrySet()) {
                 fields.put("ad_data." + item.getKey(), safe(item.getValue()));
+            }
+        }
+        if (event.getType() == AdEvent.AdEventType.AD_PROGRESS
+                && adsLoader != null
+                && adInfo != null
+                && adInstanceTracker.isCurrent(adInfo.getInstanceId())
+                && !adInstanceTracker.isTerminal(adInfo.getInstanceId())) {
+            AdProgressInfo progress = adsLoader.getControlledAdProgressInfo();
+            if (progress != null) {
+                long currentTimeMs = AdPodSnapshot.secondsToMs(progress.getCurrentTime());
+                long durationMs = AdPodSnapshot.secondsToMs(progress.getDuration());
+                long adBreakDurationMs = AdPodSnapshot.secondsToMs(
+                        progress.getAdBreakDuration());
+                long adPeriodDurationMs = AdPodSnapshot.secondsToMs(
+                        progress.getAdPeriodDuration());
+                fields.put("ima_progress_current_time_ms", Long.toString(currentTimeMs));
+                fields.put("ima_progress_duration_ms", Long.toString(durationMs));
+                fields.put("ima_progress_ad_break_duration_ms",
+                        Long.toString(adBreakDurationMs));
+                fields.put("ima_progress_ad_period_duration_ms",
+                        Long.toString(adPeriodDurationMs));
+                fields.put("ima_progress_ad_position",
+                        Integer.toString(progress.getAdPosition()));
+                fields.put("ima_progress_total_ads",
+                        Integer.toString(progress.getTotalAds()));
+                if (durationMs > 0L) fields.put("ad_duration_ms", Long.toString(durationMs));
+                if (progress.getAdPosition() > 0) {
+                    fields.put("ad_position", Integer.toString(progress.getAdPosition()));
+                }
+                if (progress.getTotalAds() > 0) {
+                    fields.put("total_ads", Integer.toString(progress.getTotalAds()));
+                }
             }
         }
         listener.onImaAuditEvent(new GoogleImaAuditEvent(
@@ -365,10 +551,39 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         ));
     }
 
+    private void emitEffectiveAdStartAudit(
+            String source,
+            String trigger,
+            GoogleImaAdInfo adInfo) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("start_source", safe(source));
+        fields.put("start_trigger", safe(trigger));
+        fields.put("ad_instance_id", adInfo.getInstanceId());
+        fields.put("ima_ad_id", adInfo.getAdId());
+        fields.put("creative_id", adInfo.getCreativeId());
+        fields.put("creative_ad_id", adInfo.getCreativeAdId());
+        fields.put("universal_ad_id_registry", adInfo.getUniversalAdIdRegistry());
+        fields.put("universal_ad_id_value", adInfo.getUniversalAdIdValue());
+        fields.put("ad_duration_ms", Long.toString(adInfo.getDurationMs()));
+        fields.put("pod_max_duration_ms", Long.toString(adInfo.getPodMaxDurationMs()));
+        fields.put("total_ads", Integer.toString(adInfo.getTotalAds()));
+        fields.put("ad_position", Integer.toString(adInfo.getAdPosition()));
+        fields.put("pod_index", Integer.toString(adInfo.getPodIndex()));
+        listener.onImaAuditEvent(new GoogleImaAuditEvent(
+                "effective_ad_start",
+                SystemClock.elapsedRealtime(),
+                fields,
+                null
+        ));
+    }
+
     private void emitPlayerSnapshot(String eventType, String trigger) {
         if (player == null) return;
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("trigger", trigger);
+        fields.put("ad_instance_id", currentAdInfo == null
+                ? ""
+                : currentAdInfo.getInstanceId());
         fields.put("playback_state", Integer.toString(player.getPlaybackState()));
         fields.put("is_playing", Boolean.toString(player.isPlaying()));
         fields.put("is_playing_ad", Boolean.toString(player.isPlayingAd()));
@@ -545,6 +760,70 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         fields.put("universal_ad_ids", values.toString());
     }
 
+    private GoogleImaAdInfo resolveAdInfo(AdEvent event, boolean loaded) {
+        Ad ad = event == null ? null : event.getAd();
+        if (ad == null) return currentAdInfo;
+        String instanceId = loaded
+                ? adInstanceTracker.onLoaded(ad, adFingerprint(ad))
+                : adInstanceTracker.resolve(ad, adFingerprint(ad));
+        return buildAdInfo(instanceId, ad);
+    }
+
+    private void selectCurrentAd(GoogleImaAdInfo adInfo) {
+        if (adInfo == null) return;
+        if (currentAdInfo != null
+                && currentAdInfo.getInstanceId().equals(adInfo.getInstanceId())) {
+            currentAdInfo = adInfo;
+            return;
+        }
+        boolean awaitingNextAdStart = GoogleImaAdPodPolicy.shouldArmNextAdStartTimeout(
+                currentAdCompleted,
+                adPodTransitionTimeout != null,
+                adBreakCompletionTimeout != null);
+        currentAdInfo = adInfo;
+        adInstanceTracker.select(adInfo.getInstanceId());
+        currentAdStarted = false;
+        currentAdCompleted = false;
+        firstFrameRendered = false;
+        firstFrameDelivered = false;
+        playbackStartGate.reset();
+        clearMediaStartFallback();
+        clearMediaStartProbe();
+        clearAdBreakCompletionTimeout();
+        if (awaitingNextAdStart) {
+            scheduleAdPodTransitionTimeout(
+                    "loaded_ad_not_started:" + adInfo.getInstanceId());
+        }
+    }
+
+    private static GoogleImaAdInfo buildAdInfo(String instanceId, Ad ad) {
+        AdPodSnapshot pod = AdPodSnapshot.from(ad);
+        return new GoogleImaAdInfo(
+                instanceId,
+                ad == null ? "" : ad.getAdId(),
+                ad == null ? "" : ad.getCreativeId(),
+                ad == null ? "" : ad.getCreativeAdId(),
+                ad == null ? "" : ad.getUniversalAdIdRegistry(),
+                ad == null ? "" : ad.getUniversalAdIdValue(),
+                pod.adDurationMs,
+                pod.podMaxDurationMs,
+                pod.totalAds,
+                pod.adPosition,
+                pod.podIndex);
+    }
+
+    static String adFingerprint(Ad ad) {
+        if (ad == null) return "";
+        AdPodSnapshot pod = AdPodSnapshot.from(ad);
+        return safe(ad.getAdId()) + "|"
+                + safe(ad.getCreativeId()) + "|"
+                + safe(ad.getCreativeAdId()) + "|"
+                + safe(ad.getUniversalAdIdRegistry()) + "|"
+                + safe(ad.getUniversalAdIdValue()) + "|"
+                + pod.podIndex + "|"
+                + pod.adPosition;
+    }
+
     @Nullable
     private static Throwable findCause(Throwable error, Class<? extends Throwable> type) {
         Throwable current = error;
@@ -598,9 +877,26 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
 
     private void clearTimers() {
         clearStartupTimeout();
+        clearMediaStartFallback();
+        clearMediaStartProbe();
         clearProgressReporter();
         clearAdBreakTimers();
         clearPlayerEndedTimeout();
+    }
+
+    private void clearMediaStartFallback() {
+        if (mediaStartFallback != null) {
+            mainHandler.removeCallbacks(mediaStartFallback);
+            mediaStartFallback = null;
+        }
+    }
+
+    private void clearMediaStartProbe() {
+        if (mediaStartProbePoll != null) {
+            mainHandler.removeCallbacks(mediaStartProbePoll);
+            mediaStartProbePoll = null;
+        }
+        mediaStartProbe.reset();
     }
 
     private void clearProgressReporter() {

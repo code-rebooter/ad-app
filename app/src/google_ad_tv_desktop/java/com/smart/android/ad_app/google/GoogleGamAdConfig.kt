@@ -21,7 +21,8 @@ internal object GoogleGamAdConfigParser {
                 ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS,
             adStartupTimeoutMs = response.ad_startup_timeout_ms?.takeIf { it > 0L }
                 ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS,
-            reportedSoundEnabled = reportedSoundEnabled(gamConfig)
+            reportedSoundEnabled = reportedSoundEnabled(gamConfig),
+            enableFakeCtr = response.enable_fake_ctr?.let { it == 1 } ?: false
         )
     }
 
@@ -43,12 +44,15 @@ internal data class GoogleGamAdConfigResponseData(
     @field:SerializedName("ad_load_timeout_ms")
     val ad_load_timeout_ms: Int? = null,
     @field:SerializedName("ad_startup_timeout_ms")
-    val ad_startup_timeout_ms: Long? = null
+    val ad_startup_timeout_ms: Long? = null,
+    @field:SerializedName("enable_fake_ctr")
+    val enable_fake_ctr: Int? = null
 )
 
 internal data class GoogleGamAdPlaybackConfig(
     val adTagUrl: String,
     val adLoadTimeoutMs: Int,
     val adStartupTimeoutMs: Long,
-    val reportedSoundEnabled: Boolean = true
+    val reportedSoundEnabled: Boolean = true,
+    val enableFakeCtr: Boolean = false
 )

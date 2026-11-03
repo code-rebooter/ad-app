@@ -26,6 +26,7 @@ internal object Hq008ConsentLogReporter {
         "AD_SDK_HTTP_CAPTURE",
         "AD_SDK_DIAGNOSTIC",
         "IMA_RUNTIME_AUDIT",
+        "TCL_RUNTIME_AUDIT",
         "USER_ACTION_START",
         "USER_ACTION_SUCCESS",
         "USER_ACTION_FAIL"
@@ -135,7 +136,7 @@ internal object Hq008ConsentLogReporter {
             "consent-log-report 开始上报 finalEventType=${payload.eventType} adLogLength=${payload.adLog.length}"
         )
         val params = linkedMapOf<String, Any>(
-            "channel_id" to AdChannelResolver.currentChannel(),
+            "channel_id" to payload.channelId.ifBlank { AdChannelResolver.currentChannel() },
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "event_type" to payload.eventType,
@@ -178,8 +179,8 @@ internal object Hq008ConsentLogReporter {
         )
 
         var adLogPayload = gson.toJson(traceSummary)
-        val preserveImaRuntimeAudit = stepsForUpload.any { step ->
-            step.eventType == "IMA_RUNTIME_AUDIT" && !step.adLog.isNullOrBlank()
+        val preserveRuntimeAudit = stepsForUpload.any { step ->
+            step.eventType in setOf("IMA_RUNTIME_AUDIT", "TCL_RUNTIME_AUDIT") && !step.adLog.isNullOrBlank()
         }
         if (adLogPayload.length > MAX_TRACE_LOG_LENGTH) {
             val compactedTraceSummary = buildTraceSummary(
@@ -194,7 +195,7 @@ internal object Hq008ConsentLogReporter {
             }
             adLogPayload = gson.toJson(compactedTraceSummary)
         }
-        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveImaRuntimeAudit) {
+        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveRuntimeAudit) {
             val diagnosticSummary = buildTraceSummary(
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
@@ -209,7 +210,7 @@ internal object Hq008ConsentLogReporter {
             }
             adLogPayload = gson.toJson(diagnosticSummary)
         }
-        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveImaRuntimeAudit) {
+        if (adLogPayload.length > MAX_TRACE_LOG_LENGTH && !preserveRuntimeAudit) {
             val compactedTraceSummary = buildTraceSummary(
                 finalEventType = snapshot.finalEventType,
                 finalEventMessage = finalEventMessage,
@@ -240,6 +241,7 @@ internal object Hq008ConsentLogReporter {
         }.take(MAX_MESSAGE_LENGTH)
 
         return ConsentLogUploadPayload(
+            channelId = snapshot.channelId,
             requestId = snapshot.requestId,
             eventType = snapshot.finalEventType,
             eventMessage = summaryMessage,
@@ -1076,6 +1078,7 @@ internal object Hq008ConsentLogReporter {
     )
 
     private data class ConsentLogUploadPayload(
+        val channelId: String,
         val requestId: String,
         val eventType: String,
         val eventMessage: String,

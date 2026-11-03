@@ -24,13 +24,15 @@ internal class Hq008ConsentTraceSession(
         val observedEventTypes: Set<String>,
         val trimmedStepCount: Int,
         val popupLogEnabled: Boolean,
-        val requestId: String
+        val requestId: String,
+        val channelId: String = ""
     )
 
     private val pendingSteps = mutableListOf<TraceStep>()
     private var traceStartedElapsedMs: Long = 0L
     private var popupLogEnabled = true
     private var requestId = ""
+    private var channelId = ""
     private val requestIdAliases = mutableSetOf<String>()
     private val milestones = linkedMapOf<String, TraceStep>()
     private val observedEventTypes = linkedSetOf<String>()
@@ -88,6 +90,10 @@ internal class Hq008ConsentTraceSession(
             return null
         }
 
+        if (eventType == "FLOW_CONTROL_START" || eventType == "CMP_GATE_START") {
+            Regex("(?:^|[,\\s])channelId=([^,\\s]+)").find(rawEventMessage)
+                ?.groupValues?.get(1)?.let { channelId = it }
+        }
         appendStep(
             nowMs = nowMs,
             eventType = eventType,
@@ -197,7 +203,8 @@ internal class Hq008ConsentTraceSession(
             observedEventTypes = observedEventTypes.toSet(),
             trimmedStepCount = trimmedStepCount,
             popupLogEnabled = popupLogEnabled,
-            requestId = requestId
+            requestId = requestId,
+            channelId = channelId
         )
         resetAll()
         return snapshot
@@ -207,6 +214,7 @@ internal class Hq008ConsentTraceSession(
         pendingSteps.clear()
         traceStartedElapsedMs = 0L
         requestId = ""
+        channelId = ""
         requestIdAliases.clear()
         milestones.clear()
         observedEventTypes.clear()
@@ -218,6 +226,9 @@ internal class Hq008ConsentTraceSession(
         val milestoneEventTypes = setOf(
             "AD_PHASE_START",
             "AD_REQUESTED",
+            "AD_SDK_REQUEST",
+            "AD_GAM_PATCH_REQUEST",
+            "TCL_RUNTIME_AUDIT",
             "AD_LOADED",
             "AD_STARTED",
             "AD_FIRST_FRAME",

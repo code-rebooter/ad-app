@@ -71,6 +71,7 @@ internal object Hq008AdSdkDebugCapture {
                     return@runCatching true
                 }
                 val replacedClient = currentClient.newBuilder()
+                    .addInterceptor(TclRuntimeBridge.httpInterceptor)
                     .addInterceptor(AdSdkHttpCaptureInterceptor)
                     .build()
                 clientField.set(httpRequester, replacedClient)

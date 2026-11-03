@@ -149,21 +149,21 @@ internal object Hq008AdReporter {
         requestId: String,
         eventType: String,
         message: String,
-        diagnosticInfo: String
+        diagnosticInfo: DiagnosticPayload
     ) {
         // REPORT_FLOW request
         val params = linkedMapOf<String, Any>(
             "request_id" to requestId,
             "event_type" to eventType,
             "uuid" to resolveDeviceId(),
-            "channel_id" to AdChannelResolver.currentChannel(),
+            "channel_id" to diagnosticInfo.channelId,
             "ad_version" to BuildConfig.VERSION_CODE,
             "mac" to (safeGetMacAddress()?.takeIf { it.isNotBlank() } ?: "00:00:00:00:00:00"),
             "app_id" to appContext.packageName,
             "make" to HaierBuildIdentityNormalizer.manufacturer(),
             "model" to HaierBuildIdentityNormalizer.model(),
             "message" to message,
-            "diagnostic_info" to diagnosticInfo
+            "diagnostic_info" to diagnosticInfo.json
         ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
 
         resolveLocalIp()?.let { params["local_ip"] = it }
@@ -207,7 +207,7 @@ internal object Hq008AdReporter {
         adId: String?,
         hiddenMode: Boolean,
         extra: Map<String, Any?> = emptyMap()
-    ): String {
+    ): DiagnosticPayload {
         val payload = linkedMapOf<String, Any?>(
             "adId" to adId,
             "hiddenMode" to hiddenMode,
@@ -216,8 +216,12 @@ internal object Hq008AdReporter {
             "deviceMake" to HaierBuildIdentityNormalizer.manufacturer()
         )
         payload.putAll(sanitizeExtra(extra))
-        return gson.toJson(payload)
+        return DiagnosticPayload(gson.toJson(payload),
+            (extra["requestChannelId"] as? String)?.takeIf { it.isNotBlank() }
+                ?: AdChannelResolver.currentChannel())
     }
+
+    private data class DiagnosticPayload(val json: String, val channelId: String)
 
     private fun sanitizeExtra(extra: Map<String, Any?>): Map<String, Any?> {
         val sanitized = linkedMapOf<String, Any?>()

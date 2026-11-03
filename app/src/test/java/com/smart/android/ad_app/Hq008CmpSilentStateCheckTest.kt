@@ -17,7 +17,7 @@ class Hq008CmpSilentStateCheckTest {
         val cmpSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/Hq008CmpManager.kt")
         val adManagerSource = readProjectFile("app/src/hq008/java/com/smart/android/ad_app/AdManagerImpl.kt")
 
-        assertTrue(buildGradle.contains("adsdk_overseas_cmp_sdk-2.8.02.aar"))
+        assertTrue(buildGradle.contains("ad-sdk-fusion/vendor/cmp/sdk.aar"))
         assertTrue(appSource.contains("Hq008CmpManager.init(this)"))
         assertTrue(providerSource.contains("Hq008CmpManager.init(it)"))
         assertTrue(adConfigManagerSource.contains("Hq008CmpManager.runWhenConsentStateReady"))

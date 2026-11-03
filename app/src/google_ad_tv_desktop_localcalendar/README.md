@@ -1,8 +1,14 @@
-# Local Calendar：独立拼链接，TCL 执行
+# Local Calendar：Google 广告渠道
 
 构建 flavor：google_ad_tv_desktop_localcalendar。
 CHANNEL / C_TYPE / MODEL：GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR。
-包名 com.localcalendar.tv，versionCode 5 / versionName 1.0.3，minSdk 24，localCalendarRelease 签名。签名沿用 googleapps 的本地发布密钥；尚未核对 Play 应用签名证书。
+包名 com.localcalendar.tv，versionCode 6 / versionName 1.0.4，minSdk 24，localCalendarRelease 签名。签名沿用 googleapps 的本地发布密钥。
+
+2026-11-02 正式交付使用纯 IMA：`./gradlew :app:assembleGoogle_ad_tv_desktop_localcalendarRelease -PgoogleAdRuntime=ima`。
+包含后台 `google-gam/patch`、`AD_GAM_PATCH_REQUEST/READY`、最终 URL 日志和独立 `FILLED` 上报。
+普通 Debug 及 Release 默认使用授权接口下发的广告地址；显式样本审计开关只在 Debug 生效。
+
+下文保留此前 independent/TCL 版本的接入及交付记录。
 
 2026-10-26：与全部 Google 渠道统一复用 `app/src/google_ad_tv_desktop` 的业务源码、Manifest、资源、混淆规则、公共依赖和 independent ASM 处理器。此前按纯 TCL 模板生成的同渠道包已作废，旧模板代码已删除。
 
@@ -12,7 +18,7 @@ CHANNEL / C_TYPE / MODEL：GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR。
 
 构建：./gradlew :app:assembleGoogle_ad_tv_desktop_localcalendarRelease
 
-本次不运行回归测试或设备播放验证。
+2026-11-02 纯 IMA 正式包的 205 项 Release 单元检查、签名、版本及打包核验通过，交付记录位于 `outputs/google_ad_tv_desktop_localcalendar/20261102-ima-v1.0.4-code6/`。
 
 ## 2026-10-23 flymobi independent 交付
 

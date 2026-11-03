@@ -4,6 +4,17 @@
 只负责 Media3 + IMA 3.35.1 的请求、OM 初始化和播放生命周期，不调用 TCL，
 也不使用 independent URL 生成器。
 
+宿主可通过 `GoogleImaAdRequest.Builder.setAdUrlResolver()` 处理 Core 已拼接完成的
+广告 URL。回调运行在网络工作线程，原生网络和 WebView 回退都会经过该入口；
+解析失败会阻止原广告请求，播放器释放时调用 resolver 的 `cancel()`。
+
+本仓库 Google 渠道宿主已接入 `/api/v2/ad/google-gam/patch`，复用现有后台协议，
+将后台返回 URL 原样用于广告请求，并记录 `AD_GAM_PATCH_REQUEST/READY`、
+`AD_SDK_REQUEST.adLog.final_url` 和独立 `FILLED` 状态。Debug 默认也使用授权接口
+下发的地址；仅显式设置 `adb shell setprop debug.google.ima.sample omid` 时使用官方
+OMID 样本，测试后执行 `adb shell "setprop debug.google.ima.sample ''"` 恢复。
+该显式审计开关也启用原有 Debug 流控/CMP/授权放行；默认关闭，Release 不生效。
+
 运行时使用固定版本的受控 IMA、TV Ads、Advertising ID 和 AppSet AAR。IMA 的
 `ms` 改由本地同规则引擎生成；GASS、动态 VM/DEX、SignalSdk、GKS 远程链路和
 动态 Secure Signals adapter 被阻断。Advertising ID 与 AppSet 的业务取值保留，

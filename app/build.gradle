@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
-def tclDemoProjectDir = rootProject.file("../tcl_ad_demo")
 def tclDemoSigningPropertiesFile = file("signing_files/tcl-ad-demo-release.properties")
 def tclDemoSigningProperties = new Properties()
 if (tclDemoSigningPropertiesFile.exists()) {
@@ -54,7 +53,6 @@ if (ambientLightSigningPropertiesFile.exists()) {
     }
 }
 
-def tclDemoLibsDir = new File(tclDemoProjectDir, "app/libs")
 def umpDebugDeviceId = providers.gradleProperty("umpDebugDeviceId").orElse("").get()
 
 ext.googleAdRuntime = providers.gradleProperty('googleAdRuntime').orElse('independent').get()
@@ -659,8 +657,8 @@ android {
                     adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adnoneu",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 14,
-                    versionName         : "1.0.13",
+                    versionCode         : 15,
+                    versionName         : "1.0.14",
                     signingConfig       : signingConfigs.tclDemoNoneuRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_NONEU",
@@ -816,8 +814,8 @@ android {
                     applicationId       : "com.localcalendar.tv",
                     minSdk              : 24,
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 5,
-                    versionName         : "1.0.3",
+                    versionCode         : 6,
+                    versionName         : "1.0.4",
                     signingConfig       : signingConfigs.localCalendarRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "GOOGLE_AD_TV_DESKTOP_LOCALCALENDAR",
@@ -1143,25 +1141,25 @@ def hq008TclSharedPatchedAars = []
 def hq008XhsxAarSpecs = [
         [
                 name  : "base_business",
-                input : new File(tclDemoLibsDir, "adsdk_overseas_base_business-2.8.02.aar"),
+                input : rootProject.file("ad-sdk-fusion/vendor/base/sdk.aar"),
                 output: "generated/hq008XHSX-patched/adsdk_overseas_base_business-2.8.02-patched.aar",
                 sha256: "1e9660a0e335e8e87e98057f5a0df520791a9754a0eb47dff789f00f7ecb56de"
         ],
         [
                 name  : "cmp_sdk",
-                input : new File(tclDemoLibsDir, "adsdk_overseas_cmp_sdk-2.8.02.aar"),
+                input : rootProject.file("ad-sdk-fusion/vendor/cmp/sdk.aar"),
                 output: "generated/hq008XHSX-patched/adsdk_overseas_cmp_sdk-2.8.02-patched.aar",
                 sha256: "5a6b19906daaf715c48a079aa185c908b906d23536a709dc57589f85e07f833f"
         ],
         [
                 name  : "media_ad",
-                input : new File(tclDemoLibsDir, "adsdk_overseas_media_ad-2.8.02.aar"),
+                input : rootProject.file("ad-sdk-fusion/vendor/media/sdk.aar"),
                 output: "generated/hq008XHSX-patched/adsdk_overseas_media_ad-2.8.02-patched.aar",
                 sha256: "22426d990e7e27e1fea05b2c014ea4960d3fa5da5efe2b92f945704ab3abc9ca"
         ],
         [
                 name  : "player",
-                input : new File(tclDemoLibsDir, "adsdk_overseas_player-2.8.02.aar"),
+                input : rootProject.file("ad-sdk-fusion/vendor/player/sdk.aar"),
                 output: "generated/hq008XHSX-patched/adsdk_overseas_player-2.8.02-patched.aar",
                 sha256: "74d2c79e0af1a62697e36bc84929d28504ca264d69856505fdd3606e9a743907"
         ]
@@ -1573,3 +1571,4 @@ configurations.configureEach { configuration ->
 }
 
 apply from: file("gradle/google-url-tcl.gradle")
+apply from: file("gradle/tcl-runtime.gradle")

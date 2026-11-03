@@ -1448,6 +1448,27 @@ final class LsapClassPatcher implements Opcodes {
             method.name == 'zzb' && method.desc ==
             '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +
             'Lcom/google/ads/interactivemedia/v3/impl/data/zzbz;') {
+            int originalRequest = method.maxLocals++
+            LabelNode prepared = new LabelNode()
+            InsnList prepare = new InsnList()
+            prepare.add(new VarInsnNode(ALOAD, 1))
+            prepare.add(new VarInsnNode(ASTORE, originalRequest))
+            prepare.add(new VarInsnNode(ALOAD, 1))
+            prepare.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'prepareNativeRequest',
+                '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +
+                'Lcom/google/ads/interactivemedia/v3/impl/data/zzby;', false))
+            prepare.add(new VarInsnNode(ASTORE, 1))
+            prepare.add(new VarInsnNode(ALOAD, 1))
+            prepare.add(new JumpInsnNode(IFNONNULL, prepared))
+            prepare.add(new VarInsnNode(ALOAD, originalRequest))
+            prepare.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'blockedNativeResponse',
+                '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +
+                'Lcom/google/ads/interactivemedia/v3/impl/data/zzbz;', false))
+            prepare.add(new InsnNode(ARETURN))
+            prepare.add(prepared)
+            // Audit the original transport's return; blocked requests have no HTTP response.
             int responseLocal = method.maxLocals
             method.maxLocals += 1
             method.instructions.toArray().findAll {
@@ -1461,6 +1482,19 @@ final class LsapClassPatcher implements Opcodes {
                     'auditNativeResponse', '(Ljava/lang/Object;Ljava/lang/Object;)V', false))
                 audit.add(new VarInsnNode(ALOAD, responseLocal))
                 method.instructions.insertBefore(returnInstruction, audit)
+            }
+            method.instructions.insert(prepare)
+            return true
+        }
+
+        if (entryName == 'com/google/ads/interactivemedia/v3/impl/zzbs.class' &&
+            method.name == '<init>') {
+            method.instructions.toArray().findAll { it.opcode == RETURN }.each { instruction ->
+                InsnList bind = new InsnList()
+                bind.add(new VarInsnNode(ALOAD, 0))
+                bind.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                    'bindAsyncAuditOwner', '(Ljava/lang/Object;)V', false))
+                method.instructions.insertBefore(instruction, bind)
             }
             return true
         }
@@ -1476,11 +1510,12 @@ final class LsapClassPatcher implements Opcodes {
             if (requestTasks.size() == 1) {
                 InsnList bind = new InsnList()
                 bind.add(new VarInsnNode(ALOAD, 3))
+                bind.add(new VarInsnNode(ALOAD, 0))
                 bind.add(new MethodInsnNode(
                     INVOKESTATIC,
                     runtimeBridge,
                     'bindNativeRequestAudit',
-                    '(Ljava/lang/Object;)V',
+                    '(Ljava/lang/Object;Ljava/lang/Object;)V',
                     false
                 ))
                 method.instructions.insertBefore(requestTasks[0], bind)

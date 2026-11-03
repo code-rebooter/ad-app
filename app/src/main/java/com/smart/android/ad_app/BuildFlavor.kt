@@ -33,6 +33,15 @@ internal object BuildFlavor {
         return isGoogleAd(channelType) && googleAdRuntime == GOOGLE_AD_RUNTIME_IMA
     }
 
+    fun isGoogleImaAuditSampleEnabled(): Boolean {
+        if (!BuildConfig.DEBUG || !usesGoogleImaRuntime()) return false
+        return runCatching {
+            Class.forName("android.os.SystemProperties")
+                .getMethod("get", String::class.java, String::class.java)
+                .invoke(null, "debug.google.ima.sample", "") == "omid"
+        }.getOrDefault(false)
+    }
+
     fun needsIdentityPatch(channelType: String = BuildConfig.AD_CHANNEL_TYPE): Boolean {
         return usesSharedAdRuntime(channelType)
     }

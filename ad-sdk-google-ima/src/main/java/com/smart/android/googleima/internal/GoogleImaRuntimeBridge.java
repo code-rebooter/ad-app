@@ -26,10 +26,17 @@ import com.smart.android.ad_app.google.ima.local.signal.PrimitiveObserver;
 import com.smart.android.ad_app.google.ima.local.signal.android.ImaLocalFlagsProvider;
 import com.smart.android.ad_app.google.ima.local.signal.android.ImaLocalMsOwner;
 import com.smart.android.googleima.GoogleImaAdListener;
+import com.smart.android.googleima.GoogleImaAdUrlResolver;
 import com.smart.android.googleima.GoogleImaAuditEvent;
 import com.smart.android.googleima.logging.PropertyLog;
 
 import java.lang.ref.ReferenceQueue;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -425,7 +432,12 @@ public final class GoogleImaRuntimeBridge {
 
     @Keep
     public static void beginAudit(GoogleImaAdListener listener, String adTagUrl) {
-        AuditState state = new AuditState(listener);
+        beginAudit(listener, adTagUrl, null);
+    }
+
+    public static void beginAudit(
+            GoogleImaAdListener listener, String adTagUrl, GoogleImaAdUrlResolver resolver) {
+        AuditState state = new AuditState(listener, resolver);
         synchronized (AUDIT_LOCK) {
             activeAudit = state;
         }
@@ -465,7 +477,9 @@ public final class GoogleImaRuntimeBridge {
             state = activeAudit;
             if (state == null || state.listener != listener) return;
             activeAudit = null;
+            state.closed = true;
         }
+        if (state.adUrlResolver != null) state.adUrlResolver.cancel();
         emit(state, "audit_end", fields("reason", safe(reason)), null);
     }
 
@@ -479,6 +493,153 @@ public final class GoogleImaRuntimeBridge {
             }
             putAuditOwner(NATIVE_REQUEST_AUDITS, requestObject, activeAudit);
         }
+    }
+
+    @Keep
+    public static void bindNativeRequestAudit(Object requestObject, Object networkOwner) {
+        synchronized (AUDIT_LOCK) {
+            AuditState state = getAuditOwner(ASYNC_OWNER_AUDITS, networkOwner);
+            if (state != null) putAuditOwner(NATIVE_REQUEST_AUDITS, requestObject, state);
+        }
+    }
+
+    /** Invoked inside IMA's native networking worker, after Core has built its URL. */
+    @Keep
+    public static zzby prepareNativeRequest(zzby request) {
+        AuditState state;
+        synchronized (AUDIT_LOCK) {
+            state = getAuditOwner(NATIVE_REQUEST_AUDITS, request);
+        }
+        if (!needsAdUrlResolution(state, request.url(), String.valueOf(request.requestType()))) {
+            return request;
+        }
+        try {
+            String url = resolveAdUrl(state, request.url());
+            zzby resolved = copyNativeRequestUrl(request, url);
+            synchronized (AUDIT_LOCK) {
+                removeAuditOwner(NATIVE_REQUEST_AUDITS, request);
+                putAuditOwner(NATIVE_REQUEST_AUDITS, resolved, state);
+            }
+            return resolved;
+        } catch (Exception error) {
+            emitAdUrlFailure(state, error);
+            synchronized (AUDIT_LOCK) {
+                removeAuditOwner(NATIVE_REQUEST_AUDITS, request);
+            }
+            return null;
+        }
+    }
+
+    @Keep
+    public static zzbz blockedNativeResponse(zzby request) {
+        return zzbz.forError(request.id(), 1);
+    }
+
+    static zzby copyNativeRequestUrl(zzby request, String url) {
+        // Core's deserialized request can omit fields that AutoValue's factory requires.
+        return new zzby() {
+            @Override public int connectionTimeoutMs() { return request.connectionTimeoutMs(); }
+            @Override public int readTimeoutMs() { return request.readTimeoutMs(); }
+            @Override public com.google.ads.interactivemedia.v3.impl.data.zzbx requestType() {
+                return request.requestType();
+            }
+            @Override public String content() { return request.content(); }
+            @Override public String id() { return request.id(); }
+            @Override public String url() { return url; }
+            @Override public String userAgent() { return request.userAgent(); }
+        };
+    }
+
+    private static boolean needsAdUrlResolution(AuditState state, String url, String method) {
+        return state != null && state.adUrlResolver != null && "GET".equals(method)
+                && state.adUrlResolver.handles(url);
+    }
+
+    private static String resolveAdUrl(AuditState state, String original) throws Exception {
+        if (state.closed) throw new IOException("IMA ad request cancelled");
+        String resolved = state.adUrlResolver.resolve(original);
+        if (state.closed) throw new IOException("IMA ad request cancelled");
+        if (resolved == null || resolved.trim().isEmpty()) {
+            throw new IOException("GAM patch returned no ad URL");
+        }
+        synchronized (state.resolvedAdUrls) {
+            state.resolvedAdUrls.put(original, resolved);
+        }
+        return resolved;
+    }
+
+    private static void emitAdUrlFailure(AuditState state, Exception error) {
+        if (state != null && !state.closed) {
+            emit(state, "gam_patch_error", fields("error", safe(error.getMessage())), null);
+        }
+    }
+
+    private static WebResourceResponse interceptPatchedAdRequest(
+            AuditState state, String url, String method, Map<String, String> headers) {
+        if (!needsAdUrlResolution(state, url, method)) return null;
+        final String resolved;
+        try {
+            resolved = resolveAdUrl(state, url);
+        } catch (Exception error) {
+            emitAdUrlFailure(state, error);
+            return blockedWebResponse();
+        }
+        HttpURLConnection connection = null;
+        try {
+            if (state.closed) return blockedWebResponse();
+            connection = (HttpURLConnection) new URL(resolved).openConnection();
+            int timeout = (int) Math.max(1L,
+                    Math.min(20_000L, state.adUrlResolver.remainingTimeMs()));
+            connection.setConnectTimeout(timeout);
+            connection.setReadTimeout(timeout);
+            connection.setRequestMethod("GET");
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                if (!"Accept-Encoding".equalsIgnoreCase(header.getKey())) {
+                    connection.setRequestProperty(header.getKey(), header.getValue());
+                }
+            }
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            int code = connection.getResponseCode();
+            Map<String, String> responseHeaders = new LinkedHashMap<>();
+            for (Map.Entry<String, List<String>> header : connection.getHeaderFields().entrySet()) {
+                if (header.getKey() != null) {
+                    responseHeaders.put(header.getKey(), String.join(", ", header.getValue()));
+                }
+            }
+            String contentType = safe(connection.getContentType());
+            String mime = contentType.split(";", 2)[0];
+            if (mime.isEmpty()) mime = "application/xml";
+            byte[] body;
+            try (InputStream input = code >= 400
+                    ? connection.getErrorStream() : connection.getInputStream();
+                    ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (input != null) {
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                }
+                body = output.toByteArray();
+            }
+            if (state.closed) return blockedWebResponse();
+            auditWebVastResponse(state, "webview_patched_http", "GET", resolved, code,
+                    contentType, new String(body, StandardCharsets.UTF_8));
+            String reason = safe(connection.getResponseMessage());
+            return new WebResourceResponse(mime, "UTF-8", code,
+                    reason.isEmpty() ? "Ad response" : reason, responseHeaders,
+                    new ByteArrayInputStream(body));
+        } catch (Exception error) {
+            auditWebResource(state, "error", resolved, "GET", false, -1,
+                    safe(error.getMessage()));
+            return blockedWebResponse();
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static WebResourceResponse blockedWebResponse() {
+        return new WebResourceResponse("application/xml", "UTF-8", 503,
+                "Ad request stopped", Collections.singletonMap("Access-Control-Allow-Origin", "*"),
+                new ByteArrayInputStream(new byte[0]));
     }
 
     @Keep
@@ -524,6 +685,17 @@ public final class GoogleImaRuntimeBridge {
             String content) {
         String safeContent = safe(content);
         if (!isVastXml(safeContent)) return;
+        if (state != null) {
+            synchronized (state.resolvedAdUrls) {
+                url = state.resolvedAdUrls.getOrDefault(url, url);
+                String key = url + ":" + sha256(safeContent);
+                if ("webview_patched_http".equals(captureSource)) {
+                    state.patchedWebVastHashes.add(key);
+                } else if (state.patchedWebVastHashes.contains(key)) {
+                    return;
+                }
+            }
+        }
         int responseIndex;
         synchronized (AUDIT_LOCK) {
             if (state == null) {
@@ -609,6 +781,7 @@ public final class GoogleImaRuntimeBridge {
     public static void setAuditedWebViewClient(WebView webView, WebViewClient client) {
         if (webView == null) return;
         AuditState state = bindWebViewAudit(webView);
+        if (state != null) state.webViewUserAgent = webView.getSettings().getUserAgentString();
         installWebViewNetworkAudit(webView, state);
         if (client instanceof AuditingWebViewClient || state == null) {
             webView.setWebViewClient(client);
@@ -1005,6 +1178,11 @@ public final class GoogleImaRuntimeBridge {
 
     private static final class AuditState {
         final GoogleImaAdListener listener;
+        final GoogleImaAdUrlResolver adUrlResolver;
+        final Map<String, String> resolvedAdUrls = new HashMap<>();
+        final LinkedHashSet<String> patchedWebVastHashes = new LinkedHashSet<>();
+        volatile boolean closed;
+        volatile String webViewUserAgent = "";
         final LinkedHashSet<String> activeOmidSessionIds = new LinkedHashSet<>();
         int nativeResponseSequence;
         boolean imaCoreVolumeObserved;
@@ -1012,8 +1190,9 @@ public final class GoogleImaRuntimeBridge {
         boolean omidStartedObserved;
         float lastImaCoreReportedVolume = -1.0f;
 
-        AuditState(GoogleImaAdListener listener) {
+        AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver) {
             this.listener = listener == null ? new GoogleImaAdListener() {} : listener;
+            this.adUrlResolver = resolver;
         }
     }
 
@@ -1118,6 +1297,10 @@ public final class GoogleImaRuntimeBridge {
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
             auditWebResource(state, "request", url, "GET", null, null, null);
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("User-Agent", state.webViewUserAgent);
+            WebResourceResponse patched = interceptPatchedAdRequest(state, url, "GET", headers);
+            if (patched != null) return patched;
             return delegate.shouldInterceptRequest(view, url);
         }
 
@@ -1133,6 +1316,9 @@ public final class GoogleImaRuntimeBridge {
                     request.isForMainFrame(),
                     null,
                     null);
+            WebResourceResponse patched = interceptPatchedAdRequest(state,
+                    request.getUrl().toString(), request.getMethod(), request.getRequestHeaders());
+            if (patched != null) return patched;
             return delegate.shouldInterceptRequest(view, request);
         }
 

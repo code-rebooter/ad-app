@@ -1,0 +1,27 @@
+// Native TCL channels share the patch protocol, without compiling a Google player or generator.
+def patchSources = tasks.register('prepareTclPatchSources', Sync) {
+    from('src/google_ad_tv_desktop/java') {
+        include 'com/smart/android/ad_app/google/GoogleGamPatchClient.kt'
+    }
+    into layout.buildDirectory.dir('generated/tclPatch/java')
+}
+android.productFlavors.matching {
+    it.buildConfigFields['AD_CHANNEL_TYPE']?.value == '"TCL"'
+}.all { flavor ->
+    android.sourceSets.named(flavor.name) {
+        java.srcDir 'src/tclRuntime/java'
+        java.srcDir layout.buildDirectory.dir('generated/tclPatch/java').get().asFile
+        kotlin.srcDirs = java.srcDirs
+    }
+    android.sourceSets.maybeCreate("test${flavor.name.capitalize()}").with {
+        java.srcDir 'src/testTclRuntime/java'
+        kotlin.srcDirs = java.srcDirs
+    }
+    tasks.matching { it.name == "pre${flavor.name.capitalize()}DebugBuild" ||
+            it.name == "pre${flavor.name.capitalize()}ReleaseBuild" }.configureEach {
+        dependsOn patchSources
+    }
+}
+android.sourceSets.maybeCreate('hq008XHSXDebug').with {
+    assets.srcDir rootProject.file('ad-sdk-tcl/src/main/assets')
+}

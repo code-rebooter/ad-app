@@ -5,6 +5,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.ViewGroup
 import com.google.gson.JsonElement
+import com.google.gson.Gson
+import com.speed.ext.getMacAddress
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.google.GoogleGamAdConfigParser
 import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
@@ -73,6 +75,7 @@ internal object GoogleImaAdManager : IAdManager {
         val session = Session(
             id = Hq008ReportRequestIdResolver.resolve(adId),
             adId = adId,
+            channelId = channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel(),
             soundEnabled = soundEnabled,
             timeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS,
             container = WeakReference(flRoot),
@@ -113,7 +116,7 @@ internal object GoogleImaAdManager : IAdManager {
 
     private fun resolvePlaybackConfig(gamConfig: JsonElement?): GoogleGamAdPlaybackConfig? {
         val authorizedConfig = GoogleGamAdConfigParser.parse(gamConfig)
-        if (!BuildConfig.DEBUG) return authorizedConfig
+        if (!BuildFlavor.isGoogleImaAuditSampleEnabled()) return authorizedConfig
         return GoogleGamAdPlaybackConfig(
             adTagUrl = DEBUG_AUDIT_AD_TAG_URL + System.currentTimeMillis(),
             adLoadTimeoutMs = authorizedConfig?.adLoadTimeoutMs ?: DEBUG_AUDIT_AD_LOAD_TIMEOUT_MS,
@@ -139,12 +142,54 @@ internal object GoogleImaAdManager : IAdManager {
         }
         session.player = player
         container.addView(player)
+        val parameters = linkedMapOf<String, Any>(
+            "request_id" to session.id,
+            "channel_id" to session.channelId,
+            "mac" to (runCatching { getMacAddress() }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: "00:00:00:00:00:00"),
+            "ad_version" to BuildConfig.VERSION_CODE,
+            "ad_version_name" to BuildConfig.VERSION_NAME,
+            "sdk_version" to "3.35.1"
+        ).apply {
+            Hq008ApiRequestFields.appendTo(this, container.context.applicationContext,
+                googleAuthorization = true)
+        }
+        val patch = GoogleImaBackendPatch(
+            adTagUrl = config.adTagUrl,
+            parameters = parameters,
+            deadlineMs = session.createdAt + session.timeoutMs,
+            onRequest = { url ->
+                if (isRunning(session)) {
+                    session.patchStartedAt = SystemClock.elapsedRealtime()
+                    trace(session, "AD_GAM_PATCH_REQUEST",
+                        "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
+                }
+            },
+            onReady = { url ->
+                if (isRunning(session)) {
+                    session.patchReadyAt = SystemClock.elapsedRealtime()
+                    session.finalAdTagUrl = url
+                    trace(session, "AD_GAM_PATCH_READY",
+                        "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
+                    Hq008ConsentLogReporter.report(
+                        eventType = "AD_SDK_REQUEST",
+                        eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${session.id},backendPatched=true",
+                        adLog = Gson().toJson(mapOf("request_id" to session.id, "final_url" to url)),
+                        requestId = session.id
+                    )
+                }
+            },
+            onFailure = { error ->
+                onMain { if (isRunning(session)) fail(session, "gam_patch_failed", error) }
+            }
+        )
+        session.backendPatch = patch
         trace(
             session,
-            "AD_SDK_REQUEST",
+            "AD_IMA_REQUEST_PREPARED",
             "imaLoadTimeoutMs=${config.adLoadTimeoutMs}," +
                 "imaStartupTimeoutMs=${config.adStartupTimeoutMs}," +
-                "debugAuditVastOverride=${BuildConfig.DEBUG}"
+                "debugAuditVastOverride=${config.adTagUrl.startsWith(DEBUG_AUDIT_AD_TAG_URL)}"
         )
 
         val request = GoogleImaAdRequest.Builder(config.adTagUrl)
@@ -152,6 +197,7 @@ internal object GoogleImaAdManager : IAdManager {
             .setAdLoadTimeoutMs(config.adLoadTimeoutMs)
             .setAdStartupTimeoutMs(config.adStartupTimeoutMs)
             .setUserAgent(Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent())
+            .setAdUrlResolver(patch)
             .build()
 
         player.play(request, object : GoogleImaAdListener {
@@ -161,6 +207,10 @@ internal object GoogleImaAdManager : IAdManager {
                     if (!isActive(session)) return@onMain
                     if (session.finishing && event.eventType != "terminal_snapshot") return@onMain
                     when (event.eventType) {
+                        "gam_patch_error" -> fail(session, "gam_patch_failed", event.fields["error"])
+                        "vast_response" -> if (session.runtimeAudit.hasVastFill()) {
+                            reportFilled(session, event.fields["capture_source"].orEmpty())
+                        }
                         "terminal_snapshot" -> handlePlayerSnapshot(session, event)
                         "ima_ad_event" -> handleImaAdEvent(session, event)
                         "player_state", "playback_progress" ->
@@ -171,6 +221,7 @@ internal object GoogleImaAdManager : IAdManager {
 
             override fun onAdLoaded() = onMain {
                 if (!isRunning(session) || session.loadedAt != null) return@onMain
+                reportFilled(session, "ima_loaded")
                 session.loadedAt = SystemClock.elapsedRealtime()
                 Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_loaded")
                 Hq008AdReporter.reportLoaded(
@@ -476,6 +527,7 @@ internal object GoogleImaAdManager : IAdManager {
     }
 
     private fun releasePlayer(session: Session, reason: String) {
+        session.backendPatch?.cancel()
         session.player?.capturePlayerSnapshot("before_release:$reason")
         session.player?.release()
         session.player = null
@@ -1099,8 +1151,17 @@ internal object GoogleImaAdManager : IAdManager {
         Hq008ConsentLogReporter.report(
             event,
             "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${session.id}," +
-                "adId=${session.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},$details"
+                "adId=${session.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},$details",
+            requestId = session.id
         )
+    }
+
+    private fun reportFilled(session: Session, source: String) {
+        if (!isRunning(session) || session.filledAt != null) return
+        session.filledAt = SystemClock.elapsedRealtime()
+        Hq008AdReporter.reportFilled(session.id, session.adId, AdDisplayConfig.isHiddenMode(),
+            session.diagnostics() + mapOf("fillSource" to source))
+        trace(session, "AD_FILLED", "source=$source")
     }
 
     private data class SegmentAudit(
@@ -1179,6 +1240,7 @@ internal object GoogleImaAdManager : IAdManager {
     private class Session(
         val id: String,
         val adId: String?,
+        val channelId: String,
         val soundEnabled: Boolean,
         val timeoutMs: Long,
         val container: WeakReference<ViewGroup>,
@@ -1189,6 +1251,11 @@ internal object GoogleImaAdManager : IAdManager {
         val createdAt = SystemClock.elapsedRealtime()
         val runtimeAudit = GoogleImaRuntimeAuditReporter(id)
         var player: GoogleImaAdPlayerView? = null
+        var backendPatch: GoogleImaBackendPatch? = null
+        @Volatile var patchStartedAt: Long? = null
+        @Volatile var patchReadyAt: Long? = null
+        @Volatile var finalAdTagUrl = ""
+        var filledAt: Long? = null
         var requestTimeout: Runnable? = null
         var playbackTimeout: Runnable? = null
         var playbackHardTimeout: Runnable? = null
@@ -1298,6 +1365,11 @@ internal object GoogleImaAdManager : IAdManager {
                 "reportedSoundEnabled" to true,
                 "requestCreatedAtMs" to createdAt,
                 "callbackTimeoutMs" to timeoutMs,
+                "patchStartedAtMs" to patchStartedAt,
+                "patchReadyAtMs" to patchReadyAt,
+                "filledAtMs" to filledAt,
+                "finalAdTagUrlHash" to finalAdTagUrl.takeIf { it.isNotBlank() }
+                    ?.let(AdPrivacySanitizer::shortHash),
                 "loadedAtMs" to loadedAt,
                 "startedAtMs" to startedAt,
                 "firstFrameAtMs" to firstFrameAt,

@@ -233,7 +233,7 @@ object AdConfigManager {
                 finishHq008FloatingFlow(flowToken, "flow_control_fail")
                 return@request
             }
-            val debugImaAuditOverride = BuildConfig.DEBUG && BuildFlavor.usesGoogleImaRuntime()
+            val debugImaAuditOverride = BuildFlavor.isGoogleImaAuditSampleEnabled()
             if (!enabled && !debugImaAuditOverride) {
                 Log.i(
                     TAG,
@@ -336,7 +336,7 @@ object AdConfigManager {
             }
 
             flowToken.requestId = dto.request_id
-            val debugImaAuditOverride = BuildConfig.DEBUG && BuildFlavor.usesGoogleImaRuntime()
+            val debugImaAuditOverride = BuildFlavor.isGoogleImaAuditSampleEnabled()
             val effectiveAuthorized = dto.authorized || debugImaAuditOverride
             val effectiveHiddenMode = dto.hidden_mode
             val effectiveSoundEnabled = dto.sound_mode == true

@@ -117,6 +117,10 @@ internal class GoogleImaRuntimeAuditReporter(
         normalizedVpmute = event.fields["vpmute_normalized"].orEmpty()
     }
 
+    fun hasVastFill(): Boolean = synchronized(lock) {
+        vastResponses.any { it.parseError == null && (it.inlineCount > 0 || it.wrapperCount > 0) }
+    }
+
     fun finish(terminalReason: String) {
         val snapshot = synchronized(lock) {
             if (finished) return

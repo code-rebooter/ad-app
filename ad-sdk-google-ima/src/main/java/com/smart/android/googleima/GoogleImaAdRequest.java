@@ -6,6 +6,7 @@ public final class GoogleImaAdRequest {
     private final int adLoadTimeoutMs;
     private final long adStartupTimeoutMs;
     private final String userAgent;
+    private final GoogleImaAdUrlResolver adUrlResolver;
 
     private GoogleImaAdRequest(Builder builder) {
         this.adTagUrl = builder.adTagUrl;
@@ -13,6 +14,7 @@ public final class GoogleImaAdRequest {
         this.adLoadTimeoutMs = builder.adLoadTimeoutMs;
         this.adStartupTimeoutMs = builder.adStartupTimeoutMs;
         this.userAgent = builder.userAgent;
+        this.adUrlResolver = builder.adUrlResolver;
     }
 
     public String getAdTagUrl() {
@@ -35,12 +37,17 @@ public final class GoogleImaAdRequest {
         return userAgent;
     }
 
+    public GoogleImaAdUrlResolver getAdUrlResolver() {
+        return adUrlResolver;
+    }
+
     public static final class Builder {
         private final String adTagUrl;
         private boolean soundEnabled;
         private int adLoadTimeoutMs = 20_000;
         private long adStartupTimeoutMs = 35_000L;
         private String userAgent;
+        private GoogleImaAdUrlResolver adUrlResolver;
 
         public Builder(String adTagUrl) {
             if (adTagUrl == null || adTagUrl.trim().isEmpty()) {
@@ -71,6 +78,11 @@ public final class GoogleImaAdRequest {
 
         public GoogleImaAdRequest build() {
             return new GoogleImaAdRequest(this);
+        }
+
+        public Builder setAdUrlResolver(GoogleImaAdUrlResolver resolver) {
+            this.adUrlResolver = resolver;
+            return this;
         }
     }
 }

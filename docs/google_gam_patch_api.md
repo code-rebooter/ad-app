@@ -1,5 +1,12 @@
 # Google GAM patch 客户端接入（2026-10-23）
 
+2026-11-02：纯 IMA 运行时也已接入本协议。顺序为
+`authorize.data.gam_config → IMA Core 拼接完整 URL → google-gam/patch → 后台 URL 原样用于 IMA 广告 HTTP → IMA 解析、播放和测量`。
+原生网络及 WebView 回退共享本轮一次 patch，使用绑定的 request_id/channel_id、
+本轮剩余超时和独立本地 rdid；patch 失败不回退原链接，播放器释放时取消请求。
+纯 IMA 的 `sdk_version` 为实际使用的 `3.35.1`。其 REQUEST/READY、最终 URL 日志和
+FILLED 状态沿用下述业务含义；TCL 专用的末端 URL 修正规则不额外施加到 IMA 请求。
+
 适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。
 
 协议依据为本次提供的 `google-gam-patch.md`。其中 `rdid` 是用户在文档之外明确补充的请求字段，客户端一并提交。

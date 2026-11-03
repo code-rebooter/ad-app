@@ -28,7 +28,6 @@ def imaChannelSources = tasks.register('prepareGoogleImaChannelSources', Sync) {
         spec.exclude 'com/smart/android/ad_app/AdManagerImpl.kt'
         spec.exclude 'com/smart/android/ad_app/GoogleAdTvDesktopAdManager.kt'
         spec.exclude 'com/smart/android/ad_app/google/GoogleAdUrlBridge.kt'
-        spec.exclude 'com/smart/android/ad_app/google/GoogleGamPatchClient.kt'
         spec.exclude 'com/smart/android/ad_app/google/GoogleTclFillBridge.kt'
         spec.exclude 'com/smart/android/ad_app/google/GoogleTclFinalUrlLog.kt'
         spec.exclude 'com/smart/android/ad_app/google/GoogleTclRdidFallback.kt'
@@ -96,5 +95,13 @@ if (useGoogleImaRuntime) {
     android.sourceSets.maybeCreate('testGoogle_ad_tv_desktop_ambientlightDebug').with {
         java.srcDirs = ['src/testGoogleImaRuntime/java']
         kotlin.srcDirs = ['src/testGoogleImaRuntime/java']
+    }
+}
+
+// UMP-only tests must not enter the native TCL or LSAP test classpaths.
+googleFlavors.each { flavorName ->
+    android.sourceSets.maybeCreate("test${flavorName.capitalize()}").with {
+        java.srcDir 'src/testGoogleCommon/java'
+        kotlin.srcDirs = java.srcDirs
     }
 }

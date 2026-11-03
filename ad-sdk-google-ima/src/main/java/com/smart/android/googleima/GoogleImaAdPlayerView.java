@@ -120,7 +120,8 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         adInstanceTracker.reset();
         currentAdInfo = null;
 
-        GoogleImaRuntimeBridge.beginAudit(this.listener, request.getAdTagUrl());
+        GoogleImaRuntimeBridge.beginAudit(
+                this.listener, request.getAdTagUrl(), request.getAdUrlResolver());
         runtimeAuditActive = true;
         initializePlayer(request);
         player.setVolume(request.isSoundEnabled() ? 1f : 0f);
@@ -155,6 +156,7 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
 
     private void initializePlayer(GoogleImaAdRequest request) {
         adsLoader = new ImaAdsLoader.Builder(getContext())
+            .setVastLoadTimeoutMs(request.getAdLoadTimeoutMs())
             .setMediaLoadTimeoutMs(request.getAdLoadTimeoutMs())
             .setAdEventListener(event -> {
                 PropertyLog.i(TAG, "IMA event=" + event.getType());

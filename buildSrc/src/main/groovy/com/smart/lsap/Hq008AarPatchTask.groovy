@@ -94,6 +94,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                         break
                     default:
                         patched = LsapClassPatcher.patchHq008Parameters(jarEntry.name, bytes)
+                        if (targetFlavor.get() == 'hq008XHSX') {
+                            patched = TclRuntimeAuditPatcher.patch(jarEntry.name, patched)
+                        }
                         break
                 }
                 if (!Arrays.equals(bytes, patched)) {
@@ -105,6 +108,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             }
         }
         jarInput.close()
+        if (targetFlavor.get() == 'hq008XHSX') {
+            TclRuntimeAuditPatcher.verify(classEntries)
+        }
         if (targetFlavor.get() == 'google_ima') {
             verifyGoogleImaPatch(classEntries, modifiedClasses)
         } else if (targetFlavor.get() == 'google_media3_ima') {
@@ -611,8 +617,14 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             '(Ljava/lang/Object;Ljava/lang/Object;)V', 1,
             'IMA native XHR VAST response audit')
         requireCallCount(nativeNetworkAudit, runtimeBridge, 'bindNativeRequestAudit',
-            '(Ljava/lang/Object;)V', 1,
+            '(Ljava/lang/Object;Ljava/lang/Object;)V', 1,
             'IMA native XHR request audit ownership')
+        requireCallCount(nativeNetworkAudit, runtimeBridge, 'bindAsyncAuditOwner',
+            '(Ljava/lang/Object;)V', 1, 'IMA native network session ownership')
+        requireCallCount(nativeNetworkAudit, runtimeBridge, 'prepareNativeRequest',
+            '(Lcom/google/ads/interactivemedia/v3/impl/data/zzby;)' +
+            'Lcom/google/ads/interactivemedia/v3/impl/data/zzby;', 1,
+            'IMA complete ad URL resolution before native HTTP')
 
         byte[] omidBridgeAudit = requireClass(
             classEntries,

@@ -215,16 +215,27 @@ internal data class Hq008AuthorizeResponseData(
     val adLoadTimeoutMs: JsonElement? = null,
     @field:SerializedName("ad_startup_timeout_ms")
     val adStartupTimeoutMs: JsonElement? = null,
-    @Transient val requestChannelId: String? = null
+    @Transient val requestChannelId: String? = null,
+    @field:SerializedName("reported_sound_mode")
+    val reportedSoundMode: JsonElement? = null
 ) {
-    /** Explicit gam_config owns every ad field, including null or invalid data. */
+    /** gam_config owns the ad fields; its report mode overrides the top-level default. */
     fun gamConfigForPlayback(): JsonElement? {
-        gamConfig?.let { return it.deepCopy() }
+        gamConfig?.let {
+            return it.deepCopy().also { copy ->
+                if (copy.isJsonObject && !copy.asJsonObject.has("reported_sound_mode")) {
+                    reportedSoundMode?.let { mode ->
+                        copy.asJsonObject.add("reported_sound_mode", mode.deepCopy())
+                    }
+                }
+            }
+        }
         if (adTagUrl == null) return null
         return JsonObject().apply {
             add("ad_tag_url", adTagUrl.deepCopy())
             adLoadTimeoutMs?.let { add("ad_load_timeout_ms", it.deepCopy()) }
             adStartupTimeoutMs?.let { add("ad_startup_timeout_ms", it.deepCopy()) }
+            reportedSoundMode?.let { add("reported_sound_mode", it.deepCopy()) }
         }
     }
 }

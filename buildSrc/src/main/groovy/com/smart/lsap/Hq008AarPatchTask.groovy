@@ -139,7 +139,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         List<String> metadataLines
         if (targetFlavor.get() == 'google_ima') {
             metadataLines = [
-                'patchVersion=google-ima-parameter-normalization-8',
+                'patchVersion=google-ima-parameter-normalization-9',
                 'visibilityPolicy=ignore-ima-view-visibility-gate',
                 'viewabilityPolicy=ignore-ima-size-threshold-gate',
                 'nativeViewabilityPolicy=force-ima-view-visible-bounds',
@@ -157,7 +157,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                 'vastAuditPolicy=capture-native-xhr-root-and-wrapper-responses',
                 'verificationAuditPolicy=observe-webview-resource-loads-and-errors',
                 'omidAuditPolicy=observe-js-bridge-session-and-view-hierarchy-calls',
-                'soundReportingPolicy=force-unmuted-request-player-activeview-and-omid-signals',
+                'soundReportingPolicy=per-request-backend-mode-request-player-activeview-and-omid-signals',
                 'playbackVolumePolicy=preserve-host-selected-physical-player-volume',
                 'nativeNetworkHeaderCoverage=http-url-connection-only',
                 "originalAarSha256=${actualHash}",
@@ -167,8 +167,8 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             ]
         } else if (targetFlavor.get() == 'google_media3_ima') {
             metadataLines = [
-                'patchVersion=google-media3-ima-runtime-control-2',
-                'soundReportingPolicy=force-unmuted-video-ad-player-volume-query',
+                'patchVersion=google-media3-ima-runtime-control-3',
+                'soundReportingPolicy=per-request-backend-mode-video-ad-player-volume-query',
                 'playbackVolumePolicy=preserve-host-selected-physical-player-volume',
                 'adProgressPolicy=expose-current-ads-manager-progress-read-only',
                 "originalAarSha256=${actualHash}",
@@ -463,6 +463,16 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         requireCallCount(adsRequest, runtimeBridge, 'forceUnmutedAdTagUrl',
             '(Ljava/lang/String;)Ljava/lang/String;', 1,
             'IMA vpmute request normalization')
+        requireCallCount(adsRequest, runtimeBridge, 'reportedAdWillPlayMuted',
+            '()Z', 1, 'IMA backend-controlled ad-will-play-muted request state')
+        requireStaticFieldReadCount(
+            adsRequest,
+            'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState',
+            'MUTED',
+            'Lcom/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState;',
+            1,
+            'IMA muted request state'
+        )
         requireStaticFieldReadCount(
             adsRequest,
             'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState',

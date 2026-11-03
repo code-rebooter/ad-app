@@ -20,9 +20,20 @@ internal object GoogleGamAdConfigParser {
             adLoadTimeoutMs = response.ad_load_timeout_ms?.takeIf { it > 0 }
                 ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_LOAD_TIMEOUT_MS,
             adStartupTimeoutMs = response.ad_startup_timeout_ms?.takeIf { it > 0L }
-                ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS
+                ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS,
+            reportedSoundEnabled = reportedSoundEnabled(gamConfig)
         )
     }
+
+    /** Only an explicit numeric/string 0 enables muted reporting; invalid data stays unmuted. */
+    fun reportedSoundEnabled(gamConfig: JsonElement?): Boolean = runCatching {
+        val value = gamConfig?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get("reported_sound_mode") ?: return@runCatching true
+        if (!value.isJsonPrimitive) return@runCatching true
+        val primitive = value.asJsonPrimitive
+        if (!primitive.isNumber && !primitive.isString) return@runCatching true
+        primitive.asString.trim() != "0"
+    }.getOrDefault(true)
 }
 
 @Keep
@@ -38,5 +49,6 @@ internal data class GoogleGamAdConfigResponseData(
 internal data class GoogleGamAdPlaybackConfig(
     val adTagUrl: String,
     val adLoadTimeoutMs: Int,
-    val adStartupTimeoutMs: Long
+    val adStartupTimeoutMs: Long,
+    val reportedSoundEnabled: Boolean = true
 )

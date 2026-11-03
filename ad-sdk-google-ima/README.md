@@ -9,7 +9,7 @@
 解析失败会阻止原广告请求，播放器释放时调用 resolver 的 `cancel()`。
 
 本仓库 Google 渠道宿主已接入 `/api/v2/ad/google-gam/patch`，复用现有后台协议，
-将后台返回 URL 原样用于广告请求，并记录 `AD_GAM_PATCH_REQUEST/READY`、
+按本次授权统一后台返回 URL 的 `vpmute` 后用于广告请求，并记录 `AD_GAM_PATCH_REQUEST/READY`、
 `AD_SDK_REQUEST.adLog.final_url` 和独立 `FILLED` 状态。Debug 默认也使用授权接口
 下发的地址；仅显式设置 `adb shell setprop debug.google.ima.sample omid` 时使用官方
 OMID 样本，测试后执行 `adb shell "setprop debug.google.ima.sample ''"` 恢复。
@@ -40,6 +40,7 @@ container.addView(player);
 player.play(
     new GoogleImaAdRequest.Builder(adTagUrl)
         .setSoundEnabled(false)
+        .setReportedSoundEnabled(false)
         .setAdLoadTimeoutMs(20_000)
         .setAdStartupTimeoutMs(35_000L)
         .build(),
@@ -48,3 +49,23 @@ player.play(
 ```
 
 宿主销毁广告窗口时必须调用 `release()`。
+
+`setReportedSoundEnabled()` 控制本次请求的 Google 音量上报，默认 `true`；
+传 `false` 时上报静音。该值用于请求 `vpmute`、`adWillPlayMuted`、已有播放器音量入口、
+ActiveView Native 和 OMID 音量及对应诊断。实际播放音量由 `setSoundEnabled()` 控制。
+本仓库宿主从授权响应的整数 `reported_sound_mode` 读取该值：`0` 静音、`1` 非静音，
+未下发或字段异常时统一默认非静音。具体下发位置见
+[授权接口](../docs/google_ima_tcl_authorize_api.md)。
+
+仅映射 SDK 原流程已经读取或发送的音量值；不主动触发额外音量回调，也不在客户端
+VAST 的 `start` 消息中追加音量。当前 Media3 getter、音量变化回调是否实际触发，
+应以运行记录为准。
+
+OMID 的设备音量和媒体音量分别处理：原生 `setDeviceVolume` 映射 `deviceVolume`；
+在现有 OM `SessionService.start` / `volumeChange` 消息进入测量服务时，仅映射其已有的有效
+媒体音量参数，使测量输出的 `mediaPlayerVolume`、`videoPlayerVolume` 跟随本次配置。
+不补缺失参数，不发送额外事件，也不修改 Core 虚拟播放器内部状态。
+
+ActiveView 除原生音量外，还会通过 `ima.bridge.getVideoMetadata` / `ima.common.getVideoMetadata` 读取媒体音量。
+该读取入口只映射原本存在的有效 `volume`，保留时长、进度等其他返回值，避免原生音量
+到达前的早期采样把非静音值计入最大音量。没有主动调用该入口或触发测量事件。

@@ -3,6 +3,7 @@ package com.smart.android.googleima;
 public final class GoogleImaAdRequest {
     private final String adTagUrl;
     private final boolean soundEnabled;
+    private final boolean reportedSoundEnabled;
     private final int adLoadTimeoutMs;
     private final long adStartupTimeoutMs;
     private final String userAgent;
@@ -11,6 +12,7 @@ public final class GoogleImaAdRequest {
     private GoogleImaAdRequest(Builder builder) {
         this.adTagUrl = builder.adTagUrl;
         this.soundEnabled = builder.soundEnabled;
+        this.reportedSoundEnabled = builder.reportedSoundEnabled;
         this.adLoadTimeoutMs = builder.adLoadTimeoutMs;
         this.adStartupTimeoutMs = builder.adStartupTimeoutMs;
         this.userAgent = builder.userAgent;
@@ -23,6 +25,10 @@ public final class GoogleImaAdRequest {
 
     public boolean isSoundEnabled() {
         return soundEnabled;
+    }
+
+    public boolean isReportedSoundEnabled() {
+        return reportedSoundEnabled;
     }
 
     public int getAdLoadTimeoutMs() {
@@ -44,6 +50,7 @@ public final class GoogleImaAdRequest {
     public static final class Builder {
         private final String adTagUrl;
         private boolean soundEnabled;
+        private boolean reportedSoundEnabled = true;
         private int adLoadTimeoutMs = 20_000;
         private long adStartupTimeoutMs = 35_000L;
         private String userAgent;
@@ -58,6 +65,12 @@ public final class GoogleImaAdRequest {
 
         public Builder setSoundEnabled(boolean soundEnabled) {
             this.soundEnabled = soundEnabled;
+            return this;
+        }
+
+        /** Controls the mute state reported by this request to Google. */
+        public Builder setReportedSoundEnabled(boolean reportedSoundEnabled) {
+            this.reportedSoundEnabled = reportedSoundEnabled;
             return this;
         }
 

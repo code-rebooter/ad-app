@@ -1327,13 +1327,32 @@ final class LsapClassPatcher implements Opcodes {
             }
             if (method.name == 'setAdWillPlayMuted' && method.desc == '(Z)V') {
                 clearMethod(method)
+                LabelNode unmuted = new LabelNode()
+                LabelNode storeState = new LabelNode()
                 method.instructions.add(new VarInsnNode(ALOAD, 0))
+                method.instructions.add(new MethodInsnNode(
+                    INVOKESTATIC,
+                    runtimeBridge,
+                    'reportedAdWillPlayMuted',
+                    '()Z',
+                    false
+                ))
+                method.instructions.add(new JumpInsnNode(IFEQ, unmuted))
+                method.instructions.add(new FieldInsnNode(
+                    GETSTATIC,
+                    'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState',
+                    'MUTED',
+                    'Lcom/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState;'
+                ))
+                method.instructions.add(new JumpInsnNode(GOTO, storeState))
+                method.instructions.add(unmuted)
                 method.instructions.add(new FieldInsnNode(
                     GETSTATIC,
                     'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState',
                     'UNMUTED',
                     'Lcom/google/ads/interactivemedia/v3/impl/AdsRequestImpl$MutePlayState;'
                 ))
+                method.instructions.add(storeState)
                 method.instructions.add(new FieldInsnNode(
                     PUTFIELD,
                     'com/google/ads/interactivemedia/v3/impl/AdsRequestImpl',

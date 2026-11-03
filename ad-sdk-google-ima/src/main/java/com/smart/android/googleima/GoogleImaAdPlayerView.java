@@ -121,7 +121,8 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         currentAdInfo = null;
 
         GoogleImaRuntimeBridge.beginAudit(
-                this.listener, request.getAdTagUrl(), request.getAdUrlResolver());
+                this.listener, request.getAdTagUrl(), request.getAdUrlResolver(),
+                request.isReportedSoundEnabled());
         runtimeAuditActive = true;
         initializePlayer(request);
         player.setVolume(request.isSoundEnabled() ? 1f : 0f);
@@ -596,9 +597,9 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         boolean reportedVolumeObserved = GoogleImaRuntimeBridge.hasObservedImaCoreVolume();
         fields.put("reported_player_volume_observed", Boolean.toString(reportedVolumeObserved));
         if (reportedVolumeObserved) {
-            fields.put("reported_player_volume", Float.toString(
-                    GoogleImaRuntimeBridge.getObservedImaCoreReportedVolume()));
-            fields.put("reported_muted", "false");
+            float reportedVolume = GoogleImaRuntimeBridge.getObservedImaCoreReportedVolume();
+            fields.put("reported_player_volume", Float.toString(reportedVolume));
+            fields.put("reported_muted", Boolean.toString(reportedVolume == 0f));
         }
         fields.put("playback_suppression_reason",
                 Integer.toString(player.getPlaybackSuppressionReason()));

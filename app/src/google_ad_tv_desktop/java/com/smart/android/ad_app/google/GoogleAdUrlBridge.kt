@@ -54,7 +54,8 @@ object GoogleAdUrlBridge {
                                 generated.diagnostics["identifierSuppressed"] == "true"
                         val corrected = GoogleUrlTclPipeline.apply(generated.url,
                             fallbackUid = { GoogleTclUidStore.readOrCreate(context) },
-                            suppressIdentifierFallback = suppressIdentifierFallback)
+                            suppressIdentifierFallback = suppressIdentifierFallback,
+                            reportedSoundEnabled = soundEnabled)
                         FinalUrl(corrected.url, generated.userAgent, generated.url,
                             corrected.beforeCommonPatchUrl, generated.diagnostics)
                     }

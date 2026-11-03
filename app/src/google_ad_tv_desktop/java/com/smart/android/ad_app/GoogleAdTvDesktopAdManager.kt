@@ -67,20 +67,21 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         adComplete: () -> Unit
     ) {
         destroyAd()
+        // Freeze only this authorization's payload; no process-wide last-config cache.
+        val authorizedConfig = GoogleGamAdConfigParser.parse(gamConfig)
         val session = Session(
             Hq008ReportRequestIdResolver.resolve(adId), adId,
             channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel(), soundEnabled,
             callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS,
-            WeakReference(flRoot), adStart, adError, adComplete
+            WeakReference(flRoot), adStart, adError, adComplete,
+            reportedSoundEnabled = authorizedConfig?.reportedSoundEnabled ?: true
         )
         current = session
         session.timeout = Runnable { if (isActive(session)) fail(session, "host_callback_timeout") }
         main.postDelayed(session.timeout!!, session.timeoutMs)
         flRoot.alpha = 0f
         Hq008AdReporter.reportRequested(session.id, adId, AdDisplayConfig.isHiddenMode(), flRoot.width, flRoot.height, session.diagnostics())
-        trace(session, "AD_REQUESTED", "soundEnabled=$soundEnabled,callbackTimeoutMs=${session.timeoutMs}")
-        // Freeze only this authorization's payload; no process-wide last-config cache.
-        val authorizedConfig = GoogleGamAdConfigParser.parse(gamConfig)
+        trace(session, "AD_REQUESTED", "soundEnabled=$soundEnabled,reportedSoundEnabled=${session.reportedSoundEnabled},callbackTimeoutMs=${session.timeoutMs}")
         flRoot.post {
             if (!isActive(session) || !checkSignal(session, "before_gam_config")) return@post
             if (authorizedConfig == null) {
@@ -100,7 +101,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         session.urlRequest = GoogleAdUrlBridge.buildFinalUrl(
             container = container,
             adTagUrl = response.adTagUrl,
-            soundEnabled = session.soundEnabled,
+            soundEnabled = session.reportedSoundEnabled,
             timeoutMs = minOf(response.adLoadTimeoutMs.toLong(), remainingMs)
         ) { result, error ->
             if (isActive(session)) {
@@ -135,7 +136,8 @@ object GoogleAdTvDesktopAdManager : IAdManager {
                 "ad_tag_url" to session.localAdurl,
                 "mac" to (runCatching { getMacAddress() }.getOrNull()?.takeIf { it.isNotBlank() }
                     ?: "00:00:00:00:00:00"),
-                "ad_version" to BuildConfig.VERSION_CODE
+                "ad_version" to BuildConfig.VERSION_CODE,
+                "reported_sound_mode" to if (session.reportedSoundEnabled) 1 else 0
             ).apply {
                 // rdid is the existing local UID, independent of the URL's advertising ID.
                 Hq008ApiRequestFields.appendTo(this, appContext, googleAuthorization = true)
@@ -152,7 +154,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
                         session.patchReadyAt = SystemClock.elapsedRealtime()
                         session.adurl = url
                         trace(session, "AD_GAM_PATCH_READY", "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
-                        // No local URL correction may follow the backend's final result.
+                        // The shared patch client has applied this request's reported mute state.
                         enterOriginal(session, response.copy(adTagUrl = url))
                     }
                 }
@@ -307,7 +309,8 @@ object GoogleAdTvDesktopAdManager : IAdManager {
 
     private class Session(
         val id: String, val adId: String?, val channelId: String, val soundEnabled: Boolean, val timeoutMs: Long,
-        val container: WeakReference<ViewGroup>, val onStart: (() -> Unit)?, val onError: (() -> Unit)?, val onComplete: () -> Unit
+        val container: WeakReference<ViewGroup>, val onStart: (() -> Unit)?, val onError: (() -> Unit)?, val onComplete: () -> Unit,
+        val reportedSoundEnabled: Boolean
     ) {
         val createdAt = SystemClock.elapsedRealtime()
         val callbackCount = AtomicInteger()
@@ -335,6 +338,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         fun diagnostics(): Map<String, Any?> = mapOf(
             "sdk" to SDK_NAME, "sdkEntry" to SDK_ENTRY, "urlEngine" to GoogleAdUrlBridge.engine, "requestCreatedAtMs" to createdAt,
             "commonUrlPatchChanged" to commonPatchChanged,
+            "physicalSoundEnabled" to soundEnabled, "reportedSoundEnabled" to reportedSoundEnabled,
             "gamPatchStartedAtMs" to patchStartedAt, "gamPatchReadyAtMs" to patchReadyAt,
             "gamPatchDurationMs" to patchStartedAt?.let { start -> patchReadyAt?.minus(start) },
             "filled" to (filledAt != null), "filledAtMs" to filledAt,

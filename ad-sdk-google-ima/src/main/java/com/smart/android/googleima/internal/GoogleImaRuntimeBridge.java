@@ -2,6 +2,7 @@ package com.smart.android.googleima.internal;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
@@ -77,11 +78,90 @@ public final class GoogleImaRuntimeBridge {
     private static final ThreadLocal<Boolean> URL_IDENTITY_FALLBACK = new ThreadLocal<>();
     private static final Object AUDIT_LOCK = new Object();
     private static final String AUDIT_JS_BRIDGE = "__smartImaAudit";
-    private static final int REPORTED_VOLUME_PERCENTAGE = 100;
-    private static final float REPORTED_OMID_VOLUME = 1.0f;
-    private static final double REPORTED_NATIVE_VOLUME = 1.0d;
     private static final Pattern VPMUTE_PARAMETER =
             Pattern.compile("(?i)([?&])vpmute=[^&#]*");
+    private static final String OMID_MEDIA_VOLUME_SCRIPT = """
+            (function(reportedVolume) {
+              var root = window;
+              var key = '__smartImaOmidMediaVolumeV1';
+              if (root[key]) {
+                root[key].volume = reportedVolume;
+                root[key].install();
+                return;
+              }
+              var policy = { volume: reportedVolume };
+              root[key] = policy;
+              function normalize(message) {
+                if (!message || typeof message !== 'object') return message;
+                var method = message.omid_message_method;
+                var index = method === 'SessionService.start' ? 1 :
+                  method === 'SessionService.volumeChange' ? 0 : -1;
+                if (index < 0) return message;
+                try {
+                  var encoded = typeof message.omid_message_args === 'string';
+                  var args = encoded ? JSON.parse(message.omid_message_args) : message.omid_message_args;
+                  if (!Array.isArray(args) || index >= args.length ||
+                      typeof args[index] !== 'number' || !isFinite(args[index]) ||
+                      args[index] < 0 || args[index] > 1) return message;
+                  var original = args[index];
+                  var values = args.slice();
+                  values[index] = policy.volume;
+                  var copy = Object.assign({}, message);
+                  copy.omid_message_args = encoded ? JSON.stringify(values) : values;
+                  try {
+                    root.__smartImaAudit.onOmidMediaVolume(method, original, policy.volume);
+                  } catch (_) {}
+                  return copy;
+                } catch (_) { return message; }
+              }
+              function installMetadata(namespace) {
+                if (!namespace || typeof namespace.getVideoMetadata !== 'function') return false;
+                if (!namespace.getVideoMetadata.__smartImaVolumeWrapped) {
+                  var getMetadata = namespace.getVideoMetadata;
+                  var wrappedMetadata = function() {
+                    var metadata = getMetadata.apply(this, arguments);
+                    if (!metadata || typeof metadata.volume !== 'number' ||
+                        !isFinite(metadata.volume) || metadata.volume < 0 || metadata.volume > 1) return metadata;
+                    var copy = Object.assign({}, metadata);
+                    copy.volume = policy.volume;
+                    try {
+                      root.__smartImaAudit.onActiveViewMediaVolume(metadata.volume, policy.volume);
+                    } catch (_) {}
+                    return copy;
+                  };
+                  wrappedMetadata.__smartImaVolumeWrapped = true;
+                  namespace.getVideoMetadata = wrappedMetadata;
+                }
+                return true;
+              }
+              policy.install = function() {
+                var commonReady = installMetadata(root.ima && root.ima.common);
+                var bridgeReady = installMetadata(root.ima && root.ima.bridge);
+                var metadataReady = commonReady && bridgeReady;
+                var service = root.omid && root.omid.v1_SessionServiceCommunication;
+                if (!service || typeof service.handleExportedMessage !== 'function') return false;
+                if (service.__smartImaVolumeWrapped) return !!metadataReady;
+                var original = service.handleExportedMessage;
+                service.handleExportedMessage = function(message, sender) {
+                  return original.call(this, normalize(message), sender);
+                };
+                service.__smartImaVolumeWrapped = true;
+                return !!metadataReady;
+              };
+              root.addEventListener('message', function(event) {
+                var normalized = normalize(event.data);
+                if (normalized !== event.data) {
+                  try { event.data.omid_message_args = normalized.omid_message_args; } catch (_) {}
+                }
+              }, true);
+              if (!policy.install()) {
+                var attempts = 0;
+                var timer = root.setInterval(function() {
+                  if (policy.install() || ++attempts >= 200) root.clearInterval(timer);
+                }, 25);
+              }
+            })(%VOLUME%);
+            """;
     private static final String AUDIT_NETWORK_SCRIPT = """
             (function() {
               'use strict';
@@ -181,26 +261,40 @@ public final class GoogleImaRuntimeBridge {
 
     private GoogleImaRuntimeBridge() {}
 
+    private static boolean reportedSoundEnabled(AuditState state) {
+        return state == null || state.reportedSoundEnabled;
+    }
+
+    @Keep
+    public static boolean reportedAdWillPlayMuted() {
+        return !reportedSoundEnabled(currentAudit());
+    }
+
+    // Keep these entry-point names/signatures for the pinned bytecode patches.
     @Keep
     public static String forceUnmutedAdTagUrl(String adTagUrl) {
         String url = safe(adTagUrl);
         if (url.isEmpty()) return url;
-        String normalized = normalizeUnmutedAdTagUrl(url);
-        emitSoundSignal("request_vpmute", extractVpmute(url), "0");
+        AuditState state = currentAudit();
+        String normalized = normalizeAdTagUrl(url, state);
+        emitSoundSignal(state, "request_vpmute", extractVpmute(url),
+                reportedSoundEnabled(state) ? "0" : "1", Collections.emptyList());
         return normalized;
     }
 
-    private static String normalizeUnmutedAdTagUrl(String url) {
+    private static String normalizeAdTagUrl(String url, AuditState state) {
         if (url.isEmpty()) return url;
+        String vpmute = reportedSoundEnabled(state) ? "0" : "1";
         int fragmentAt = url.indexOf('#');
         String base = fragmentAt < 0 ? url : url.substring(0, fragmentAt);
         String fragment = fragmentAt < 0 ? "" : url.substring(fragmentAt);
         String normalizedBase;
         if (VPMUTE_PARAMETER.matcher(base).find()) {
-            normalizedBase = VPMUTE_PARAMETER.matcher(base).replaceAll("$1vpmute=0");
+            normalizedBase = VPMUTE_PARAMETER.matcher(base).replaceAll("$1vpmute=" + vpmute);
         } else {
-            String separator = base.contains("?") ? "&" : "?";
-            normalizedBase = base + separator + "vpmute=0";
+            String separator = base.endsWith("?") || base.endsWith("&")
+                    ? "" : (base.contains("?") ? "&" : "?");
+            normalizedBase = base + separator + "vpmute=" + vpmute;
         }
         return normalizedBase + fragment;
     }
@@ -208,8 +302,11 @@ public final class GoogleImaRuntimeBridge {
     @Keep
     public static void forceUnmutedAdsRequest(AdsRequest request) {
         if (request == null) return;
-        request.setAdWillPlayMuted(false);
-        emitSoundSignal("request_video_play_muted", "UNKNOWN", "UNMUTED");
+        AuditState state = currentAudit();
+        boolean soundEnabled = reportedSoundEnabled(state);
+        request.setAdWillPlayMuted(!soundEnabled);
+        emitSoundSignal(state, "request_video_play_muted", "UNKNOWN",
+                soundEnabled ? "UNMUTED" : "MUTED", Collections.emptyList());
     }
 
     @Keep
@@ -228,13 +325,15 @@ public final class GoogleImaRuntimeBridge {
     public static int forceUnmutedVolumePercentage(
             Object owner,
             int physicalVolumePercentage) {
+        AuditState state = auditForAsyncOwner(owner);
+        int reportedVolume = reportedSoundEnabled(state) ? 100 : 0;
         emitSoundSignal(
-                auditForAsyncOwner(owner),
+                state,
                 "ima_core_volume_percentage",
                 String.valueOf(physicalVolumePercentage),
-                String.valueOf(REPORTED_VOLUME_PERCENTAGE),
+                String.valueOf(reportedVolume),
                 Collections.emptyList());
-        return REPORTED_VOLUME_PERCENTAGE;
+        return reportedVolume;
     }
 
     @Keep
@@ -253,13 +352,15 @@ public final class GoogleImaRuntimeBridge {
 
     @Keep
     public static double forceUnmutedNativeVolume(Object owner) {
+        AuditState state = auditForAsyncOwner(owner);
+        double reportedVolume = reportedSoundEnabled(state) ? 1.0d : 0.0d;
         emitSoundSignal(
-                auditForAsyncOwner(owner),
+                state,
                 "activeview_native_volume",
                 "physical_read_blocked",
-                String.valueOf(REPORTED_NATIVE_VOLUME),
+                String.valueOf(reportedVolume),
                 Collections.emptyList());
-        return REPORTED_NATIVE_VOLUME;
+        return reportedVolume;
     }
 
     @Keep
@@ -271,14 +372,36 @@ public final class GoogleImaRuntimeBridge {
         if (!"setDeviceVolume".equals(methodName) || actual.length == 0) return actual;
         Object[] normalized = actual.clone();
         AuditState state = auditForWebView(webView);
+        float reportedVolume = reportedSoundEnabled(state) ? 1.0f : 0.0f;
+        installOmidMediaVolumePolicy(webView, state);
         emitSoundSignal(
                 state,
                 "omid_device_volume",
                 String.valueOf(actual[0]),
-                String.valueOf(REPORTED_OMID_VOLUME),
+                String.valueOf(reportedVolume),
                 currentOmidSessionIds(state));
-        normalized[0] = Float.valueOf(REPORTED_OMID_VOLUME);
+        normalized[0] = Float.valueOf(reportedVolume);
         return normalized;
+    }
+
+    private static void installOmidMediaVolumePolicy(WebView webView, AuditState state) {
+        if (webView == null || state == null || state.closed) return;
+        String script = measurementVolumeScript(state);
+        Runnable install = () -> {
+            if (state.closed) return;
+            try {
+                webView.evaluateJavascript(script, null);
+            } catch (RuntimeException failure) {
+                PropertyLog.w(TAG, "control=omid_media_volume install_failed", failure);
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) install.run();
+        else webView.post(install);
+    }
+
+    private static String measurementVolumeScript(AuditState state) {
+        return OMID_MEDIA_VOLUME_SCRIPT.replace("%VOLUME%",
+                state.reportedSoundEnabled ? "1" : "0");
     }
 
     private static String extractVpmute(String url) {
@@ -325,7 +448,7 @@ public final class GoogleImaRuntimeBridge {
         synchronized (AUDIT_LOCK) {
             if ("ima_core_volume_percentage".equals(signal)) {
                 state.imaCoreVolumeObserved = true;
-                state.lastImaCoreReportedVolume = REPORTED_VOLUME_PERCENTAGE / 100.0f;
+                state.lastImaCoreReportedVolume = state.reportedSoundEnabled ? 1.0f : 0.0f;
             }
         }
         emit(state, "sound_signal", fields, null);
@@ -437,16 +560,24 @@ public final class GoogleImaRuntimeBridge {
 
     public static void beginAudit(
             GoogleImaAdListener listener, String adTagUrl, GoogleImaAdUrlResolver resolver) {
-        AuditState state = new AuditState(listener, resolver);
+        beginAudit(listener, adTagUrl, resolver, true);
+    }
+
+    public static void beginAudit(
+            GoogleImaAdListener listener, String adTagUrl, GoogleImaAdUrlResolver resolver,
+            boolean reportedSoundEnabled) {
+        AuditState state = new AuditState(listener, resolver, reportedSoundEnabled);
         synchronized (AUDIT_LOCK) {
             activeAudit = state;
         }
         Map<String, String> fields = new LinkedHashMap<>();
         String originalUrl = safe(adTagUrl);
         fields.put("ad_tag_url_original", originalUrl);
-        fields.put("ad_tag_url", normalizeUnmutedAdTagUrl(originalUrl));
+        fields.put("ad_tag_url", normalizeAdTagUrl(originalUrl, state));
         fields.put("vpmute_original", extractVpmute(originalUrl));
-        fields.put("vpmute_normalized", "0");
+        fields.put("vpmute_normalized", reportedSoundEnabled ? "0" : "1");
+        fields.put("reported_sound_enabled", String.valueOf(reportedSoundEnabled));
+        fields.put("reported_sound_mode", reportedSoundEnabled ? "1" : "0");
         emit(state, "audit_begin", fields, null);
     }
 
@@ -757,7 +888,7 @@ public final class GoogleImaRuntimeBridge {
             fields.put("state", String.valueOf(args[0]));
         }
         if ("setDeviceVolume".equals(method) && args.length > 0) {
-            fields.put("device_volume", String.valueOf(REPORTED_OMID_VOLUME));
+            fields.put("device_volume", String.valueOf(args[0]));
         }
         if ("setNativeViewHierarchy".equals(method) && args.length > 0) {
             String hierarchy = String.valueOf(args[0]);
@@ -859,7 +990,7 @@ public final class GoogleImaRuntimeBridge {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                     WebViewCompat.addDocumentStartJavaScript(
                             webView,
-                            AUDIT_NETWORK_SCRIPT,
+                            AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state),
                             Collections.singleton("*"));
                     binding.documentStartInstalled = true;
                     PropertyLog.i(TAG, "audit=vast webview_document_start=true");
@@ -882,7 +1013,9 @@ public final class GoogleImaRuntimeBridge {
             if (binding == null || binding.documentStartInstalled) return;
         }
         try {
-            webView.evaluateJavascript(AUDIT_NETWORK_SCRIPT, null);
+            AuditState state = auditForWebView(webView);
+            if (state == null || state.closed) return;
+            webView.evaluateJavascript(AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state), null);
             PropertyLog.i(TAG, "audit=vast webview_fallback_injected phase=" + phase);
         } catch (Throwable error) {
             PropertyLog.w(TAG, "audit=vast webview_fallback_failed phase=" + phase, error);
@@ -1179,6 +1312,7 @@ public final class GoogleImaRuntimeBridge {
     private static final class AuditState {
         final GoogleImaAdListener listener;
         final GoogleImaAdUrlResolver adUrlResolver;
+        final boolean reportedSoundEnabled;
         final Map<String, String> resolvedAdUrls = new HashMap<>();
         final LinkedHashSet<String> patchedWebVastHashes = new LinkedHashSet<>();
         volatile boolean closed;
@@ -1191,8 +1325,14 @@ public final class GoogleImaRuntimeBridge {
         float lastImaCoreReportedVolume = -1.0f;
 
         AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver) {
+            this(listener, resolver, true);
+        }
+
+        AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver,
+                boolean reportedSoundEnabled) {
             this.listener = listener == null ? new GoogleImaAdListener() {} : listener;
             this.adUrlResolver = resolver;
+            this.reportedSoundEnabled = reportedSoundEnabled;
         }
     }
 
@@ -1252,6 +1392,18 @@ public final class GoogleImaRuntimeBridge {
 
         AuditJavascriptBridge(AuditState actualState) {
             state = actualState;
+        }
+
+        @JavascriptInterface
+        public void onOmidMediaVolume(String method, double originalVolume, double reportedVolume) {
+            emitSoundSignal(state, "omid_media_player_volume", "core:" + originalVolume,
+                    String.valueOf(reportedVolume), currentOmidSessionIds(state));
+        }
+
+        @JavascriptInterface
+        public void onActiveViewMediaVolume(double originalVolume, double reportedVolume) {
+            emitSoundSignal(state, "activeview_media_volume", "core:" + originalVolume,
+                    String.valueOf(reportedVolume), Collections.emptyList());
         }
 
         @JavascriptInterface

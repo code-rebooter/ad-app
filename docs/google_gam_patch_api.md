@@ -7,6 +7,10 @@
 纯 IMA 的 `sdk_version` 为实际使用的 `3.35.1`。其 REQUEST/READY、最终 URL 日志和
 FILLED 状态沿用下述业务含义；TCL 专用的末端 URL 修正规则不额外施加到 IMA 请求。
 
+2026-11-03：新增授权整数 `reported_sound_mode`（`0` 静音，`1` 非静音；缺失或异常默认 `1`）。
+客户端在最终 URL 交给 IMA/TCL 前，按本次配置统一 `vpmute`（分别为 `1` / `0`）；
+下文“原样”规则对此音量字段作此例外，其余参数、编码和片段继续保留。
+
 适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。
 
 协议依据为本次提供的 `google-gam-patch.md`。其中 `rdid` 是用户在文档之外明确补充的请求字段，客户端一并提交。
@@ -33,7 +37,8 @@ FILLED 状态沿用下述业务含义；TCL 专用的末端 URL 修正规则不�
   "androidid": "actual-android-id",
   "ad_version": 12,
   "ad_version_name": "actual-host-version-name",
-  "sdk_version": "2.8.02"
+  "sdk_version": "2.8.02",
+  "reported_sound_mode": 0
 }
 ```
 
@@ -43,6 +48,7 @@ FILLED 状态沿用下述业务含义；TCL 专用的末端 URL 修正规则不�
 - 单独的 `rdid` 直接读取 `google_tcl_ad/aid`：已有值复用，没有才生成并持久保存。它与授权请求复用同一存储，不能从 URL 的 rdid 反取；URL 内已有 GMS 广告 ID 不因此被换成本地 UID。
 - `mac`、`androidid` 与前一轮字段同步规则一致；ANDROID_ID 读取失败传空字符串。
 - 版本字段继续描述实际宿主和本链路使用的 TCL 2.8.02 执行 SDK。
+- `reported_sound_mode` 是本次授权解析后的整数 Google 音量上报状态：`0` 静音，对应 `vpmute=1`；`1` 非静音，对应 `vpmute=0`。授权未返回该字段或字段异常时传 `1`。后台返回的最终 URL 应保留对应 `vpmute`；实际播放声音仍由授权的 `sound_mode` 控制。字段下发规则见 [授权协议](google_ima_tcl_authorize_api.md#google-音量上报开关2026-11-03)。
 
 ## 响应与错误
 

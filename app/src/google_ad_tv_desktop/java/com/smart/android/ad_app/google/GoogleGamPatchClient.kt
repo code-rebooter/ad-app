@@ -34,6 +34,8 @@ internal class GoogleGamPatchClient(
     ): Call {
         require(timeoutMs > 0) { "GAM patch timeout must be positive" }
         val body = GoogleGamPatchProtocol.requestJson(parameters)
+        val reportedSoundEnabled = parameters["reported_sound_mode"]?.toString()?.trim()
+            ?.let { it != "0" }
         val request = Request.Builder().url(endpoint)
             .header("Accept", "application/json")
             .post(body.toRequestBody("application/json; charset=utf-8".toMediaType())).build()
@@ -46,7 +48,11 @@ internal class GoogleGamPatchClient(
 
             override fun onResponse(call: Call, response: Response) {
                 val result = response.use {
-                    runCatching { GoogleGamPatchProtocol.responseUrl(it.code, it.body?.string().orEmpty()) }
+                    runCatching {
+                        val url = GoogleGamPatchProtocol.responseUrl(it.code, it.body?.string().orEmpty())
+                        if (reportedSoundEnabled == null) url
+                        else GoogleReportedSoundMode.applyToUrl(url, reportedSoundEnabled)
+                    }
                 }
                 result.fold(
                     onSuccess = { onResult(it, null) },

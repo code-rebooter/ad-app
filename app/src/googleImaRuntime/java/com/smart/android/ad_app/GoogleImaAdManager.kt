@@ -72,11 +72,13 @@ internal object GoogleImaAdManager : IAdManager {
         adComplete: () -> Unit
     ) {
         destroyAd(null, "replaced_by_new_request")
+        val config = resolvePlaybackConfig(gamConfig)
         val session = Session(
             id = Hq008ReportRequestIdResolver.resolve(adId),
             adId = adId,
             channelId = channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel(),
             soundEnabled = soundEnabled,
+            reportedSoundEnabled = config?.reportedSoundEnabled ?: true,
             timeoutMs = callbackTimeoutMs ?: AdPlaybackPolicy.CALLBACK_TIMEOUT_MS,
             container = WeakReference(flRoot),
             onStart = adStart,
@@ -99,11 +101,10 @@ internal object GoogleImaAdManager : IAdManager {
         trace(
             session,
             "AD_REQUESTED",
-            "physicalSoundEnabled=$soundEnabled,reportedSoundEnabled=true," +
+            "physicalSoundEnabled=$soundEnabled,reportedSoundEnabled=${session.reportedSoundEnabled}," +
                 "callbackTimeoutMs=${session.timeoutMs}"
         )
 
-        val config = resolvePlaybackConfig(gamConfig)
         flRoot.post {
             if (!isActive(session) || !checkSignal(session, "before_ima_start")) return@post
             if (config == null) {
@@ -121,7 +122,8 @@ internal object GoogleImaAdManager : IAdManager {
             adTagUrl = DEBUG_AUDIT_AD_TAG_URL + System.currentTimeMillis(),
             adLoadTimeoutMs = authorizedConfig?.adLoadTimeoutMs ?: DEBUG_AUDIT_AD_LOAD_TIMEOUT_MS,
             adStartupTimeoutMs = authorizedConfig?.adStartupTimeoutMs
-                ?: DEBUG_AUDIT_AD_STARTUP_TIMEOUT_MS
+                ?: DEBUG_AUDIT_AD_STARTUP_TIMEOUT_MS,
+            reportedSoundEnabled = GoogleGamAdConfigParser.reportedSoundEnabled(gamConfig)
         )
     }
 
@@ -149,7 +151,8 @@ internal object GoogleImaAdManager : IAdManager {
                 ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "ad_version_name" to BuildConfig.VERSION_NAME,
-            "sdk_version" to "3.35.1"
+            "sdk_version" to "3.35.1",
+            "reported_sound_mode" to if (session.reportedSoundEnabled) 1 else 0
         ).apply {
             Hq008ApiRequestFields.appendTo(this, container.context.applicationContext,
                 googleAuthorization = true)
@@ -194,6 +197,7 @@ internal object GoogleImaAdManager : IAdManager {
 
         val request = GoogleImaAdRequest.Builder(config.adTagUrl)
             .setSoundEnabled(session.soundEnabled)
+            .setReportedSoundEnabled(session.reportedSoundEnabled)
             .setAdLoadTimeoutMs(config.adLoadTimeoutMs)
             .setAdStartupTimeoutMs(config.adStartupTimeoutMs)
             .setUserAgent(Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent())
@@ -1242,6 +1246,7 @@ internal object GoogleImaAdManager : IAdManager {
         val adId: String?,
         val channelId: String,
         val soundEnabled: Boolean,
+        val reportedSoundEnabled: Boolean,
         val timeoutMs: Long,
         val container: WeakReference<ViewGroup>,
         val onStart: (() -> Unit)?,
@@ -1362,7 +1367,7 @@ internal object GoogleImaAdManager : IAdManager {
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
                 "physicalSoundEnabled" to soundEnabled,
-                "reportedSoundEnabled" to true,
+                "reportedSoundEnabled" to reportedSoundEnabled,
                 "requestCreatedAtMs" to createdAt,
                 "callbackTimeoutMs" to timeoutMs,
                 "patchStartedAtMs" to patchStartedAt,

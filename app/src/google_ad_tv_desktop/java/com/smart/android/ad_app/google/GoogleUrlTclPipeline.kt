@@ -13,13 +13,24 @@ internal object GoogleUrlTclPipeline {
         fallbackUid: () -> String = { "" },
         suppressIdentifierFallback: Boolean = false,
         commonPatch: (String) -> String = { normalizeAarUrlUa(it) }
+    ): Result = apply(generatedUrl, fallbackUid, suppressIdentifierFallback, commonPatch, null)
+
+    fun apply(
+        generatedUrl: String,
+        fallbackUid: () -> String = { "" },
+        suppressIdentifierFallback: Boolean = false,
+        commonPatch: (String) -> String = { normalizeAarUrlUa(it) },
+        reportedSoundEnabled: Boolean?
     ): Result {
         val corrected = commonPatch(generatedUrl)
+        val soundCorrected = reportedSoundEnabled?.let { GoogleReportedSoundMode.applyToUrl(corrected, it) }
+            ?: corrected
         val finalUrl = if (suppressIdentifierFallback) {
-            corrected
+            soundCorrected
         } else {
-            GoogleTclRdidFallback.apply(corrected, fallbackUid)
+            GoogleTclRdidFallback.apply(soundCorrected, fallbackUid)
         }
         return Result(finalUrl, generatedUrl)
     }
+
 }

@@ -6,20 +6,15 @@ import android.os.SystemClock
 import android.view.ViewGroup
 import com.smart.android.ad_app.AdLocalLog as Log
 import androidx.annotation.Keep
-import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.smart.android.ad_app.google.GoogleGamAdConfigParser
 import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
 import com.smart.android.ad_app.google.GoogleGamPatchClient
-import com.smart.android.ad_app.bean.EmptyData
 import com.speed.ext.getMacAddress
-import com.speed.net.NetworkHelper
-import com.speed.net.enum.RequestMethod
 import okhttp3.Call
 import com.smart.android.ad_app.google.GoogleAdUrlBridge
 import com.smart.android.ad_app.google.GoogleTclFillBridge
 import com.smart.android.ad_app.google.GoogleTclFinalUrlLog
-import com.smart.android.ad_app.google.GoogleTclTrackingBridge
 import com.smart.android.tclad.Ad
 import com.smart.android.tclad.AdStatusListener
 import com.smart.android.tclad.AdType
@@ -35,9 +30,6 @@ object GoogleAdTvDesktopAdManager : IAdManager {
     private const val TAG = "GoogleUrlTclAd"
     private const val SDK_NAME = "tcl_2.8.02"
     private val SDK_ENTRY = "${GoogleAdUrlBridge.engine}_url_to_original_tcl_uniplayer"
-    private const val FAKE_CTR_PROBABILITY = 0.3f
-    private const val FAKE_CTR_MIN_PROGRESS = 0.2f
-    private const val FAKE_CTR_MAX_PROGRESS = 0.8f
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var current: Session? = null
 
@@ -176,18 +168,9 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         if (!checkSignal(session, "before_original_start")) return
         val container = session.container.get() ?: run { fail(session, "container_released"); return }
         session.adurl = response.adTagUrl
-        session.enableFakeCtr = response.enableFakeCtr
-        if (session.enableFakeCtr) {
-            prepareFakeCtr(session)
-            GoogleTclTrackingBridge.setProgressCallback { positionMs, engine ->
-                if (isActive(session)) {
-                    checkAndTriggerFakeCtr(session, positionMs, engine)
-                }
-            }
-        }
         container.removeAllViews()
         container.alpha = if (AdDisplayConfig.isHiddenMode()) 0f else 1f
-        trace(session, "AD_SDK_REQUEST", "sdkInternalTimeoutSource=original_configuration,backendLoadTimeoutMs=${response.adLoadTimeoutMs},backendStartupTimeoutMs=${response.adStartupTimeoutMs},enableFakeCtr=${response.enableFakeCtr},fakeCtrTargetProgress=${session.fakeCtrTargetProgress},fakeCtrWillTrigger=${session.fakeCtrWillTrigger}",
+        trace(session, "AD_SDK_REQUEST", "sdkInternalTimeoutSource=original_configuration,backendLoadTimeoutMs=${response.adLoadTimeoutMs},backendStartupTimeoutMs=${response.adStartupTimeoutMs}",
             GoogleTclFinalUrlLog.json(session.id, response.adTagUrl))
         session.fillWatch = GoogleTclFillBridge.watch(response.adTagUrl) { evidence ->
             synchronized(session) {
@@ -251,9 +234,7 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         rawCallback(session, if (seconds == null) "onAdStartPlay()" else "onAdStartPlay(double)", "durationSeconds=$seconds")
         onMain {
             if (!isActive(session)) return@onMain
-            if (session.startedAt == null) {
-                session.startedAt = SystemClock.elapsedRealtime()
-            }
+            if (session.startedAt == null) session.startedAt = SystemClock.elapsedRealtime()
             Hq008AdReporter.reportStarted(session.id, session.adId, AdDisplayConfig.isHiddenMode(), seconds, session.diagnostics())
             trace(session, "AD_STARTED", "durationSeconds=$seconds")
             // This only controls the existing host countdown, not native callbacks or XML tracking.
@@ -310,7 +291,6 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         session.patchRequest = null
         session.fillWatch?.cancel()
         session.fillWatch = null
-        GoogleTclTrackingBridge.clearProgressCallback()
         val controller = session.controller
         session.controller = null
         try { controller?.release() }
@@ -325,106 +305,6 @@ object GoogleAdTvDesktopAdManager : IAdManager {
     }
     private fun trace(session: Session, event: String, details: String = "", adLog: String? = null) {
         Hq008ConsentLogReporter.report(event, "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,urlEngine=${GoogleAdUrlBridge.engine},requestId=${session.id},adId=${session.adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},$details", adLog)
-    }
-
-    private fun prepareFakeCtr(session: Session) {
-        val random = kotlin.random.Random.Default
-        session.fakeCtrWillTrigger = random.nextFloat() < FAKE_CTR_PROBABILITY
-        if (session.fakeCtrWillTrigger) {
-            session.fakeCtrTargetProgress = FAKE_CTR_MIN_PROGRESS + 
-                random.nextFloat() * (FAKE_CTR_MAX_PROGRESS - FAKE_CTR_MIN_PROGRESS)
-        }
-    }
-
-    private fun checkAndTriggerFakeCtr(session: Session, positionMs: Long, engine: Any) {
-        if (!session.enableFakeCtr || !session.fakeCtrWillTrigger || session.fakeCtrTriggered) return
-        try {
-            // engine 就是 com.tcl.ff.component.vastad.core.d.a 实例，直接用它获取 IPlayer
-            val baseClass = Class.forName("com.tcl.ff.component.vastad.core.d.a")
-            val playerField = baseClass.getDeclaredField("f").apply { isAccessible = true }
-            val player = playerField.get(engine) as? com.tcl.ff.component.oversea.uniplayer.player.IPlayer
-                ?: return
-            // 直接调用 IPlayer.getDuration()
-            val durationMs = player.getDuration()
-            if (durationMs <= 0) return
-            val currentProgress = positionMs.toDouble() / durationMs.toDouble()
-            if (currentProgress >= session.fakeCtrTargetProgress) {
-                session.fakeCtrTriggered = true
-                sendFakeCtrEvent(session, currentProgress, durationMs, engine)
-            }
-        } catch (error: Exception) {
-            Log.w(TAG, "获取广告时长失败：requestId=${session.id},error=${error.message}")
-        }
-    }
-
-    private fun sendFakeCtrEvent(session: Session, actualProgress: Double, durationMs: Long, engine: Any) {
-        try {
-            // 通过 GoogleTclTrackingBridge 调用 reporter 发送点击事件
-            val success = GoogleTclTrackingBridge.sendClickEvent(engine)
-            if (success) {
-                trace(session, "AD_FAKE_CTR_SENT", "targetProgress=${session.fakeCtrTargetProgress},actualProgress=$actualProgress,durationMs=$durationMs")
-                Log.i(TAG, "模拟点击上报：requestId=${session.id},targetProgress=${session.fakeCtrTargetProgress},actualProgress=$actualProgress,durationMs=$durationMs")
-                
-                // 上报点击状态到后台
-                reportFakeCtrToBackend(session, actualProgress, durationMs)
-            } else {
-                Log.w(TAG, "模拟点击上报失败（未找到reporter）：requestId=${session.id}")
-            }
-        } catch (error: Exception) {
-            Log.w(TAG, "模拟点击上报失败：requestId=${session.id},error=${error.message}", error)
-        }
-    }
-
-    private fun reportFakeCtrToBackend(session: Session, actualProgress: Double, durationMs: Long) {
-        val diagnosticInfo = Gson().toJson(
-            linkedMapOf<String, Any?>(
-                "target_progress" to session.fakeCtrTargetProgress,
-                "actual_progress" to actualProgress,
-                "ad_duration_ms" to durationMs,
-                "sdk" to SDK_NAME,
-                "channel_id" to session.channelId
-            )
-        )
-        val params = linkedMapOf<String, Any>(
-            "request_id" to session.id,
-            "event_type" to "AD_FAKE_CTR",
-            "uuid" to resolveDeviceId(),
-            "channel_id" to session.channelId,
-            "ad_version" to BuildConfig.VERSION_CODE,
-            "mac" to (safeGetMacAddress() ?: "00:00:00:00:00:00"),
-            "app_id" to appContext.packageName,
-            "make" to HaierBuildIdentityNormalizer.manufacturer(),
-            "model" to HaierBuildIdentityNormalizer.model(),
-            "message" to "FAKE_CTR_TRIGGERED",
-            "diagnostic_info" to diagnosticInfo
-        ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
-        
-        NetworkHelper.makeRequest<EmptyData>(
-            url = "${BuildConfig.AD_FLOW_BASE_URL}api/v2/ad/report",
-            method = RequestMethod.POST,
-            params = params,
-            isEncryted = false,
-            useDomainSwitch = false
-        ) { _, error ->
-            if (error != null) {
-                Log.w(TAG, "点击状态上报失败：requestId=${session.id},error=${error.message}")
-            } else {
-                Log.i(TAG, "点击状态上报成功：requestId=${session.id}")
-            }
-        }
-    }
-
-    private fun resolveDeviceId(): String {
-        return runCatching {
-            android.provider.Settings.Secure.getString(
-                appContext.contentResolver,
-                android.provider.Settings.Secure.ANDROID_ID
-            )
-        }.getOrNull() ?: "unknown_device"
-    }
-
-    private fun safeGetMacAddress(): String? {
-        return runCatching { getMacAddress() }.getOrNull()
     }
 
     private class Session(
@@ -455,10 +335,6 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         var loadedAt: Long? = null
         var startedAt: Long? = null
         var finishAt: Long? = null
-        var enableFakeCtr = false
-        var fakeCtrWillTrigger = false
-        var fakeCtrTargetProgress = 0.0f
-        var fakeCtrTriggered = false
         fun diagnostics(): Map<String, Any?> = mapOf(
             "sdk" to SDK_NAME, "sdkEntry" to SDK_ENTRY, "urlEngine" to GoogleAdUrlBridge.engine, "requestCreatedAtMs" to createdAt,
             "commonUrlPatchChanged" to commonPatchChanged,

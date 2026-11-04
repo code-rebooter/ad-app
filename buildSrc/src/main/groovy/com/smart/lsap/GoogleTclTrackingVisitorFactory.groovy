@@ -37,10 +37,6 @@ abstract class GoogleTclTrackingVisitorFactory implements AsmClassVisitorFactory
                                 hook.add(new VarInsnNode(Opcodes.ALOAD, 0))
                                 hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC, BRIDGE, 'recordPosition',
                                     '(JLjava/lang/Object;)V', false))
-                                hook.add(new InsnNode(Opcodes.DUP2))
-                                hook.add(new VarInsnNode(Opcodes.ALOAD, 0))
-                                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC, BRIDGE, 'notifyProgress',
-                                    '(JLjava/lang/Object;)V', false))
                                 method.instructions.insert(insn, hook)
                             }
                         }

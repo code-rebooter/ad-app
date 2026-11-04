@@ -26,7 +26,7 @@ patch 等待只发生在工作线程。请求阶段使用本轮剩余期限；�
 
 ## 状态与日志
 
-`ad/report` 保留 REQUESTED、LOADED、STARTED、COMPLETED、ERROR/TIMEOUT，并增加本轮一次 FILLED。FILLED 在原厂响应交给 XmlConverter 前识别：仅有效 VAST InLine 线性视频中存在 HTTP(S) MediaFile 时触发，Wrapper、空 VAST、无效 XML 不算填充。填充不等于成功播放或曝光。
+`ad/report` 保留 REQUESTED、LOADED、STARTED、COMPLETED、ERROR/TIMEOUT，并增加本轮一次 FILLED。自 2026-11-03 起，填充使用独立 `event_type=AD_FILLED`、`message=FILLED`；REQUESTED、LOADED、STARTED 仍使用 `AD_PROGRESS`。FILLED 在原厂响应交给 XmlConverter 前识别：仅有效 VAST InLine 线性视频中存在 HTTP(S) MediaFile 时触发，Wrapper、空 VAST、无效 XML 不算填充。填充不等于成功播放或曝光。
 
 `consent-log-report` 继续由 popup_log_enabled 控制，在终态一次汇总。新增结构化 step `TCL_RUNTIME_AUDIT`，schema_version=1：
 

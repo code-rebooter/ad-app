@@ -19,6 +19,7 @@ internal object Hq008AdReporter {
 
     object EventType {
         const val AD_PROGRESS = "AD_PROGRESS"
+        const val AD_FILLED = "AD_FILLED"
         const val AD_COMPLETED = "AD_COMPLETED"
         const val AD_ERROR = "AD_ERROR"
     }
@@ -72,7 +73,7 @@ internal object Hq008AdReporter {
     ) {
         report(
             requestId = requestId,
-            eventType = EventType.AD_PROGRESS,
+            eventType = EventType.AD_FILLED,
             message = Message.FILLED,
             diagnosticInfo = buildDiagnosticInfo(adId, hiddenMode, extra)
         )

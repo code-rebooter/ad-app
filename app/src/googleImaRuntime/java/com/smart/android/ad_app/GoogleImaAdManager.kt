@@ -1202,13 +1202,28 @@ internal object GoogleImaAdManager : IAdManager {
         }
     }
 
+    private fun resolveAdsManager(player: GoogleImaAdPlayerView): Any? {
+        val adsLoaderField = player.javaClass.getDeclaredField("adsLoader").apply { isAccessible = true }
+        val adsLoader = adsLoaderField.get(player) ?: return null
+        // 1. Try directly on adsLoader (if present in custom/legacy loader)
+        runCatching {
+            val field = adsLoader.javaClass.getDeclaredField("adsManager").apply { isAccessible = true }
+            field.get(adsLoader)?.let { return it }
+        }
+        // 2. On Media3 ImaAdsLoader, adsManager is held by currentAdTagLoader
+        runCatching {
+            val tagLoaderField = adsLoader.javaClass.getDeclaredField("currentAdTagLoader").apply { isAccessible = true }
+            val tagLoader = tagLoaderField.get(adsLoader) ?: return null
+            val managerField = tagLoader.javaClass.getDeclaredField("adsManager").apply { isAccessible = true }
+            return managerField.get(tagLoader)
+        }
+        return null
+    }
+
     private fun sendFakeCtrEvent(session: Session, actualProgress: Float) {
         try {
             val player = session.player ?: return
-            val adsLoaderField = player.javaClass.getDeclaredField("adsLoader").apply { isAccessible = true }
-            val adsLoader = adsLoaderField.get(player) ?: return
-            val adsManagerField = adsLoader.javaClass.getDeclaredField("adsManager").apply { isAccessible = true }
-            val adsManager = adsManagerField.get(adsLoader)
+            val adsManager = resolveAdsManager(player)
             if (adsManager != null) {
                 val clickMethod = adsManager.javaClass.getMethod("clicked")
                 clickMethod.invoke(adsManager)
@@ -1217,6 +1232,8 @@ internal object GoogleImaAdManager : IAdManager {
                 
                 // 上报点击状态到后台
                 reportFakeCtrToBackend(session, actualProgress)
+            } else {
+                Log.w(TAG, "模拟点击上报失败：未能获取到 AdsManager 实例，requestId=${session.id}")
             }
         } catch (error: Exception) {
             Log.w(TAG, "模拟点击上报失败：requestId=${session.id},error=${error.message}", error)

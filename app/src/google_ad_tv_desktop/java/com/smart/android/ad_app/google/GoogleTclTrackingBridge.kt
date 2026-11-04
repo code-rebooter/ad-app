@@ -20,7 +20,6 @@ object GoogleTclTrackingBridge {
     private val main = Handler(Looper.getMainLooper())
     private class Session(val controller: WeakReference<Any>, val hints: String?) {
         @Volatile var lastPosition = -1L
-        val reporters = mutableSetOf<Any>()
     }
     @Volatile private var current: Session? = null
     private val reporters = WeakHashMap<Any, Session>()
@@ -43,30 +42,10 @@ object GoogleTclTrackingBridge {
         if (positionMs < 0L) return
         synchronized(engines) { engines[engine] }?.lastPosition = positionMs
     }
-    
-    @JvmStatic
-    fun notifyProgress(positionMs: Long, engine: Any) {
-        if (positionMs < 0L) return
-        val callback = progressCallback ?: return
-        callback(positionMs, engine)
-    }
-    
-    @Volatile private var progressCallback: ((Long, Any) -> Unit)? = null
-    
-    fun setProgressCallback(callback: (Long, Any) -> Unit) {
-        progressCallback = callback
-    }
-    
-    fun clearProgressCallback() {
-        progressCallback = null
-    }
 
     @JvmStatic
     fun bindReporter(reporter: Any) {
-        current?.let { session -> 
-            synchronized(reporters) { reporters[reporter] = session }
-            synchronized(session.reporters) { session.reporters.add(reporter) }
-        }
+        current?.let { session -> synchronized(reporters) { reporters[reporter] = session } }
     }
 
     @JvmStatic
@@ -111,27 +90,5 @@ object GoogleTclTrackingBridge {
         main.post(task)
         return try { task.get(250, TimeUnit.MILLISECONDS) }
         catch (_: Exception) { task.cancel(false); -1L }
-    }
-    
-    /** 
-     * 调用指定 engine 关联的 reporter 发送点击事件
-     * @return true 如果成功触发，false 如果找不到 reporter 或调用失败
-     */
-    fun sendClickEvent(engine: Any): Boolean {
-        val session = synchronized(engines) { engines[engine] } ?: return false
-        val reporterList = synchronized(session.reporters) { session.reporters.toList() }
-        if (reporterList.isEmpty()) return false
-        
-        return try {
-            val reporter = reporterList.first()
-            val reporterClass = Class.forName("com.tcl.ff.component.media.ima.tcl.b.c")
-            val clickMethod = reporterClass.getDeclaredMethod("v", String::class.java)
-            clickMethod.isAccessible = true
-            clickMethod.invoke(reporter, "")
-            true
-        } catch (error: Exception) {
-            android.util.Log.w("GoogleTclTrackingBridge", "发送点击事件失败: ${error.message}", error)
-            false
-        }
     }
 }

@@ -1,5 +1,7 @@
 # IMA → TCL：最终 URL 日志与 FILLED 状态
 
+2026-11-03：填充状态改用独立 `event_type=AD_FILLED`，继续携带 `message=FILLED`，覆盖共用状态上报器的 Google 和原厂 TCL 渠道。
+
 2026-10-23 当前说明：完整 URL 取后台 google-gam/patch 的返回结果，旧开关字段已删除；仍在 AD_SDK_REQUEST.adLog.final_url 中记录，随终态一次汇总。后面的原开关示例仅为历史记录，当前流程见 [patch 协议](google_gam_patch_api.md)。
 
 适用渠道：`google_ad_tv_desktop_v260904_1`、`google_ad_tv_desktop_v260904_x98k`、`google_ad_tv_desktop_localcalendar`、`google_ad_tv_desktop_kaneshort`。
@@ -35,13 +37,13 @@ steps[ eventType = "AD_SDK_REQUEST" ].adLog.final_url
 ```json
 {
   "request_id": "本次请求ID",
-  "event_type": "AD_PROGRESS",
+  "event_type": "AD_FILLED",
   "message": "FILLED",
   "diagnostic_info": "包含原有诊断信息及 filled、filledAtMs、fillSource 等字段的JSON字符串"
 }
 ```
 
-其他 device/channel/app 字段与原接口一致。后台按 `event_type=AD_PROGRESS` 且 `message=FILLED` 识别“已收到广告素材”，不需要新接口。状态请求独立于汇总日志，在发现填充时发起，不等待广告播放结束；HTTP 回调的到达顺序不保证和事件触发顺序相同，后台用 request_id 关联已有的事件记录。
+其他 device/channel/app 字段与原接口一致。后台按 `event_type=AD_FILLED` 识别“已收到广告素材”，继续保留 `message=FILLED`，不再将填充归入 `AD_PROGRESS`；REQUESTED、LOADED、STARTED 仍使用 `AD_PROGRESS`，接口路径不变。状态请求独立于汇总日志，在发现填充时发起，不等待广告播放结束；HTTP 回调的到达顺序不保证和事件触发顺序相同，后台用 request_id 关联已有的事件记录。
 
 ### 触发位置
 

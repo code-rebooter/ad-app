@@ -2,6 +2,7 @@
 def patchSources = tasks.register('prepareTclPatchSources', Sync) {
     from('src/google_ad_tv_desktop/java') {
         include 'com/smart/android/ad_app/google/GoogleGamPatchClient.kt'
+        include 'com/smart/android/ad_app/google/GoogleReportedSoundMode.kt'
     }
     into layout.buildDirectory.dir('generated/tclPatch/java')
 }

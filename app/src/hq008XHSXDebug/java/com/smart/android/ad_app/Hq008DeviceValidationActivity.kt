@@ -42,11 +42,15 @@ class Hq008DeviceValidationActivity : Activity() {
     private var fixtureError = false
     private var fixturePatchCount = 0
     private val fixtureEvents = mutableListOf<String>()
+    private val fixtureReports = mutableListOf<Map<String, Any>>()
     private var fixtureUploadCount = 0
     private var fixtureAudit: JSONObject? = null
     private var finished = false
     private val reportObserver: (String, Map<String, Any>, String?) -> Unit = { phase, payload, error ->
         record("ad_report", "phase" to phase, "payload" to JSONObject(payload), "error" to error)
+        if (phase == "request" && payload["request_id"] == fixtureId) {
+            synchronized(fixtureReports) { fixtureReports.add(payload.toMap()) }
+        }
     }
     private val traceListener = Hq008ConsentLogReporter.DebugTraceListener { event, message ->
         record(event, "message" to message)
@@ -363,6 +367,15 @@ class Hq008DeviceValidationActivity : Activity() {
                 checkCase("patch_once_per_selected_root_no_wrapper_repatch", fixturePatchCount == if (fixtureCase == "guarantee") 2 else 1)
                 checkCase("one_terminal_runtime_audit_upload", fixtureUploadCount == 1 && fixtureAudit != null)
                 checkCase("filled_matches_response", ("AD_FILLED" in fixtureEvents) == (fixtureCase !in setOf("empty", "patch_error")))
+                val reports = synchronized(fixtureReports) { fixtureReports.toList() }
+                val filledReports = reports.filter { it["message"] == Hq008AdReporter.Message.FILLED }
+                checkCase("filled_report_uses_dedicated_type_once",
+                    filledReports.size == (if (fixtureCase in setOf("empty", "patch_error")) 0 else 1) &&
+                        filledReports.all { it["event_type"] == Hq008AdReporter.EventType.AD_FILLED })
+                checkCase("other_progress_reports_keep_existing_type", reports.filter {
+                    it["message"] in setOf(Hq008AdReporter.Message.REQUESTED,
+                        Hq008AdReporter.Message.LOADED, Hq008AdReporter.Message.STARTED)
+                }.all { it["event_type"] == Hq008AdReporter.EventType.AD_PROGRESS })
                 checkCase("audit_precedes_terminal", fixtureEvents.indexOf("TCL_RUNTIME_AUDIT") <
                     fixtureEvents.indexOf(if (fixtureCase in setOf("empty", "patch_error")) "AD_PHASE_ERROR" else "AD_PHASE_COMPLETED"))
                 if (fixtureCase !in setOf("empty", "patch_error")) {

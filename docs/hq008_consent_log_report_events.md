@@ -573,7 +573,7 @@
 
 ## IMA → TCL 渠道最终 URL（2026-10-19 更新）
 
-适用于当前全部 Google 渠道。在原 AD_SDK_REQUEST 步骤的 adLog 中记录 request_id、final_url。final_url 是本地公共修正后经后台 patch 返回、实际交给 TCL 的完整链接；旧 ima_tcl_url_patch 字段和开关已删除；在原有终态汇总日志中一起上传，不新增该步骤的单独日志请求。详见 [最终 URL 与 FILLED 状态](google_ima_tcl_reporting.md)。填充状态走原 /api/v2/ad/report 的 AD_PROGRESS + FILLED，不是新增日志请求。
+适用于当前全部 Google 渠道。在原 AD_SDK_REQUEST 步骤的 adLog 中记录 request_id、final_url。final_url 是本地公共修正后经后台 patch 返回、实际交给 TCL 的完整链接；旧 ima_tcl_url_patch 字段和开关已删除；在原有终态汇总日志中一起上传，不新增该步骤的单独日志请求。详见 [最终 URL 与 FILLED 状态](google_ima_tcl_reporting.md)。填充状态走原 /api/v2/ad/report，自 2026-11-03 起使用独立的 event_type=AD_FILLED、message=FILLED，不是新增日志请求；原厂 TCL 渠道使用同一上报器。
 
 ## 2026-10-23 日志请求关联
 

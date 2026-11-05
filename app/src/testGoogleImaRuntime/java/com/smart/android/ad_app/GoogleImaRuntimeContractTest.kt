@@ -48,6 +48,7 @@ class GoogleImaRuntimeContractTest {
             "ad-sdk-google-ima/src/main/java/com/smart/android/googleima/" +
                 "GoogleImaAdPlayerView.java"
         )
+        val proguardRules = readProjectFile("app/proguard-rules.pro")
 
         assertTrue(moduleBuild.contains("com.smart.android.googleima.controlled:interactivemedia:3.35.1"))
         assertTrue(
@@ -75,6 +76,16 @@ class GoogleImaRuntimeContractTest {
         assertTrue(runtimeBridge.contains("injectFallbackWebViewNetworkAudit"))
         assertTrue(runtimeBridge.contains("auditOmidBridge"))
         assertTrue(runtimeBridge.contains("setAuditedWebViewClient"))
+        assertTrue(runtimeBridge.contains("IMA_CLICK_BYPASS_SCRIPT"))
+        assertTrue(runtimeBridge.contains("onClickBypass"))
+        assertTrue(runtimeBridge.contains("external_click"))
+        assertTrue(runtimeBridge.contains("interceptImaCoreScript"))
+        assertTrue(runtimeBridge.contains("core_script_injected"))
+        assertTrue(runtimeBridge.contains("routeThroughUi"))
+        assertTrue(runtimeBridge.contains("__smartImaClickRouteV2"))
+        assertTrue(runtimeBridge.contains("ui_route"))
+        assertTrue(runtimeBridge.contains("notifyWithoutPause"))
+        assertTrue(runtimeBridge.contains("clickRouteEnabled"))
         assertTrue(runtimeBridge.contains("bindNativeRequestAudit"))
         assertTrue(runtimeBridge.contains("bindAsyncAuditOwner"))
         assertTrue(runtimeBridge.contains("auditForWebView"))
@@ -120,6 +131,14 @@ class GoogleImaRuntimeContractTest {
         assertTrue(imaManager.contains("pendingMaxPositionMs"))
         assertTrue(imaManager.contains("isCurrentSegmentActive(session)"))
         assertTrue(imaManager.contains("cancelPlaybackStartTimeout(session)"))
+        assertTrue(imaManager.contains("click_bypass"))
+        assertTrue(imaManager.contains("AD_FAKE_CTR_CONFIRMED"))
+        assertTrue(imaManager.contains("AD_FAKE_CTR_UNCONFIRMED"))
+        assertTrue(imaManager.contains("setFakeCtrEnabled"))
+        assertTrue(proguardRules.contains("currentAdTagLoader"))
+        assertTrue(proguardRules.contains("adsManager"))
+        assertFalse(imaPlayer.contains("capturedAdsManager"))
+        assertFalse(imaPlayer.contains("addAdsLoadedListener"))
         val fingerprintBody = Regex(
             "static String adFingerprint\\(Ad ad\\) \\{([\\s\\S]*?)\\n    \\}"
         ).find(imaPlayer)?.groupValues?.get(1).orEmpty()

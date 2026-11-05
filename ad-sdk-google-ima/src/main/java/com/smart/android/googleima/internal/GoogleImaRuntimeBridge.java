@@ -247,7 +247,159 @@ public final class GoogleImaRuntimeBridge {
               }
             })();
             """;
+    /**
+     * Installs the UI-click bridge before the IMA Core bundle executes. It reroutes the
+     * externally-invoked Kf path into the SDK's own UI handlers: K6.Zn for a body click (which
+     * completes click tracking) or K6.learnMoreClicked when Learn More UI is enabled (which is
+     * forwarded to Y6.M for CLICKED + navigation + pause). This avoids requiring disableUi=true
+     * and avoids the external_click diagnostic produced by the gated Kf path.
+     *
+     * The script must be prepended to native_bridge__*.js: Android WebView on the target TV does
+     * not support DOCUMENT_START_SCRIPT, so late fallback injection is after Core has captured
+     * Object.create and installed its prototypes. The script is inert outside imasdk.googleapis.com.
+     */
+    private static final String IMA_CLICK_BYPASS_SCRIPT = """
+            (function() {
+              'use strict';
+              try {
+                var host = (window.location.hostname || '').toLowerCase();
+                if (host !== 'imasdk.googleapis.com') return;
+              } catch (_) { return; }
+              var root = window;
+              var key = '__smartImaClickRouteV2';
+              if (root[key]) return;
+              root[key] = true;
+              var originalCreate = Object.create;
+              if (typeof originalCreate !== 'function') return;
+
+              function emit(stage, target) {
+                try {
+                  root.__smartImaAudit &&
+                    root.__smartImaAudit.onClickBypass(String(stage), String(target));
+                } catch (_) {}
+              }
+
+              function sourceOf(fn) {
+                try { return Function.prototype.toString.call(fn); } catch (_) { return ''; }
+              }
+
+              function inheritedValue(proto, name) {
+                var cursor = proto;
+                while (cursor) {
+                  var descriptor = Object.getOwnPropertyDescriptor(cursor, name);
+                  if (descriptor) {
+                    if (descriptor.get) {
+                      try { return descriptor.get.call(proto); } catch (_) { return undefined; }
+                    }
+                    return descriptor.value;
+                  }
+                  cursor = Object.getPrototypeOf(cursor);
+                }
+                return undefined;
+              }
+
+              // K6.notify is stable across release/debug minification. A body click completes
+              // click tracking through K6.report('click'); learnMoreClicked is forwarded to Y6.M
+              // for CLICKED + navigation + pause. Do not call the minified Zn/Ho handler directly.
+              // Y6.M calls this.pause() after a UI click. A synthetic click must not
+              // change playback state, otherwise IMA reports PAUSED while the player keeps
+              // advancing and never emits RESUMED. Shadow pause only for the synchronous
+              // notify/dispatch call, then restore the original method.
+              function notifyWithoutPause(renderer, notify) {
+                var hadOwn = Object.prototype.hasOwnProperty.call(renderer, 'pause');
+                var previous = renderer.pause;
+                var shadowed = false;
+                try {
+                  renderer.pause = function() {};
+                  shadowed = true;
+                } catch (_) {}
+                try {
+                  return notify();
+                } finally {
+                  if (shadowed) {
+                    try {
+                      if (hadOwn) renderer.pause = previous;
+                      else delete renderer.pause;
+                    } catch (_) {}
+                  }
+                }
+              }
+
+              function routeThroughUi(renderer) {
+                var ui = renderer && renderer.u;
+                if (!ui || typeof ui.notify !== 'function') return false;
+                if (ui.l !== true) return false;
+                try {
+                  if (renderer.U && renderer.U.h) {
+                    notifyWithoutPause(renderer, function() {
+                      ui.notify({ type: 'learnMoreClicked' });
+                    });
+                    return true;
+                  }
+                  notifyWithoutPause(renderer, function() {
+                    ui.notify({ type: 'click', data: { Ys: true } });
+                  });
+                  return true;
+                } catch (_) {
+                  return false;
+                }
+              }
+
+              function wrapExternalClick(original) {
+                return function() {
+                  if (routeThroughUi(this)) {
+                    emit('ui_route', 'Kf');
+                    return;
+                  }
+                  emit('ui_route_skipped', 'Kf');
+                  return original.apply(this, arguments);
+                };
+              }
+
+              function installTrap(object, name, inherited) {
+                Object.defineProperty(object, name, {
+                  configurable: true,
+                  enumerable: false,
+                  get: function() { return inherited; },
+                  set: function(candidate) {
+                    var replacement = candidate;
+                    if (typeof candidate === 'function' &&
+                        sourceOf(candidate).indexOf('external_click') !== -1) {
+                      replacement = wrapExternalClick(candidate);
+                      emit('installed', name);
+                    }
+                    Object.defineProperty(object, name, {
+                      configurable: true,
+                      writable: true,
+                      enumerable: false,
+                      value: replacement
+                    });
+                  }
+                });
+              }
+
+              Object.create = function(proto, properties) {
+                var object = originalCreate(proto, properties);
+                try {
+                  if (!object || !proto) return object;
+                  var constructor = null;
+                  try { constructor = proto.constructor; } catch (_) { return object; }
+                  if (typeof constructor !== 'function' || constructor.prototype !== proto) {
+                    return object;
+                  }
+                  var names = ['Kf', 'wf', 'pg'];
+                  for (var i = 0; i < names.length; i++) {
+                    if (properties &&
+                        Object.prototype.hasOwnProperty.call(properties, names[i])) continue;
+                    installTrap(object, names[i], inheritedValue(proto, names[i]));
+                  }
+                } catch (_) {}
+                return object;
+              };
+            })();
+            """;
     private static AuditState activeAudit;
+    private static final Map<String, String> IMA_CORE_SCRIPT_CACHE = new HashMap<>();
     private static final ExecutorService MS_EXECUTOR = Executors.newCachedThreadPool(
             new ThreadFactory() {
                 @Override
@@ -402,6 +554,10 @@ public final class GoogleImaRuntimeBridge {
     private static String measurementVolumeScript(AuditState state) {
         return OMID_MEDIA_VOLUME_SCRIPT.replace("%VOLUME%",
                 state.reportedSoundEnabled ? "1" : "0");
+    }
+
+    private static String clickRouteScript(AuditState state) {
+        return state != null && state.clickRouteEnabled ? IMA_CLICK_BYPASS_SCRIPT : "";
     }
 
     private static String extractVpmute(String url) {
@@ -566,7 +722,14 @@ public final class GoogleImaRuntimeBridge {
     public static void beginAudit(
             GoogleImaAdListener listener, String adTagUrl, GoogleImaAdUrlResolver resolver,
             boolean reportedSoundEnabled) {
-        AuditState state = new AuditState(listener, resolver, reportedSoundEnabled);
+        beginAudit(listener, adTagUrl, resolver, reportedSoundEnabled, false);
+    }
+
+    public static void beginAudit(
+            GoogleImaAdListener listener, String adTagUrl, GoogleImaAdUrlResolver resolver,
+            boolean reportedSoundEnabled, boolean clickRouteEnabled) {
+        AuditState state = new AuditState(
+                listener, resolver, reportedSoundEnabled, clickRouteEnabled);
         synchronized (AUDIT_LOCK) {
             activeAudit = state;
         }
@@ -771,6 +934,91 @@ public final class GoogleImaRuntimeBridge {
         return new WebResourceResponse("application/xml", "UTF-8", 503,
                 "Ad request stopped", Collections.singletonMap("Access-Control-Allow-Origin", "*"),
                 new ByteArrayInputStream(new byte[0]));
+    }
+
+    /**
+     * Prepends the click bridge to IMA's native core bundle before WebView evaluates it.
+     * DOCUMENT_START_SCRIPT is unavailable on the target TV WebView, so onPageStarted /
+     * onPageFinished injection happens after Core has already captured Object.create.
+     */
+    private static WebResourceResponse interceptImaCoreScript(
+            AuditState state,
+            String url,
+            Map<String, String> requestHeaders) {
+        if (state == null || !state.clickRouteEnabled) return null;
+        if (!isImaCoreScript(url)) return null;
+        String cached;
+        synchronized (IMA_CORE_SCRIPT_CACHE) {
+            cached = IMA_CORE_SCRIPT_CACHE.get(url);
+        }
+        if (cached != null) return imaCoreScriptResponse(cached);
+
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(3_000);
+            connection.setReadTimeout(5_000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "*/*");
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            String userAgent = headerValue(requestHeaders, "User-Agent");
+            if (!userAgent.isEmpty()) connection.setRequestProperty("User-Agent", userAgent);
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) return null;
+            String contentEncoding = safe(connection.getContentEncoding());
+            if (!contentEncoding.isEmpty() && !"identity".equalsIgnoreCase(contentEncoding)) {
+                PropertyLog.w(TAG, "control=click_route core_script_encoding=" + contentEncoding);
+                return null;
+            }
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (InputStream input = connection.getInputStream()) {
+                byte[] buffer = new byte[16_384];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            }
+            String body = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            if (!body.contains("external_click")) {
+                PropertyLog.w(TAG, "control=click_route core_script_marker_missing");
+                return null;
+            }
+            String injected = IMA_CLICK_BYPASS_SCRIPT + "\n" + body;
+            synchronized (IMA_CORE_SCRIPT_CACHE) {
+                IMA_CORE_SCRIPT_CACHE.put(url, injected);
+            }
+            PropertyLog.i(TAG, "control=click_route core_script_injected length=" + body.length());
+            return imaCoreScriptResponse(injected);
+        } catch (Throwable error) {
+            PropertyLog.w(TAG, "control=click_route core_script_inject_failed", error);
+            return null;
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static boolean isImaCoreScript(String url) {
+        if (url == null || !url.startsWith("https://imasdk.googleapis.com/")) return false;
+        int queryAt = url.indexOf('?');
+        String path = queryAt < 0 ? url : url.substring(0, queryAt);
+        return (path.contains("/native/core/") || path.contains("/js/core/"))
+                && path.endsWith(".js");
+    }
+
+    private static WebResourceResponse imaCoreScriptResponse(String body) {
+        return new WebResourceResponse(
+                "application/javascript",
+                "UTF-8",
+                200,
+                "OK",
+                Collections.singletonMap("Cache-Control", "no-store"),
+                new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String headerValue(Map<String, String> headers, String name) {
+        if (headers == null || name == null) return "";
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (name.equalsIgnoreCase(entry.getKey())) return safe(entry.getValue());
+        }
+        return "";
     }
 
     @Keep
@@ -990,7 +1238,8 @@ public final class GoogleImaRuntimeBridge {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                     WebViewCompat.addDocumentStartJavaScript(
                             webView,
-                            AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state),
+                            AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state) +
+                                    clickRouteScript(state),
                             Collections.singleton("*"));
                     binding.documentStartInstalled = true;
                     PropertyLog.i(TAG, "audit=vast webview_document_start=true");
@@ -1015,7 +1264,10 @@ public final class GoogleImaRuntimeBridge {
         try {
             AuditState state = auditForWebView(webView);
             if (state == null || state.closed) return;
-            webView.evaluateJavascript(AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state), null);
+            webView.evaluateJavascript(
+                    AUDIT_NETWORK_SCRIPT + measurementVolumeScript(state) +
+                            clickRouteScript(state),
+                    null);
             PropertyLog.i(TAG, "audit=vast webview_fallback_injected phase=" + phase);
         } catch (Throwable error) {
             PropertyLog.w(TAG, "audit=vast webview_fallback_failed phase=" + phase, error);
@@ -1324,15 +1576,23 @@ public final class GoogleImaRuntimeBridge {
         boolean omidStartedObserved;
         float lastImaCoreReportedVolume = -1.0f;
 
+        final boolean clickRouteEnabled;
+
         AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver) {
-            this(listener, resolver, true);
+            this(listener, resolver, true, false);
         }
 
         AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver,
                 boolean reportedSoundEnabled) {
+            this(listener, resolver, reportedSoundEnabled, false);
+        }
+
+        AuditState(GoogleImaAdListener listener, GoogleImaAdUrlResolver resolver,
+                boolean reportedSoundEnabled, boolean clickRouteEnabled) {
             this.listener = listener == null ? new GoogleImaAdListener() {} : listener;
             this.adUrlResolver = resolver;
             this.reportedSoundEnabled = reportedSoundEnabled;
+            this.clickRouteEnabled = clickRouteEnabled;
         }
     }
 
@@ -1407,6 +1667,15 @@ public final class GoogleImaRuntimeBridge {
         }
 
         @JavascriptInterface
+        public void onClickBypass(String stage, String target) {
+            PropertyLog.i(TAG, "control=fake_ctr click_bypass stage=" + safe(stage) +
+                    " target=" + safe(target));
+            Map<String, String> clickFields = fields("stage", safe(stage));
+            clickFields.put("target", safe(target));
+            emit(state, "click_bypass", clickFields, null);
+        }
+
+        @JavascriptInterface
         public void onVastResponse(
                 String captureSource,
                 String method,
@@ -1451,6 +1720,8 @@ public final class GoogleImaRuntimeBridge {
             auditWebResource(state, "request", url, "GET", null, null, null);
             Map<String, String> headers = new LinkedHashMap<>();
             headers.put("User-Agent", state.webViewUserAgent);
+            WebResourceResponse clickBridge = interceptImaCoreScript(state, url, headers);
+            if (clickBridge != null) return clickBridge;
             WebResourceResponse patched = interceptPatchedAdRequest(state, url, "GET", headers);
             if (patched != null) return patched;
             return delegate.shouldInterceptRequest(view, url);
@@ -1468,6 +1739,9 @@ public final class GoogleImaRuntimeBridge {
                     request.isForMainFrame(),
                     null,
                     null);
+            WebResourceResponse clickBridge = interceptImaCoreScript(
+                    state, request.getUrl().toString(), request.getRequestHeaders());
+            if (clickBridge != null) return clickBridge;
             WebResourceResponse patched = interceptPatchedAdRequest(state,
                     request.getUrl().toString(), request.getMethod(), request.getRequestHeaders());
             if (patched != null) return patched;

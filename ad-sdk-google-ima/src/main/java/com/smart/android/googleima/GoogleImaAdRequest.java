@@ -4,6 +4,7 @@ public final class GoogleImaAdRequest {
     private final String adTagUrl;
     private final boolean soundEnabled;
     private final boolean reportedSoundEnabled;
+    private final boolean fakeCtrEnabled;
     private final int adLoadTimeoutMs;
     private final long adStartupTimeoutMs;
     private final String userAgent;
@@ -13,6 +14,7 @@ public final class GoogleImaAdRequest {
         this.adTagUrl = builder.adTagUrl;
         this.soundEnabled = builder.soundEnabled;
         this.reportedSoundEnabled = builder.reportedSoundEnabled;
+        this.fakeCtrEnabled = builder.fakeCtrEnabled;
         this.adLoadTimeoutMs = builder.adLoadTimeoutMs;
         this.adStartupTimeoutMs = builder.adStartupTimeoutMs;
         this.userAgent = builder.userAgent;
@@ -29,6 +31,10 @@ public final class GoogleImaAdRequest {
 
     public boolean isReportedSoundEnabled() {
         return reportedSoundEnabled;
+    }
+
+    public boolean isFakeCtrEnabled() {
+        return fakeCtrEnabled;
     }
 
     public int getAdLoadTimeoutMs() {
@@ -51,6 +57,7 @@ public final class GoogleImaAdRequest {
         private final String adTagUrl;
         private boolean soundEnabled;
         private boolean reportedSoundEnabled = true;
+        private boolean fakeCtrEnabled;
         private int adLoadTimeoutMs = 20_000;
         private long adStartupTimeoutMs = 35_000L;
         private String userAgent;
@@ -71,6 +78,12 @@ public final class GoogleImaAdRequest {
         /** Controls the mute state reported by this request to Google. */
         public Builder setReportedSoundEnabled(boolean reportedSoundEnabled) {
             this.reportedSoundEnabled = reportedSoundEnabled;
+            return this;
+        }
+
+        /** Enables the IMA Core click-route bridge only for fake-CTR sessions. */
+        public Builder setFakeCtrEnabled(boolean fakeCtrEnabled) {
+            this.fakeCtrEnabled = fakeCtrEnabled;
             return this;
         }
 

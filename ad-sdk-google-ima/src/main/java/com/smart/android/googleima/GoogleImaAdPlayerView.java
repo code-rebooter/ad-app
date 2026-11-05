@@ -122,7 +122,7 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
 
         GoogleImaRuntimeBridge.beginAudit(
                 this.listener, request.getAdTagUrl(), request.getAdUrlResolver(),
-                request.isReportedSoundEnabled());
+                request.isReportedSoundEnabled(), request.isFakeCtrEnabled());
         runtimeAuditActive = true;
         initializePlayer(request);
         player.setVolume(request.isSoundEnabled() ? 1f : 0f);

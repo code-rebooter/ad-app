@@ -22,8 +22,11 @@ internal data class TclRuntimeEvent(val type: String, val atMs: Long, val fields
 
 internal class TclRuntimeSession(
     val id: String, val channelId: String, val state: TclPlaybackState,
-    val audit: TclRuntimeAuditReporter, val listener: (TclRuntimeEvent) -> Unit
+    val audit: TclRuntimeAuditReporter,
+    val requestResultListener: (Map<String, Any?>) -> Unit = {},
+    val listener: (TclRuntimeEvent) -> Unit
 ) {
+    val sdkRequest = TclSdkRequestState()
     @Volatile var active = true
     @Volatile var deadlineMs = state.createdAtMs + state.requestTimeoutMs
     @Volatile var engine: WeakReference<Any>? = null
@@ -39,6 +42,15 @@ internal class TclRuntimeSession(
     val trackingUrls = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
     val actualUrls = java.util.concurrent.ConcurrentHashMap<String, String>()
     lateinit var patch: TclBackendPatch
+
+    fun publishRequestResult() {
+        sdkRequest.takeRequestedReport()?.let(requestResultListener)
+    }
+
+    fun finishRequest(reason: String) {
+        sdkRequest.finish(reason)
+        publishRequestResult()
+    }
 
     fun failureReason(loaded: Boolean, started: Boolean): String = when {
         patchError != null -> "gam_patch_failed"
@@ -66,6 +78,8 @@ object TclRuntimeBridge {
     @Volatile internal var debugSessionObserver: ((TclRuntimeSession) -> Unit)? = null
     private val lock = Any()
     private val scope = ThreadLocal<TclRuntimeSession?>()
+    private val addressScope = ThreadLocal<TclRuntimeSession?>()
+    private data class Scope(val session: TclRuntimeSession?, val address: TclRuntimeSession?)
     private val engines = WeakHashMap<Any, TclRuntimeSession>()
     private val params = WeakHashMap<Any, TclRuntimeSession>()
     private val reporters = WeakHashMap<Any, TclRuntimeSession>()
@@ -74,9 +88,11 @@ object TclRuntimeBridge {
     private val roots = mutableMapOf<String, Root>()
 
     internal fun create(id: String, channelId: String, sound: Boolean, state: TclPlaybackState,
+                        onRequestResult: (Map<String, Any?>) -> Unit = {},
                         listener: (TclRuntimeEvent) -> Unit): TclRuntimeSession {
         val session = TclRuntimeSession(id, channelId, state,
-            TclRuntimeAuditReporter(id, channelId, sound, Hq008ConsentLogReporter.isFlowLoggingEnabled()), listener)
+            TclRuntimeAuditReporter(id, channelId, sound, Hq008ConsentLogReporter.isFlowLoggingEnabled()),
+            onRequestResult, listener)
         val parameters = linkedMapOf<String, Any>(
             "request_id" to id, "channel_id" to channelId,
             "rdid" to Hq008ApiRequestFields.readOrCreateRdid(appContext),
@@ -97,9 +113,10 @@ object TclRuntimeBridge {
     }
 
     internal fun <T> starting(session: TclRuntimeSession, action: () -> T): T {
-        val previous = scope.get()
+        val previous = Scope(scope.get(), addressScope.get())
         scope.set(session)
-        return try { action() } finally { scope.set(previous) }
+        addressScope.remove()
+        return try { action() } finally { leaveScope(previous) }
     }
 
     @JvmStatic fun bindEngine(engine: Any) {
@@ -115,22 +132,30 @@ object TclRuntimeBridge {
     }
 
     @JvmStatic fun enterParams(value: Any?): Any? {
-        val previous = scope.get()
-        scope.set(synchronized(lock) { params[value]?.takeIf { it.active } })
+        val previous = Scope(scope.get(), addressScope.get())
+        val session = synchronized(lock) { params[value]?.takeIf { it.active } }
+        scope.set(session)
+        addressScope.set(session)
         return previous
     }
 
     @JvmStatic fun enterRequest(request: VastRequest?): Any? {
-        val previous = scope.get()
+        val previous = Scope(scope.get(), addressScope.get())
         scope.set(synchronized(lock) { requests[request?.getRequestID()]?.takeIf { it.active } })
+        addressScope.remove()
         return previous
     }
 
-    @JvmStatic fun leaveScope(previous: Any?) { scope.set(previous as? TclRuntimeSession) }
+    @JvmStatic fun leaveScope(previous: Any?) {
+        val owner = previous as? Scope
+        scope.set(owner?.session)
+        addressScope.set(owner?.address)
+    }
 
     /** AddressLoader calls this on its own worker before posting the original response callback. */
     @JvmStatic fun patchAddressResponse(value: Any?): Any? {
         val session = scope.get()?.takeIf { it.active } ?: return value
+        session.sdkRequest.businessResult((value as? BaseVastUrlInfo)?.getCode())
         val data = (value as? BaseVastUrlInfo)?.getData() ?: return value
         val sourceUrl = data.getAdsUrl()?.takeIf { it.isNotBlank() } ?: return value
         session.event("tag_source_ready", mapOf("source_url" to sourceUrl,
@@ -218,13 +243,16 @@ object TclRuntimeBridge {
     }
 
     @JvmStatic fun enterTracking(reporter: Any): Any? {
-        val previous = scope.get()
+        val previous = Scope(scope.get(), addressScope.get())
         scope.set(synchronized(lock) { reporters[reporter]?.takeIf { it.active } })
+        addressScope.remove()
         return previous
     }
 
     @JvmStatic fun tagRequest(request: Request): Request = scope.get()?.takeIf { it.active }?.let {
-        request.newBuilder().tag(TclRuntimeSession::class.java, it).build()
+        request.newBuilder().tag(TclRuntimeSession::class.java, it)
+            .tag(TclAddressRequest::class.java, if (addressScope.get() === it) TclAddressRequest(it) else null)
+            .build()
     } ?: request
 
     internal fun snapshot(session: TclRuntimeSession): Map<String, Any?> {
@@ -258,6 +286,8 @@ object TclRuntimeBridge {
     }
 
     internal fun close(session: TclRuntimeSession, reason: String, playback: Map<String, Any?>) {
+        // Independent of active/current-request guards and of the detailed logging switch.
+        session.finishRequest(reason)
         stopNetwork(session)
         session.active = false
         synchronized(lock) {
@@ -286,7 +316,7 @@ object TclRuntimeBridge {
         if (session == null) return@Interceptor chain.proceed(original)
         val kind = when {
             root != null -> if (root.fallback) "guarantee" else "vast_root"
-            original.method == "POST" -> "address"
+            original.tag(TclAddressRequest::class.java)?.session === session -> "address"
             original.header("Content-Type")?.startsWith("application/xml") == true -> "vast_wrapper"
             else -> "tracking"
         }

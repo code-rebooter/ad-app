@@ -18,7 +18,9 @@ internal object Hq008AdReporter {
     @Volatile internal var debugReportObserver: ((String, Map<String, Any>, String?) -> Unit)? = null
 
     object EventType {
-        const val AD_PROGRESS = "AD_PROGRESS"
+        const val AD_REQUESTED = "AD_REQUESTED"
+        const val AD_LOADED = "AD_LOADED"
+        const val AD_STARTED = "AD_STARTED"
         const val AD_FILLED = "AD_FILLED"
         const val AD_COMPLETED = "AD_COMPLETED"
         const val AD_ERROR = "AD_ERROR"
@@ -48,12 +50,14 @@ internal object Hq008AdReporter {
         hiddenMode: Boolean,
         containerWidth: Int,
         containerHeight: Int,
-        extra: Map<String, Any?> = emptyMap()
+        extra: Map<String, Any?> = emptyMap(),
+        durable: Boolean = false
     ) {
         report(
             requestId = requestId,
-            eventType = EventType.AD_PROGRESS,
+            eventType = EventType.AD_REQUESTED,
             message = Message.REQUESTED,
+            durable = durable,
             diagnosticInfo = buildDiagnosticInfo(
                 adId = adId,
                 hiddenMode = hiddenMode,
@@ -87,7 +91,7 @@ internal object Hq008AdReporter {
     ) {
         report(
             requestId = requestId,
-            eventType = EventType.AD_PROGRESS,
+            eventType = EventType.AD_LOADED,
             message = Message.LOADED,
             diagnosticInfo = buildDiagnosticInfo(adId, hiddenMode, extra)
         )
@@ -102,7 +106,7 @@ internal object Hq008AdReporter {
     ) {
         report(
             requestId = requestId,
-            eventType = EventType.AD_PROGRESS,
+            eventType = EventType.AD_STARTED,
             message = Message.STARTED,
             diagnosticInfo = buildDiagnosticInfo(
                 adId = adId,
@@ -132,12 +136,14 @@ internal object Hq008AdReporter {
         hiddenMode: Boolean,
         errorCode: Int?,
         errorMessage: String,
-        extra: Map<String, Any?> = emptyMap()
+        extra: Map<String, Any?> = emptyMap(),
+        durable: Boolean = false
     ) {
         report(
             requestId = requestId,
             eventType = EventType.AD_ERROR,
             message = errorMessage,
+            durable = durable,
             diagnosticInfo = buildDiagnosticInfo(
                 adId = adId,
                 hiddenMode = hiddenMode,
@@ -150,7 +156,8 @@ internal object Hq008AdReporter {
         requestId: String,
         eventType: String,
         message: String,
-        diagnosticInfo: DiagnosticPayload
+        diagnosticInfo: DiagnosticPayload,
+        durable: Boolean = false
     ) {
         // REPORT_FLOW request
         val params = linkedMapOf<String, Any>(
@@ -180,13 +187,30 @@ internal object Hq008AdReporter {
             "上报链路：请求体已生成，requestId=$requestId，eventType=$eventType，message=$message，body=$requestJson"
         )
 
+        if (durable) {
+            Hq008SdkRequestReports.enqueue(params)
+        } else {
+            send(params)
+        }
+    }
+
+    internal fun send(params: Map<String, Any>, onResult: (Boolean) -> Unit = {}) {
+        val requestId = params["request_id"]
+        val eventType = params["event_type"]
+        val message = params["message"]
+        val fixtureUrl = if (BuildConfig.DEBUG &&
+            (requestId.toString().startsWith("device125-") || requestId.toString().startsWith("device-validation-"))) {
+            appContext.getSharedPreferences("tcl_device_validation", android.content.Context.MODE_PRIVATE)
+                .getString("report_url", null)?.takeIf { it.startsWith("http://127.0.0.1:") }
+        } else null
         NetworkHelper.makeRequest<EmptyData>(
-            url = REPORT_URL,
+            url = fixtureUrl ?: REPORT_URL,
             method = RequestMethod.POST,
             params = params,
             isEncryted = false,
             useDomainSwitch = false,
         ) { _, error ->
+            onResult(error == null)
             if (BuildConfig.DEBUG) debugReportObserver?.invoke("result", params.toMap(), error?.message)
             if (error != null) {
                 Log.e(TAG, "上报链路：上报失败，requestId=$requestId，eventType=$eventType，message=$message，error=${error.message}", error)

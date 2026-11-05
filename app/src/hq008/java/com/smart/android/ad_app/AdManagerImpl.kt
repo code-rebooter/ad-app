@@ -157,7 +157,10 @@ private object Hq008TclVideoAd {
     private var initAttempt = 0L
     private var initTimeoutRunnable: Runnable? = null
 
-    fun init() = onMain { ensureInitialized() }
+    fun init() = onMain {
+        Hq008SdkRequestReports.resumePending()
+        ensureInitialized()
+    }
 
     fun showAd(
         flRoot: ViewGroup,
@@ -171,6 +174,7 @@ private object Hq008TclVideoAd {
     ) {
         val createdAtMs = SystemClock.elapsedRealtime()
         onMain {
+            Hq008SdkRequestReports.resumePending()
             destroyAd(reason = "replaced_by_new_request")
             val requestId = Hq008ReportRequestIdResolver.resolve(adId)
             val boundChannelId = channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel()
@@ -181,22 +185,12 @@ private object Hq008TclVideoAd {
                 "播放链路：开始请求广告，requestId=$requestId，adId=$adId，hidden=${AdDisplayConfig.isHiddenMode()}，callbackTimeoutMs=$effectiveCallbackTimeoutMs，container=${flRoot.width}x${flRoot.height}"
             )
             Log.i(TAG, "播放链路：已进入 showAd，当前隐藏模式=${AdDisplayConfig.isHiddenMode()}，容器尺寸=${flRoot.width}x${flRoot.height}")
-            Hq008AdReporter.reportRequested(
-                requestId = requestId,
-                adId = adId,
-                hiddenMode = AdDisplayConfig.isHiddenMode(),
-                containerWidth = flRoot.width,
-                containerHeight = flRoot.height,
-                extra = mapOf(
-                    "requestChannelId" to boundChannelId,
-                    "requestCreatedAtMs" to createdAtMs,
-                    "callbackTimeoutMs" to effectiveCallbackTimeoutMs
-                )
-            )
             Hq008ConsentLogReporter.report(
-                eventType = "AD_REQUESTED",
+                eventType = "AD_SHOW_REQUESTED",
                 eventMessage = "requestId=$requestId,adId=${adId.orEmpty()},hidden=${AdDisplayConfig.isHiddenMode()},callbackTimeoutMs=$effectiveCallbackTimeoutMs,containerWidth=${flRoot.width},containerHeight=${flRoot.height}"
             )
+            val requestedWidth = flRoot.width
+            val requestedHeight = flRoot.height
             val containerRef = WeakReference(flRoot)
             val controllerLease = controllers.begin { controller ->
                 containerRef.get()?.let { container ->
@@ -220,7 +214,28 @@ private object Hq008TclVideoAd {
                 adComplete = adComplete
             )
             request.runtime = TclRuntimeBridge.create(requestId, request.channelId, soundEnabled,
-                request.playback) { event ->
+                request.playback, onRequestResult = { fields ->
+                    // A response queued before an error/cancellation still belongs to this request.
+                    onMain {
+                        Hq008AdReporter.reportRequested(
+                            requestId = request.requestId,
+                            adId = request.adId,
+                            hiddenMode = AdDisplayConfig.isHiddenMode(),
+                            containerWidth = requestedWidth,
+                            containerHeight = requestedHeight,
+                            extra = fields + mapOf("requestChannelId" to request.channelId,
+                                "requestCreatedAtMs" to createdAtMs,
+                                "callbackTimeoutMs" to effectiveCallbackTimeoutMs),
+                            durable = true
+                        )
+                        Hq008ConsentLogReporter.report(
+                            eventType = "AD_REQUESTED",
+                            eventMessage = "requestId=${request.requestId},sdk=tcl_2.8.02," +
+                                "httpStatus=${fields["sdkRequestHttpStatus"]},hidden=${AdDisplayConfig.isHiddenMode()}",
+                            requestId = request.requestId
+                        )
+                    }
+                }) { event ->
                 // Vendor observers must not re-enter the controller while its callback is running.
                 mainHandler.post { if (isActive(request)) onRuntimeEvent(request, event) }
             }
@@ -247,6 +262,10 @@ private object Hq008TclVideoAd {
         }
         if (request.markTerminal()) {
             releaseController(request, "cancelled:$reason")
+            Hq008AdReporter.reportError(request.requestId, request.adId, AdDisplayConfig.isHiddenMode(),
+                errorCode = null, errorMessage = "CANCELLED",
+                extra = request.buildCompletionDiagnostics() + mapOf("stage" to "window_destroy", "reason" to reason),
+                durable = true)
             Hq008ConsentLogReporter.report(
                 eventType = "AD_PHASE_CANCELLED",
                 eventMessage = "requestId=${request.requestId},adId=${request.adId.orEmpty()}," +
@@ -368,6 +387,7 @@ private object Hq008TclVideoAd {
             }
 
             runCatching {
+                check(Hq008AdSdkDebugCapture.ensureInstalled()) { "TCL request observer unavailable" }
                 val hiddenMode = AdDisplayConfig.isHiddenMode()
                 safeContainer.alpha = if (hiddenMode) 0f else 1f
                 // PLAY_FLOW startAd begin
@@ -829,7 +849,7 @@ private object Hq008TclVideoAd {
         }
 
         fun buildProgressDiagnostics(): Map<String, Any?> {
-            return playback.diagnostics(SystemClock.elapsedRealtime()) + mapOf(
+            return playback.diagnostics(SystemClock.elapsedRealtime()) + runtime?.sdkRequest?.diagnostics().orEmpty() + mapOf(
                 "requestChannelId" to channelId,
                 "requestCreatedAtMs" to requestCreatedAtMs,
                 "loadedAtMs" to loadedAtMs,
@@ -869,7 +889,8 @@ private object Hq008TclVideoAd {
             errorCode = null,
             errorMessage = Hq008AdReporter.Message.TIMEOUT,
             extra = request.buildCompletionDiagnostics() + mapOf("stage" to stage,
-                "reason" to timeoutReason, "timeoutMs" to request.callbackTimeoutMs)
+                "reason" to timeoutReason, "timeoutMs" to request.callbackTimeoutMs),
+            durable = true
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_TIMEOUT",
@@ -921,7 +942,8 @@ private object Hq008TclVideoAd {
                 "stage" to stage,
                 "reason" to reason,
                 "error" to errorText
-            )
+            ),
+            durable = true
         )
         Hq008ConsentLogReporter.report(
             eventType = "AD_PHASE_ERROR",

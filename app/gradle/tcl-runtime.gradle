@@ -26,3 +26,8 @@ android.productFlavors.matching {
 android.sourceSets.maybeCreate('hq008XHSXDebug').with {
     assets.srcDir rootProject.file('ad-sdk-tcl/src/main/assets')
 }
+android.sourceSets.maybeCreate('hq008Debug').with {
+    java.srcDir 'src/hq008XHSXDebug/java'
+    assets.srcDir rootProject.file('ad-sdk-tcl/src/main/assets')
+    manifest.srcFile 'src/hq008XHSXDebug/AndroidManifest.xml'
+}

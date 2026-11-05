@@ -26,7 +26,9 @@ patch 等待只发生在工作线程。请求阶段使用本轮剩余期限；�
 
 ## 状态与日志
 
-`ad/report` 保留 REQUESTED、LOADED、STARTED、COMPLETED、ERROR/TIMEOUT，并增加本轮一次 FILLED。自 2026-11-03 起，填充使用独立 `event_type=AD_FILLED`、`message=FILLED`；REQUESTED、LOADED、STARTED 仍使用 `AD_PROGRESS`。FILLED 在原厂响应交给 XmlConverter 前识别：仅有效 VAST InLine 线性视频中存在 HTTP(S) MediaFile 时触发，Wrapper、空 VAST、无效 XML 不算填充。填充不等于成功播放或曝光。
+`ad/report` 的各阶段使用独立类型：REQUESTED → AD_REQUESTED、LOADED → AD_LOADED、STARTED → AD_STARTED、FILLED → AD_FILLED、COMPLETED → AD_COMPLETED、失败/超时/取消 → AD_ERROR；message 保持原值。FILLED 在原厂响应交给 XmlConverter 前识别：仅有效 VAST InLine 线性视频中存在 HTTP(S) MediaFile 时触发，Wrapper、空 VAST、无效 XML 不算填充。填充不等于成功播放或曝光。
+
+TCL 的 REQUESTED 改为在原厂取链请求收到 HTTP 响应时上报，业务失败和无素材也算请求；进入 showAd 不再提前上报 REQUESTED。无响应、初始化失败或取消走 AD_ERROR，并在诊断中区分 NO_RESPONSE、NOT_SENT。REQUESTED 与终态错误独立于日志开关，先保存再发送，失败通过 WorkManager 重试；后台按 request_id/event_type/message 去重，继续统计原 REQUESTED。详见 [TCL REQUESTED 上报协议](tcl_sdk_request_reporting.md)。
 
 `consent-log-report` 继续由 popup_log_enabled 控制，在终态一次汇总。新增结构化 step `TCL_RUNTIME_AUDIT`，schema_version=1：
 

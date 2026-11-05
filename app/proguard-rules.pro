@@ -289,3 +289,6 @@
 -keepclassmembers class androidx.media3.exoplayer.ima.AdTagLoader {
     private com.google.ads.interactivemedia.v3.api.AdsManager adsManager;
 }
+
+# WorkManager persists this name, including across application updates.
+-keep class com.smart.android.ad_app.Hq008SdkRequestReportWorker { *; }

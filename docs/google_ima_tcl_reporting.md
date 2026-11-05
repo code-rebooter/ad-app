@@ -43,7 +43,7 @@ steps[ eventType = "AD_SDK_REQUEST" ].adLog.final_url
 }
 ```
 
-其他 device/channel/app 字段与原接口一致。后台按 `event_type=AD_FILLED` 识别“已收到广告素材”，继续保留 `message=FILLED`，不再将填充归入 `AD_PROGRESS`；REQUESTED、LOADED、STARTED 仍使用 `AD_PROGRESS`，接口路径不变。状态请求独立于汇总日志，在发现填充时发起，不等待广告播放结束；HTTP 回调的到达顺序不保证和事件触发顺序相同，后台用 request_id 关联已有的事件记录。
+其他 device/channel/app 字段与原接口一致。后台按 `event_type=AD_FILLED` 识别“已收到广告素材”，继续保留 `message=FILLED`。当前共用上报器中的 REQUESTED、LOADED、STARTED 也分别使用 AD_REQUESTED、AD_LOADED、AD_STARTED，message 不变，接口路径不变。状态请求独立于汇总日志，在发现填充时发起，不等待广告播放结束；HTTP 回调的到达顺序不保证和事件触发顺序相同，后台用 request_id 关联已有的事件记录。
 
 ### 触发位置
 

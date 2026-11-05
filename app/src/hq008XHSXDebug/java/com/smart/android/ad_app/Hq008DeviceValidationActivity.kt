@@ -63,6 +63,13 @@ class Hq008DeviceValidationActivity : Activity() {
         super.onCreate(savedInstanceState)
         val runId = intent.getStringExtra("run_id").orEmpty().replace(Regex("[^A-Za-z0-9_-]"), "_").ifBlank { "latest" }
         reportFile = File(filesDir, "device-validation/$runId.jsonl").apply { parentFile!!.mkdirs(); writeText("") }
+        if (intent.hasExtra("report_url")) {
+            val url = intent.getStringExtra("report_url").orEmpty()
+            require(url.isEmpty() || url.startsWith("http://127.0.0.1:"))
+            val preferences = getSharedPreferences("tcl_device_validation", MODE_PRIVATE)
+            check((if (url.isEmpty()) preferences.edit().remove("report_url")
+                else preferences.edit().putString("report_url", url)).commit())
+        }
         host = FrameLayout(this)
         status = TextView(this).apply { textSize = 22f; setPadding(24, 24, 24, 24); text = "Running XHSX device checks…" }
         host.addView(status)
@@ -72,7 +79,12 @@ class Hq008DeviceValidationActivity : Activity() {
         Hq008AdReporter.debugReportObserver = reportObserver
         record("begin", "mode" to intent.getStringExtra("mode"), "sdkReady" to Initialization.isHasInit())
         host.post { safely {
-            if (intent.getStringExtra("mode") == "fixture") fixture()
+            if (intent.getStringExtra("mode") == "reports_resume") {
+                Hq008SdkRequestReports.resumePending()
+                record("DONE", "passed" to true, "mode" to "reports_resume")
+                finished = true
+            } else if (intent.getStringExtra("mode") == "live") live()
+            else if (intent.getStringExtra("mode") == "fixture") fixture()
             else {
                 ensureFixtureInitialization()
                 installPendingLifecycleFixture()
@@ -267,6 +279,40 @@ class Hq008DeviceValidationActivity : Activity() {
         }
     }
 
+    private fun live() {
+        ensureFixtureInitialization()
+        fixtureId = "device-validation-live-${System.currentTimeMillis()}"
+        AdDisplayConfig.setRemoteHiddenMode(false)
+        Hq008ConsentLogReporter.report("CMP_GATE_START", "device_validation_live=true")
+        Hq008ConsentLogReporter.bindAuthorizationRequestId(Hq008ConsentLogReporter.activeRequestId(), fixtureId)
+        Hq008ConsentLogReporter.updatePopupLogEnabled(true, fixtureId)
+        Hq008ConsentLogReporter.report("AD_PHASE_START", "requestId=$fixtureId")
+        installAuditObserver()
+        AdRenderer.showFloatingAd(AdConfigDto(adId = fixtureId, adType = AdType.FLOATING.value, adUrl = null,
+            contentType = null, displayDuration = 0, floatingHeight = 270, floatingWidth = 480, floatingX = 20,
+            floatingY = 20, imageUrl = null, isClosable = 1, isCountdownVisible = false, position = 1,
+            videoUrl = null, callbackTimeoutMs = 20_000L), onFloatingFlowFinished = {
+            record("live_finished", "error" to fixtureError, "completed" to fixtureCompleted, "audit" to fixtureAudit)
+            record("DONE", "passed" to true, "mode" to "live")
+            finished = true
+        })
+    }
+
+    private fun installAuditObserver() {
+        Hq008ConsentLogReporter.debugUploadObserver = { phase, payload, _ ->
+            if (phase == "request" && payload["request_id"] == fixtureId) {
+                fixtureUploadCount++
+                val summary = JSONObject(payload["ad_log"] as String)
+                val steps = summary.getJSONArray("steps")
+                for (i in 0 until steps.length()) {
+                    val step = steps.getJSONObject(i)
+                    if (step.optString("eventType") == "TCL_RUNTIME_AUDIT") fixtureAudit = step.optJSONObject("adLog")
+                }
+                record("fixture_log_upload", "summary" to summary)
+            }
+        }
+    }
+
     private fun fixture() {
         ensureFixtureInitialization()
         val requester = HttpRequester.get()
@@ -282,6 +328,10 @@ class Hq008DeviceValidationActivity : Activity() {
             Hq008ConsentLogReporter.debugUploadObserver = null
         }
         val fixtureCase = intent.getStringExtra("fixture_case") ?: "single"
+        val expectedAds = intent.getIntExtra("expected_ads", if (fixtureCase == "pod") 2 else 1)
+        val addressFailure = fixtureCase in setOf("address_rejected", "address_http_error", "address_invalid", "address_timeout")
+        val expectsError = addressFailure || fixtureCase in setOf("empty", "patch_error")
+        val externalVastUrl = intent.getStringExtra("vast_url")?.takeIf { it.startsWith("http://127.0.0.1:") }
         val seconds = if (fixtureCase == "long") 210 else 20
         val duration = "00:%02d:%02d".format(seconds / 60, seconds % 60)
         val media = if (fixtureCase == "long") "long.mp4" else "probe.mp4"
@@ -293,7 +343,7 @@ class Hq008DeviceValidationActivity : Activity() {
         }
         val sourceUrl = "https://tcl-fixture.example/source?x=one&x=two&sig=a%2Bb%2Fc%3D"
         val guaranteeUrl = "https://tcl-fixture.example/guarantee"
-        val finalUrl = "http://127.0.0.1:18765/root.vast"
+        val finalUrl = externalVastUrl ?: "http://127.0.0.1:18765/root.vast"
         TclRuntimeBridge.debugSessionObserver = { session ->
             val patchClient = GoogleGamPatchClient(OkHttpClient.Builder().addInterceptor { chain ->
                 fixturePatchCount++
@@ -319,28 +369,21 @@ class Hq008DeviceValidationActivity : Activity() {
                     session.event("patch_ready", mapOf("final_url" to it))
                 })
         }
-        Hq008ConsentLogReporter.debugUploadObserver = { phase, payload, _ ->
-            if (phase == "request" && payload["request_id"] == fixtureId) {
-                fixtureUploadCount++
-                val summary = JSONObject(payload["ad_log"] as String)
-                val steps = summary.getJSONArray("steps")
-                for (i in 0 until steps.length()) {
-                    val step = steps.getJSONObject(i)
-                    if (step.optString("eventType") == "TCL_RUNTIME_AUDIT") fixtureAudit = step.optJSONObject("adLog")
-                }
-                record("fixture_log_upload", "summary" to summary)
-            }
-        }
+        installAuditObserver()
         val fixtureInterceptor = Interceptor { chain ->
             val request = chain.request()
             record("sdk_http", "method" to request.method, "host" to request.url.host, "path" to request.url.encodedPath)
             if (request.method == "POST") {
-                val json = Gson().toJson(mapOf("code" to "100000", "data" to mapOf("adsUrl" to sourceUrl,
+                if (fixtureCase == "address_timeout") throw java.net.SocketTimeoutException("fixture address timeout")
+                val json = if (fixtureCase == "address_invalid") "not-json"
+                else if (fixtureCase in setOf("address_rejected", "address_http_error")) """{"code":"100001","message":"no ad","data":null}"""
+                else Gson().toJson(mapOf("code" to "100000", "data" to mapOf("adsUrl" to sourceUrl,
                     "beaconingType" to 2, "adType" to 1, "adPlatformCode" to "0", "adUnitID" to "fixture-unit",
                     "guaranteeLink" to if (fixtureCase == "guarantee") guaranteeUrl else "")))
-                Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture address")
+                Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                    .code(if (fixtureCase == "address_http_error") 503 else 200).message("fixture address")
                     .body(json.toResponseBody("application/json".toMediaType())).build()
-            } else if (request.url.encodedPath in setOf("/root.vast", "/inline.vast", "/guarantee.vast")) {
+            } else if (externalVastUrl == null && request.url.encodedPath in setOf("/root.vast", "/inline.vast", "/guarantee.vast")) {
                 record("fixture_vast_injected", "host" to request.url.host)
                 val body = if (fixtureCase == "wrapper" && request.url.encodedPath == "/root.vast")
                     """<VAST version="3.0"><Ad><Wrapper><AdSystem>Fixture</AdSystem><VASTAdTagURI>http://127.0.0.1:18765/inline.vast</VASTAdTagURI><Creatives/></Wrapper></Ad></VAST>"""
@@ -351,7 +394,7 @@ class Hq008DeviceValidationActivity : Activity() {
             } else chain.proceed(request)
         }
         clientField.set(requester, originalClient.newBuilder().addInterceptor(fixtureInterceptor).build())
-        fixtureId = "device125-fixture-${System.currentTimeMillis()}"
+        fixtureId = "device-validation-fixture-${System.currentTimeMillis()}"
         AdDisplayConfig.setRemoteHiddenMode(false)
         Hq008ConsentLogReporter.report("CMP_GATE_START", "device_validation_fixture=true")
         Hq008ConsentLogReporter.bindAuthorizationRequestId(Hq008ConsentLogReporter.activeRequestId(), fixtureId)
@@ -363,29 +406,40 @@ class Hq008DeviceValidationActivity : Activity() {
             videoUrl = null, callbackTimeoutMs = 180_000L), onFloatingFlowFinished = {
             safely {
                 checkCase("real_native_fixture_finished_and_window_cleaned",
-                    (if (fixtureCase in setOf("empty", "patch_error")) fixtureError else fixtureCompleted) && current() == null)
-                checkCase("patch_once_per_selected_root_no_wrapper_repatch", fixturePatchCount == if (fixtureCase == "guarantee") 2 else 1)
+                    (if (expectsError) fixtureError else fixtureCompleted) && current() == null)
+                checkCase("patch_once_per_selected_root_no_wrapper_repatch", fixturePatchCount ==
+                    if (addressFailure) 0 else if (fixtureCase == "guarantee") 2 else 1)
                 checkCase("one_terminal_runtime_audit_upload", fixtureUploadCount == 1 && fixtureAudit != null)
-                checkCase("filled_matches_response", ("AD_FILLED" in fixtureEvents) == (fixtureCase !in setOf("empty", "patch_error")))
+                checkCase("filled_matches_response", ("AD_FILLED" in fixtureEvents) == !expectsError)
                 val reports = synchronized(fixtureReports) { fixtureReports.toList() }
+                val requestedReports = reports.filter { it["message"] == Hq008AdReporter.Message.REQUESTED }
+                checkCase("requested_follows_native_response_even_when_patch_or_fill_fails",
+                    requestedReports.size == (if (fixtureCase == "address_timeout") 0 else 1) && requestedReports.all {
+                        it["event_type"] == Hq008AdReporter.EventType.AD_REQUESTED &&
+                            JSONObject(it["diagnostic_info"].toString()).optBoolean("sdkRequestResponded")
+                    })
                 val filledReports = reports.filter { it["message"] == Hq008AdReporter.Message.FILLED }
                 checkCase("filled_report_uses_dedicated_type_once",
-                    filledReports.size == (if (fixtureCase in setOf("empty", "patch_error")) 0 else 1) &&
+                    filledReports.size == (if (expectsError) 0 else 1) &&
                         filledReports.all { it["event_type"] == Hq008AdReporter.EventType.AD_FILLED })
-                checkCase("other_progress_reports_keep_existing_type", reports.filter {
+                val lifecycleTypes = mapOf(
+                    Hq008AdReporter.Message.REQUESTED to Hq008AdReporter.EventType.AD_REQUESTED,
+                    Hq008AdReporter.Message.LOADED to Hq008AdReporter.EventType.AD_LOADED,
+                    Hq008AdReporter.Message.STARTED to Hq008AdReporter.EventType.AD_STARTED)
+                checkCase("lifecycle_reports_use_dedicated_types", reports.filter {
                     it["message"] in setOf(Hq008AdReporter.Message.REQUESTED,
                         Hq008AdReporter.Message.LOADED, Hq008AdReporter.Message.STARTED)
-                }.all { it["event_type"] == Hq008AdReporter.EventType.AD_PROGRESS })
+                }.all { it["event_type"] == lifecycleTypes[it["message"]] })
                 checkCase("audit_precedes_terminal", fixtureEvents.indexOf("TCL_RUNTIME_AUDIT") <
-                    fixtureEvents.indexOf(if (fixtureCase in setOf("empty", "patch_error")) "AD_PHASE_ERROR" else "AD_PHASE_COMPLETED"))
-                if (fixtureCase !in setOf("empty", "patch_error")) {
+                    fixtureEvents.indexOf(if (expectsError) "AD_PHASE_ERROR" else "AD_PHASE_COMPLETED"))
+                if (!expectsError) {
                     val events = fixtureAudit!!.getJSONArray("event_timeline")
                     checkCase("real_tracking_http_observed", (0 until events.length()).any {
                         val event = events.getJSONObject(it)
                         event.optString("event") == "http_result" && event.optString("kind") == "tracking"
                     })
                     val segments = fixtureAudit!!.getJSONObject("playback").getJSONArray("segments")
-                    checkCase("per_ad_metadata_preserved", segments.length() == if (fixtureCase == "pod") 2 else 1)
+                    checkCase("per_ad_metadata_preserved", segments.length() == expectedAds)
                     if (fixtureCase == "guarantee") {
                         val responses = fixtureAudit!!.getJSONArray("vast_responses")
                         checkCase("guarantee_xml_records_actual_patched_url", (0 until responses.length()).any {

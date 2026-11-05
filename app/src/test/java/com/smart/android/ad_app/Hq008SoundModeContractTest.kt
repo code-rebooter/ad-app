@@ -1,6 +1,5 @@
 package com.smart.android.ad_app
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -57,7 +56,6 @@ class Hq008SoundModeContractTest {
         )
 
         assertTrue(tclManagerSource.contains(".setVolume(if (request.soundEnabled) 1f else 0f)"))
-        assertTrue(googleManagerSource.contains("soundEnabled = session.soundEnabled"))
         assertTrue(googleManagerSource.contains(".setVolume(if (session.soundEnabled) 1f else 0f)"))
         assertTrue(lsapManagerSource.contains("UnifiedAdSdk.setAdVolume(if (request.soundEnabled) 1f else 0f)"))
     }

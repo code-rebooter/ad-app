@@ -280,3 +280,12 @@
 -keep class androidx.webkit.WebSettingsCompat { public *; }
 -keep class androidx.webkit.UserAgentMetadata { public *; }
 -keep class androidx.webkit.UserAgentMetadata$Builder { public *; }
+
+# Fake-CTR resolves the active Media3 IMA manager through these fields in release builds.
+# Keep the field names so reflection does not depend on R8's obfuscation mapping.
+-keepclassmembers class androidx.media3.exoplayer.ima.ImaAdsLoader {
+    private androidx.media3.exoplayer.ima.AdTagLoader currentAdTagLoader;
+}
+-keepclassmembers class androidx.media3.exoplayer.ima.AdTagLoader {
+    private com.google.ads.interactivemedia.v3.api.AdsManager adsManager;
+}

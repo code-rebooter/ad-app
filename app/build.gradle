@@ -542,8 +542,8 @@ android {
                     adChannelType      : adChannelTypeTcl,
                     applicationId       : "com.google.android.adais",
                     adFlowBaseUrl       : "https://api.kytira.cc/",
-                    versionCode         : 3,
-                    versionName         : "1.0.3", // Updated: 2026-08-31 17:45 CST
+                    versionCode         : 4,
+                    versionName         : "1.0.4",
                     signingConfig       : signingConfigs.tclAishangRelease,
                     baseUrl             : "https://api.bcytua.cc/",
                     channel             : "TCL_AISHANG",

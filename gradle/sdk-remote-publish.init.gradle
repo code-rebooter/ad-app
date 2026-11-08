@@ -1,0 +1,114 @@
+import groovy.xml.XmlParser
+import groovy.util.Node
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.tasks.GenerateModuleMetadata
+
+// JitPack has one immutable version for all publications in this checkout.
+// The SDK's internal BuildConfig version remains its tested component version.
+def releaseGroup = gradle.startParameter.projectProperties['PUBLISH_GROUP_ID'] ?:
+        'com.github.code-rebooter.ad-app'
+def releaseVersion = gradle.startParameter.projectProperties['PUBLISH_VERSION'] ?:
+        System.getenv('VERSION') ?: '0.0.0-local'
+def sdkModules = [
+        ':ad-sdk-tcl': 'ad-sdk-tcl',
+        ':ad-sdk-tcl:runtime-base': 'ad-sdk-tcl-runtime-base',
+        ':ad-sdk-tcl:runtime-player': 'ad-sdk-tcl-runtime-player',
+        ':ad-sdk-tcl:runtime-media': 'ad-sdk-tcl-runtime-media',
+        ':ad-sdk-tcl:google-ima': 'ad-sdk-tcl-google-ima',
+        ':ad-sdk-tcl:combined': 'ad-sdk-tcl-combined',
+        ':hq008-flow-sdk': 'hq008-flow-sdk'
+]
+def controlled = [
+        interactivemedia: [version: '3.35.1', artifact: 'ad-sdk-tcl-controlled-ima'],
+        'media3-exoplayer-ima': [version: '1.8.0', artifact: 'ad-sdk-tcl-controlled-media3-ima'],
+        'tv-ads': [version: '1.0.0', artifact: 'ad-sdk-tcl-controlled-tv-ads'],
+        'play-services-ads-identifier': [version: '18.0.1', artifact: 'ad-sdk-tcl-controlled-ads-identifier'],
+        'play-services-appset': [version: '16.0.2', artifact: 'ad-sdk-tcl-controlled-appset']
+]
+def localName = { Node node -> node.name().toString().tokenize('}').last().tokenize(':').last() }
+def childNode = { Node parent, String name -> parent.children().find { it instanceof Node && localName(it) == name } }
+def rewriteDependencies = { Node pom ->
+    pom.depthFirst().findAll { it instanceof Node && localName(it) == 'dependency' }.each { Node dependency ->
+        Node groupNode = childNode(dependency, 'groupId')
+        Node artifactNode = childNode(dependency, 'artifactId')
+        String group = groupNode.text()
+        String name = artifactNode.text()
+        String target = null
+        if (group == 'com.smart.android.tclad.ima.controlled') {
+            if (!controlled.containsKey(name)) throw new GradleException("Unpublished controlled dependency ${group}:${name}")
+            target = controlled[name].artifact
+        } else if (group == releaseGroup || group == 'com.smart.android') {
+            target = sdkModules.values().find { it == name }
+            if (target == null && name in ['runtime-base', 'runtime-media', 'runtime-player', 'google-ima', 'combined']) {
+                target = 'ad-sdk-tcl-' + name
+            }
+        }
+        if (target != null) {
+            groupNode.setValue(releaseGroup)
+            artifactNode.setValue(target)
+            Node versionNode = childNode(dependency, 'version')
+            if (versionNode == null) dependency.appendNode('version', releaseVersion)
+            else versionNode.setValue(releaseVersion)
+        }
+    }
+}
+
+gradle.beforeProject { project ->
+    // Init scripts also run for buildSrc/included builds; only this repository publishes.
+    if (!new File(project.rootDir, 'ad-sdk-tcl/google-ima/controlled-maven/runtime-manifest.json').isFile()) return
+    if (project == project.rootProject) {
+        project.pluginManager.apply('maven-publish')
+        project.afterEvaluate {
+            project.publishing.publications {
+                controlled.each { name, spec ->
+                    String stem = "ad-sdk-tcl/google-ima/controlled-maven/com/smart/android/tclad/ima/controlled/${name}/${spec.version}/${name}-${spec.version}"
+                    File aar = project.file(stem + '.aar')
+                    File originalPom = project.file(stem + '.pom')
+                    if (!aar.isFile() || !originalPom.isFile()) throw new GradleException("Missing controlled publication ${name}")
+                    create('tclControlled' + name.replaceAll('[^A-Za-z0-9]', ''), MavenPublication) {
+                        groupId = releaseGroup
+                        artifactId = spec.artifact
+                        version = releaseVersion
+                        artifact(aar) { extension = 'aar' }
+                        pom {
+                            packaging = 'aar'
+                            name = spec.artifact
+                            description = "Pinned standalone TCL/IMA controlled runtime ${name} ${spec.version}"
+                            withXml {
+                                Node input = new XmlParser(false, false).parse(originalPom)
+                                Node output = asNode()
+                                if (!input.dependencies.isEmpty()) output.append(input.dependencies[0].clone())
+                                rewriteDependencies(output)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (!sdkModules.containsKey(project.path)) return
+    project.pluginManager.apply('maven-publish')
+    project.plugins.withId('com.android.library') {
+        project.android.publishing.singleVariant('release') { withSourcesJar() }
+        project.afterEvaluate {
+            project.group = releaseGroup
+            project.version = releaseVersion
+            project.publishing.publications {
+                create('release', MavenPublication) {
+                    from project.components.release
+                    groupId = releaseGroup
+                    artifactId = sdkModules[project.path]
+                    version = releaseVersion
+                    pom {
+                        name = sdkModules[project.path]
+                        description = "Android TCL/Google IMA/Flow SDK ${project.path}"
+                        withXml { rewriteDependencies(asNode()) }
+                    }
+                }
+            }
+            // Maven POM is the canonical remote graph after coordinate remapping.
+            // Do not publish a .module file that still points at private local groups.
+            project.tasks.withType(GenerateModuleMetadata).configureEach { enabled = false }
+        }
+    }
+}

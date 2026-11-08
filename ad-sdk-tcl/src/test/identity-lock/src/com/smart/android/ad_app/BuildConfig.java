@@ -1,0 +1,1 @@
+package com.smart.android.ad_app; public class BuildConfig { public static final String AD_CHANNEL_TYPE="GOOGLE",VERSION_NAME="fixture"; }

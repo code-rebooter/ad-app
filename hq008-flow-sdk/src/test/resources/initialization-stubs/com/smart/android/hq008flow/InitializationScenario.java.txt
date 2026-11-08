@@ -1,0 +1,44 @@
+package com.smart.android.hq008flow;
+import android.content.Context;
+import android.os.Looper;
+public final class InitializationScenario {
+    private static final Context CONTEXT = new Context();
+    private static final Hq008AdCallback OUTER = new Hq008AdCallback() { };
+    private static final Hq008AdCallback NEWER = new Hq008AdCallback() { };
+    public static void run(String scenario) {
+        if ("normal".equals(scenario)) {
+            Looper.worker(() -> Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("outer"), OUTER));
+            check(runtime("outer").starts == 0, "Worker init must enqueue activation");
+            Looper.drain();
+            check(runtime("outer").callback == OUTER && runtime("outer").starts == 1,
+                    "Normal init must activate its own runtime once");
+            return;
+        }
+        Hq008FlowSdk.initialize(CONTEXT, new Hq008FlowConfig("old"));
+        runtime("old").cancellation = () -> {
+            if ("nested_init".equals(scenario)) Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("newer"), NEWER);
+            else {
+                Hq008FlowSdk.initialize(CONTEXT, new Hq008FlowConfig("newer"));
+                Hq008FlowSdk.setAdCallback(NEWER);
+            }
+        };
+        if ("superseded".equals(scenario)) {
+            runtime("old").cancellation = null;
+            Looper.worker(() -> Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("outer"), OUTER));
+            Hq008FlowSdk.initialize(CONTEXT, new Hq008FlowConfig("newer"));
+            Hq008FlowSdk.setAdCallback(NEWER);
+        } else if ("worker".equals(scenario)) {
+            Looper.worker(() -> Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("outer"), OUTER));
+        } else if ("no_callback".equals(scenario)) {
+            Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("outer"));
+        } else Hq008FlowSdk.init(CONTEXT, new Hq008FlowConfig("outer"), OUTER);
+        Looper.drain();
+        check(runtime("newer").callback == NEWER, "An older init replaced the newer callback");
+        check(runtime("newer").starts == ("nested_init".equals(scenario) ? 1 : 0),
+                "An older init started the newer initialize-only runtime");
+        check(runtime("outer").callback == null && runtime("outer").starts == 0,
+                "An already replaced runtime must not be activated");
+    }
+    private static FlowRuntime runtime(String channel) { return FlowRuntime.CREATED.get(channel); }
+    private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
+}

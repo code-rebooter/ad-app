@@ -74,9 +74,12 @@ final class GoogleImaAdInstanceTracker {
         String normalizedFingerprint = safe(fingerprint);
         fingerprints.put(instanceId, normalizedFingerprint);
         if (!normalizedFingerprint.isEmpty()) {
-            idsByFingerprint.computeIfAbsent(
-                    normalizedFingerprint,
-                    ignored -> new ArrayList<>()).add(instanceId);
+            List<String> ids = idsByFingerprint.get(normalizedFingerprint);
+            if (ids == null) {
+                ids = new ArrayList<>();
+                idsByFingerprint.put(normalizedFingerprint, ids);
+            }
+            ids.add(instanceId);
         }
         if (selectCurrent) currentId = instanceId;
         return instanceId;

@@ -1,0 +1,5 @@
+package com.smart.android.hq008flow;
+public final class Hq008FlowConfig {
+    public final String channel;
+    public Hq008FlowConfig(String channel) { this.channel = channel; }
+}

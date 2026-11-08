@@ -12,6 +12,19 @@ import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
 
 class GoogleImaRuntimeAuditReporterTest {
+    @Test fun `wrapper and inline without media cannot confirm fill`() {
+        val reporter = GoogleImaRuntimeAuditReporter("fill")
+        reporter.record(event("vast_response", 1, emptyMap(),
+            "<VAST><Ad><Wrapper><VASTAdTagURI>https://example.com/inner</VASTAdTagURI></Wrapper></Ad></VAST>"))
+        assertFalse(reporter.hasVastFill())
+        reporter.record(event("vast_response", 2, emptyMap(),
+            "<VAST><Ad><InLine><Creatives/></InLine></Ad></VAST>"))
+        assertFalse(reporter.hasVastFill())
+        reporter.record(event("vast_response", 3, emptyMap(),
+            "<VAST><Ad><InLine><Creatives><Creative><Linear><MediaFiles><MediaFile>https://example.com/video.mp4</MediaFile></MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>"))
+        assertTrue(reporter.hasVastFill())
+    }
+
     @Test
     fun `vast verification and omid runtime are correlated in one summary`() {
         val reporter = GoogleImaRuntimeAuditReporter("request-1")

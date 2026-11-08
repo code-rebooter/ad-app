@@ -37,8 +37,8 @@ import com.smart.android.googleima.logging.PropertyLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.StringJoiner;
 
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public final class GoogleImaAdPlayerView extends FrameLayout {
     private static final String TAG = "GoogleImaAdPlayer";
     private static final long SILENCE_CONTENT_DURATION_US = 60_000_000L;
@@ -756,10 +756,11 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
         fields.put("universal_ad_id_value", safe(ad.getUniversalAdIdValue()));
         UniversalAdId[] universalIds = ad.getUniversalAdIds();
         if (universalIds == null || universalIds.length == 0) return;
-        StringJoiner values = new StringJoiner("|");
+        StringBuilder values = new StringBuilder();
         for (UniversalAdId id : universalIds) {
             if (id != null) {
-                values.add(safe(id.getAdIdRegistry()) + ":" + safe(id.getAdIdValue()));
+                if (values.length() > 0) values.append('|');
+                values.append(safe(id.getAdIdRegistry())).append(':').append(safe(id.getAdIdValue()));
             }
         }
         fields.put("universal_ad_ids", values.toString());
@@ -840,11 +841,12 @@ public final class GoogleImaAdPlayerView extends FrameLayout {
     }
 
     private static String causeChain(Throwable error) {
-        StringJoiner result = new StringJoiner(" <- ");
+        StringBuilder result = new StringBuilder();
         Throwable current = error;
         for (int depth = 0; current != null && depth < 12; depth++) {
             String message = safe(current.getMessage());
-            result.add(current.getClass().getName() + (message.isEmpty() ? "" : ": " + message));
+            if (result.length() > 0) result.append(" <- ");
+            result.append(current.getClass().getName()).append(message.isEmpty() ? "" : ": " + message);
             current = current.getCause();
         }
         return result.toString();

@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/device_network_security" android:usesCleartextTraffic="true">
+        <activity android:name="com.smart.smoke.DeviceValidationActivity" android:exported="true" android:launchMode="singleTask" />
+        <activity android:name="com.smart.smoke.TclDeviceValidationActivity" android:exported="true" android:launchMode="singleTask" />
+        <activity android:name="com.smart.smoke.FlowDeviceValidationActivity" android:exported="true" android:launchMode="singleTask" />
+    </application>
+</manifest>

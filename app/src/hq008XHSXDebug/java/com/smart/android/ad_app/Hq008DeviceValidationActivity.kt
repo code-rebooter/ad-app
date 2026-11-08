@@ -275,7 +275,7 @@ class Hq008DeviceValidationActivity : Activity() {
             }.build(), "https://lifecycle-backend.fixture/patch")
             session.patch = TclBackendPatch(mapOf("request_id" to session.id, "channel_id" to session.channelId,
                 "rdid" to "fixture-local"), { (session.deadlineMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L) },
-                pendingClient, {}, {})
+                client = pendingClient, enabled = true, onRequest = {}, onReady = {})
         }
     }
 
@@ -362,9 +362,11 @@ class Hq008DeviceValidationActivity : Activity() {
             }.build(), "https://fixture-backend.example/api/v2/ad/google-gam/patch")
             session.patch = TclBackendPatch(mapOf("request_id" to session.id, "channel_id" to session.channelId,
                 "rdid" to "fixture-local-id", "sdk_version" to "2.8.02"),
-                { (session.deadlineMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L) }, patchClient,
-                { session.event("patch_request", mapOf("source_url" to it)) },
-                {
+                { (session.deadlineMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L) },
+                client = patchClient,
+                enabled = true,
+                onRequest = { session.event("patch_request", mapOf("source_url" to it)) },
+                onReady = {
                     synchronized(session.patchedUrls) { session.patchedUrls.add(it) }
                     session.event("patch_ready", mapOf("final_url" to it))
                 })

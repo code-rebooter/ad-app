@@ -1,0 +1,30 @@
+{
+  "bridge": "com.smart.android.tclad.ima.GoogleImaFirmwareBridge",
+  "artifacts": [
+    {
+      "artifact": "interactivemedia/3.35.1/interactivemedia-3.35.1.aar",
+      "source_sha256": "981fdfab4a9c8d022ef84b17d436f5ef335118772057e1b2acb6a628fb9bba11",
+      "standalone_sha256": "87d3add223dfb0a4b222e4dc59e98d33e6d6a0b6c0b9643219d0500c8765dbd3"
+    },
+    {
+      "artifact": "media3-exoplayer-ima/1.8.0/media3-exoplayer-ima-1.8.0.aar",
+      "source_sha256": "220cb36bb846705134b8ffbcbe225da3dcc0d15bca8aef2407026f795081ce65",
+      "standalone_sha256": "3de0073fe59c0c121507a68fd66d2e85d6bd54e73c9cca3d535bb31b6e4f19e5"
+    },
+    {
+      "artifact": "play-services-ads-identifier/18.0.1/play-services-ads-identifier-18.0.1.aar",
+      "source_sha256": "fa988d3baa63a96ac1c7772d796e5c5fc722aeaf8b9951828aaba7cefffe2eff",
+      "standalone_sha256": "01e5bff6933f461899c5d4da4005f15c8345d80e727c730bf6edb2bbd5289721"
+    },
+    {
+      "artifact": "play-services-appset/16.0.2/play-services-appset-16.0.2.aar",
+      "source_sha256": "5559a802206f2f2af2fef635b48fbb540acf82366f6b6d904d3d59b5f9031384",
+      "standalone_sha256": "268751b0285c397ca49936a298b58e4e8aa2748e2f1110e2daf4ac97bd43903b"
+    },
+    {
+      "artifact": "tv-ads/1.0.0/tv-ads-1.0.0.aar",
+      "source_sha256": "3baa196f99dcecb45c5c64ca0622ae1e5d31b8126ca35fe04444caf28bf736f7",
+      "standalone_sha256": "c7b169c8b3ae2d823d75a57f7a31908ea7568b6a6a5af752640e05d7cc315e0e"
+    }
+  ]
+}

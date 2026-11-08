@@ -1102,6 +1102,42 @@ final class LsapClassPatcher implements Opcodes {
             node.methods.add(progress)
             changed = true
         }
+        if (entryName == 'androidx/media3/exoplayer/ima/AdTagLoader.class') {
+            // IMA 3.35.1/Core's activity monitor retains a single video owner.
+            // Loading the next pod item can replace that owner before it has
+            // the real player's initial volume. Serialize real media loads.
+            node.methods.each { MethodNode method ->
+                method.instructions.toArray().findAll { instruction ->
+                    instruction instanceof MethodInsnNode &&
+                        instruction.owner == 'com/google/ads/interactivemedia/v3/api/AdsRenderingSettings' &&
+                        instruction.name == 'setEnablePreloading' && instruction.desc == '(Z)V'
+                }.each { instruction ->
+                    InsnList disabled = new InsnList()
+                    disabled.add(new InsnNode(POP))
+                    disabled.add(new InsnNode(ICONST_0))
+                    method.instructions.insertBefore(instruction, disabled)
+                    changed = true
+                }
+                if (method.name == '<init>' && !method.instructions.toArray().any { instruction ->
+                        instruction instanceof MethodInsnNode &&
+                            instruction.name == 'bindAsyncAuditOwner'
+                    }) {
+                    method.instructions.toArray().findAll { it.opcode == RETURN }.each { instruction ->
+                        InsnList bind = new InsnList()
+                        bind.add(new VarInsnNode(ALOAD, 0))
+                        bind.add(new MethodInsnNode(
+                            INVOKESTATIC,
+                            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+                            'bindAsyncAuditOwner',
+                            '(Ljava/lang/Object;)V',
+                            false
+                        ))
+                        method.instructions.insertBefore(instruction, bind)
+                        changed = true
+                    }
+                }
+            }
+        }
         node.methods.each { MethodNode method ->
             if (entryName ==
                 'androidx/media3/exoplayer/ima/AdTagLoader$VideoAdPlayerImpl.class' &&
@@ -1273,6 +1309,38 @@ final class LsapClassPatcher implements Opcodes {
         String runtimeBridge =
             'com/smart/android/googleima/internal/GoogleImaRuntimeBridge'
         boolean changed = false
+        method.instructions.toArray().findAll { instruction ->
+            instruction instanceof MethodInsnNode && instruction.opcode == INVOKESTATIC &&
+                instruction.owner == 'com/smart/android/ad_app/Hq008XhsxAarRuntimeBridge' &&
+                instruction.name in ['openUrlConnection', 'openUrlConnectionWithProxy']
+        }.each { MethodInsnNode call ->
+            InsnList track = new InsnList()
+            track.add(new InsnNode(DUP))
+            track.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'trackNativeConnection', '(Ljava/net/URLConnection;)V', false))
+            method.instructions.insert(call, track)
+            changed = true
+        }
+        method.instructions.toArray().findAll { instruction ->
+            instruction instanceof MethodInsnNode && instruction.opcode == INVOKEVIRTUAL &&
+                instruction.owner in ['java/net/HttpURLConnection', 'javax/net/ssl/HttpsURLConnection'] &&
+                instruction.name == 'disconnect' && instruction.desc == '()V'
+        }.each { MethodInsnNode call ->
+            InsnList forget = new InsnList()
+            forget.add(new InsnNode(DUP))
+            forget.add(new MethodInsnNode(INVOKESTATIC, runtimeBridge,
+                'forgetNativeConnection', '(Ljava/net/URLConnection;)V', false))
+            method.instructions.insertBefore(call, forget)
+            changed = true
+        }
+        method.instructions.toArray().findAll { instruction ->
+            instruction instanceof MethodInsnNode && instruction.opcode == INVOKEVIRTUAL &&
+                instruction.owner in ['android/webkit/WebView', 'com/google/ads/interactivemedia/v3/impl/zzap'] &&
+                instruction.name == 'destroy' && instruction.desc == '()V'
+        }.each { MethodInsnNode call ->
+            replaceWithStatic(call, 'destroyWebViewAfterMeasurement', '(Landroid/webkit/WebView;)V', runtimeBridge)
+            changed = true
+        }
         if (entryName in [
             'com/google/ads/interactivemedia/v3/impl/zzb.class',
             'com/google/ads/interactivemedia/v3/impl/zzg.class',
@@ -1503,6 +1571,7 @@ final class LsapClassPatcher implements Opcodes {
                 method.instructions.insertBefore(returnInstruction, audit)
             }
             method.instructions.insert(prepare)
+            scopeGoogleImaNativeTransport(method, runtimeBridge)
             return true
         }
 
@@ -1794,6 +1863,33 @@ final class LsapClassPatcher implements Opcodes {
         )
         node.accept(writer)
         return writer.toByteArray()
+    }
+
+    private static void scopeGoogleImaNativeTransport(MethodNode method, String bridge) {
+        int previous = method.maxLocals++
+        int failure = method.maxLocals++
+        LabelNode start = new LabelNode(), end = new LabelNode(), handler = new LabelNode()
+        InsnList enter = new InsnList()
+        enter.add(new VarInsnNode(ALOAD, 1))
+        enter.add(new MethodInsnNode(INVOKESTATIC, bridge, 'enterNativeTransport',
+            '(Ljava/lang/Object;)Ljava/lang/Object;', false))
+        enter.add(new VarInsnNode(ASTORE, previous))
+        enter.add(start)
+        method.instructions.insert(enter)
+        method.instructions.toArray().findAll { it.opcode == ARETURN }.each { instruction ->
+            InsnList leave = new InsnList()
+            leave.add(new VarInsnNode(ALOAD, previous))
+            leave.add(new MethodInsnNode(INVOKESTATIC, bridge, 'leaveNativeTransport', '(Ljava/lang/Object;)V', false))
+            method.instructions.insertBefore(instruction, leave)
+        }
+        method.instructions.add(end)
+        method.instructions.add(handler)
+        method.instructions.add(new VarInsnNode(ASTORE, failure))
+        method.instructions.add(new VarInsnNode(ALOAD, previous))
+        method.instructions.add(new MethodInsnNode(INVOKESTATIC, bridge, 'leaveNativeTransport', '(Ljava/lang/Object;)V', false))
+        method.instructions.add(new VarInsnNode(ALOAD, failure))
+        method.instructions.add(new InsnNode(ATHROW))
+        method.tryCatchBlocks.add(new TryCatchBlockNode(start, end, handler, null))
     }
 
     private static void replaceGoogleImaVisibilityState(MethodNode method) {

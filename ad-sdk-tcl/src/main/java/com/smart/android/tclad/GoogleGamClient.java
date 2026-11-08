@@ -52,8 +52,15 @@ public final class GoogleGamClient {
         Request request = new Request.Builder().url(endpoint).header("Accept", "application/json")
             .post(RequestBody.create(new Gson().toJson(body), MediaType.get("application/json; charset=utf-8"))).build();
         Call call = http.newCall(request);
+        final java.util.concurrent.atomic.AtomicBoolean hostCancelled =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
         call.enqueue(new okhttp3.Callback() {
-            @Override public void onFailure(Call ignored, IOException error) { if (!call.isCanceled()) callback.onError(301); }
+            @Override public void onFailure(Call ignored, IOException error) {
+                // Only an explicit host cancel is dropped; timeouts and socket errors must reach
+                // the host regardless of what message OkHttp attaches.
+                if (hostCancelled.get()) return;
+                callback.onError(301);
+            }
             @Override public void onResponse(Call ignored, Response response) {
                 Config config;
                 int failure = 301;
@@ -77,13 +84,19 @@ public final class GoogleGamClient {
                         }
                     }
                 } catch (IOException | RuntimeException error) {
-                    if (!call.isCanceled()) callback.onError(failure);
+                    // Reading the body can fail (timeout / "Socket closed") after the headers
+                    // arrived; only an explicit host cancel suppresses the callback.
+                    if (hostCancelled.get()) return;
+                    callback.onError(failure);
                     return;
                 }
-                if (!call.isCanceled()) callback.onResolved(config);
+                if (!hostCancelled.get()) callback.onResolved(config);
             }
         });
-        return call::cancel;
+        return () -> {
+            hostCancelled.set(true);
+            call.cancel();
+        };
     }
     private static int positive(JsonObject source, String name, int fallback) {
         try {

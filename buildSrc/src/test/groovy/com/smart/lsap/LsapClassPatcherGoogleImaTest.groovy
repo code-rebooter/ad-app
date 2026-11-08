@@ -29,6 +29,52 @@ import static org.objectweb.asm.Opcodes.RETURN
 import static org.objectweb.asm.Opcodes.V1_8
 
 class LsapClassPatcherGoogleImaTest {
+    @Test
+    void 'pinned media3 serializes pod media loading without rewriting volume'() {
+        String owner = 'androidx/media3/exoplayer/ima/AdTagLoader'
+        ClassWriter writer = new ClassWriter(0)
+        writer.visit(V1_8, ACC_PUBLIC, owner, null, 'java/lang/Object', null)
+        MethodVisitor method = writer.visitMethod(ACC_PUBLIC | ACC_STATIC, 'settings',
+            '(Lcom/google/ads/interactivemedia/v3/api/AdsRenderingSettings;)V', null, null)
+        method.visitCode()
+        method.visitVarInsn(ALOAD, 0)
+        method.visitInsn(org.objectweb.asm.Opcodes.ICONST_1)
+        method.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKEINTERFACE,
+            'com/google/ads/interactivemedia/v3/api/AdsRenderingSettings',
+            'setEnablePreloading', '(Z)V', true)
+        method.visitInsn(RETURN)
+        method.visitMaxs(2, 1)
+        method.visitEnd()
+        writer.visitEnd()
+        byte[] patched = LsapClassPatcher.patchGoogleMedia3ImaVolume(owner + '.class', writer.toByteArray())
+        ClassNode node = new ClassNode()
+        new ClassReader(patched).accept(node, 0)
+        def call = node.methods.find { it.name == 'settings' }.instructions.toArray().find {
+            it instanceof MethodInsnNode && it.name == 'setEnablePreloading'
+        }
+        assertEquals(ICONST_0, call.previous.opcode)
+        assertEquals(POP, call.previous.previous.opcode)
+        assertEquals(1, LsapClassPatcher.countMethodCalls(patched,
+            'com/google/ads/interactivemedia/v3/api/AdsRenderingSettings', 'setEnablePreloading', '(Z)V'))
+    }
+    @Test
+    void 'verification webview destroy routes through the bounded finish retention'() {
+        ClassWriter writer = new ClassWriter(0)
+        writer.visit(V1_8, ACC_PUBLIC, 'com/google/ads/interactivemedia/v3/impl/Fixture', null, 'java/lang/Object', null)
+        MethodVisitor method = writer.visitMethod(ACC_PUBLIC | ACC_STATIC, 'release', '(Landroid/webkit/WebView;)V', null, null)
+        method.visitCode()
+        method.visitVarInsn(ALOAD, 0)
+        method.visitMethodInsn(INVOKEVIRTUAL, 'android/webkit/WebView', 'destroy', '()V', false)
+        method.visitInsn(RETURN)
+        method.visitMaxs(1, 1)
+        method.visitEnd()
+        writer.visitEnd()
+        byte[] patched = LsapClassPatcher.patchGoogleImaParameters('com/google/ads/interactivemedia/v3/impl/Fixture.class', writer.toByteArray())
+        assertEquals(1, LsapClassPatcher.countMethodCalls(patched,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
+            'destroyWebViewAfterMeasurement', '(Landroid/webkit/WebView;)V'))
+        assertEquals(0, LsapClassPatcher.countMethodCalls(patched, 'android/webkit/WebView', 'destroy', '()V'))
+    }
     private static final String ENTRY =
         'com/google/ads/interactivemedia/v3/internal/zzdz.class'
 
@@ -140,8 +186,14 @@ class LsapClassPatcherGoogleImaTest {
             patched,
             'com/smart/android/googleima/internal/GoogleImaRuntimeBridge',
             'bindNativeRequestAudit',
-            '(Ljava/lang/Object;)V'
+            '(Ljava/lang/Object;Ljava/lang/Object;)V'
         ))
+        assertEquals(1, LsapClassPatcher.countMethodCalls(patched,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge', 'enterNativeTransport',
+            '(Ljava/lang/Object;)Ljava/lang/Object;'))
+        assertEquals(3, LsapClassPatcher.countMethodCalls(patched,
+            'com/smart/android/googleima/internal/GoogleImaRuntimeBridge', 'leaveNativeTransport',
+            '(Ljava/lang/Object;)V'))
     }
 
     @Test

@@ -38,10 +38,14 @@ internal object GoogleImaAdManager : IAdManager {
             "vpos=preroll&unviewed_position_start=1&correlator="
     private const val DEBUG_AUDIT_AD_LOAD_TIMEOUT_MS = 20_000
     private const val DEBUG_AUDIT_AD_STARTUP_TIMEOUT_MS = 35_000L
-    private const val OM_COMPLETION_SETTLE_MS = 500L
+    private const val OM_COMPLETION_SETTLE_MS = 1_500L
 
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var current: Session? = null
+    private var requestGeneration = 0L
+    private var pendingShow: PendingShow? = null
+
+    private class PendingShow(val requestId: String, val retry: Runnable)
 
     override fun init() {
         Log.i(TAG, "纯 IMA AAR 渠道初始化完成，广告处理入口=$SDK_ENTRY")
@@ -78,10 +82,52 @@ internal object GoogleImaAdManager : IAdManager {
         adError: (() -> Unit)?,
         adComplete: () -> Unit
     ) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { showAd(flRoot, adId, soundEnabled, callbackTimeoutMs,
+                gamConfig, channelId, adStart, adError, adComplete) }
+            return
+        }
+        val generation = ++requestGeneration
+        cancelPendingShow(null)
+        showAdWhenReady(flRoot, adId, soundEnabled, callbackTimeoutMs, gamConfig, channelId,
+            adStart, adError, adComplete, Hq008ReportRequestIdResolver.resolve(adId), generation)
+    }
+
+    private fun showAdWhenReady(
+        flRoot: ViewGroup,
+        adId: String?,
+        soundEnabled: Boolean,
+        callbackTimeoutMs: Long?,
+        gamConfig: JsonElement?,
+        channelId: String?,
+        adStart: (() -> Unit)?,
+        adError: (() -> Unit)?,
+        adComplete: () -> Unit,
+        requestId: String,
+        generation: Long
+    ) {
+        if (generation != requestGeneration) return
+        current?.takeIf { it.finishing }?.let { pending ->
+            val retry = object : Runnable {
+                override fun run() {
+                    if (pendingShow?.retry !== this) return
+                    pendingShow = null
+                    showAdWhenReady(flRoot, adId, soundEnabled, callbackTimeoutMs, gamConfig,
+                        channelId, adStart, adError, adComplete, requestId, generation)
+                }
+            }
+            pendingShow = PendingShow(requestId, retry)
+            main.postDelayed(retry,
+                if (pending.completionPending) {
+                    pending.completionSettlement.remaining(SystemClock.elapsedRealtime()).coerceAtLeast(1L)
+                } else 1L)
+            return
+        }
         destroyAd(null, "replaced_by_new_request")
+        if (generation != requestGeneration) return
         val config = resolvePlaybackConfig(gamConfig)
         val session = Session(
-            id = Hq008ReportRequestIdResolver.resolve(adId),
+            id = requestId,
             adId = adId,
             channelId = channelId?.takeIf { it.isNotBlank() } ?: AdChannelResolver.currentChannel(),
             soundEnabled = soundEnabled,
@@ -93,11 +139,13 @@ internal object GoogleImaAdManager : IAdManager {
             onComplete = adComplete
         )
         session.enableFakeCtr = config?.enableFakeCtr ?: false
+        session.enableGamPatch = config?.enableGamPatch ?: false
         if (session.enableFakeCtr) {
             prepareFakeCtr(session)
         }
         current = session
         Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_request_created")
+        if (!isRunning(session)) return
         flRoot.alpha = 0f
         armRequestTimeout(session)
 
@@ -109,6 +157,7 @@ internal object GoogleImaAdManager : IAdManager {
             flRoot.height,
             session.diagnostics()
         )
+        if (!isRunning(session)) return
         trace(
             session,
             "AD_REQUESTED",
@@ -116,6 +165,7 @@ internal object GoogleImaAdManager : IAdManager {
                 "callbackTimeoutMs=${session.timeoutMs}"
         )
 
+        if (!isRunning(session)) return
         flRoot.post {
             if (!isActive(session) || !checkSignal(session, "before_ima_start")) return@post
             if (config == null) {
@@ -157,48 +207,58 @@ internal object GoogleImaAdManager : IAdManager {
         }
         session.player = player
         container.addView(player)
-        val parameters = linkedMapOf<String, Any>(
-            "request_id" to session.id,
-            "channel_id" to session.channelId,
-            "mac" to (runCatching { getMacAddress() }.getOrNull()?.takeIf { it.isNotBlank() }
-                ?: "00:00:00:00:00:00"),
-            "ad_version" to BuildConfig.VERSION_CODE,
-            "ad_version_name" to BuildConfig.VERSION_NAME,
-            "sdk_version" to "3.35.1",
-            "reported_sound_mode" to if (session.reportedSoundEnabled) 1 else 0
-        ).apply {
-            Hq008ApiRequestFields.appendTo(this, container.context.applicationContext,
-                googleAuthorization = true)
-        }
-        val patch = GoogleImaBackendPatch(
-            adTagUrl = config.adTagUrl,
-            parameters = parameters,
-            deadlineMs = session.createdAt + session.timeoutMs,
-            onRequest = { url ->
-                if (isRunning(session)) {
-                    session.patchStartedAt = SystemClock.elapsedRealtime()
-                    trace(session, "AD_GAM_PATCH_REQUEST",
-                        "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
-                }
-            },
-            onReady = { url ->
-                if (isRunning(session)) {
-                    session.patchReadyAt = SystemClock.elapsedRealtime()
-                    session.finalAdTagUrl = url
-                    trace(session, "AD_GAM_PATCH_READY",
-                        "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
-                    Hq008ConsentLogReporter.report(
-                        eventType = "AD_SDK_REQUEST",
-                        eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${session.id},backendPatched=true",
-                        adLog = Gson().toJson(mapOf("request_id" to session.id, "final_url" to url)),
-                        requestId = session.id
-                    )
-                }
-            },
-            onFailure = { error ->
-                onMain { if (isRunning(session)) fail(session, "gam_patch_failed", error) }
+        val parameters = try {
+            linkedMapOf<String, Any>(
+                "request_id" to session.id,
+                "channel_id" to session.channelId,
+                "mac" to (runCatching { getMacAddress() }.getOrNull()?.takeIf { it.isNotBlank() }
+                    ?: "00:00:00:00:00:00"),
+                "ad_version" to BuildConfig.VERSION_CODE,
+                "ad_version_name" to BuildConfig.VERSION_NAME,
+                "sdk_version" to "3.35.1",
+                "reported_sound_mode" to if (session.reportedSoundEnabled) 1 else 0
+            ).apply {
+                Hq008ApiRequestFields.appendTo(this, container.context.applicationContext,
+                    googleAuthorization = true)
             }
-        )
+        } catch (error: Exception) {
+            fail(session, "request_prepare_failed", error.message ?: error.javaClass.simpleName)
+            return
+        }
+        val patch = if (session.enableGamPatch) {
+            GoogleImaBackendPatch(
+                adTagUrl = config.adTagUrl,
+                parameters = parameters,
+                deadlineMs = session.createdAt + session.timeoutMs,
+                onRequest = { url ->
+                    if (isRunning(session)) {
+                        session.patchStartedAt = SystemClock.elapsedRealtime()
+                        trace(session, "AD_GAM_PATCH_REQUEST",
+                            "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
+                    }
+                },
+                onReady = { url ->
+                    if (isRunning(session)) {
+                        session.patchReadyAt = SystemClock.elapsedRealtime()
+                        session.finalAdTagUrl = url
+                        trace(session, "AD_GAM_PATCH_READY",
+                            "urlHash=${AdPrivacySanitizer.shortHash(url)},urlLength=${url.length}")
+                        if (isRunning(session)) Hq008ConsentLogReporter.report(
+                            eventType = "AD_SDK_REQUEST",
+                            eventMessage = "sdk=$SDK_NAME,sdkEntry=$SDK_ENTRY,requestId=${session.id},backendPatched=true",
+                            adLog = Gson().toJson(mapOf("request_id" to session.id, "final_url" to url)),
+                            requestId = session.id
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    onMain { if (isRunning(session)) fail(session, "gam_patch_failed", error) }
+                }
+            )
+        } else {
+            trace(session, "AD_GAM_PATCH_SKIPPED", "reason=config_disabled")
+            null
+        }
         session.backendPatch = patch
         trace(
             session,
@@ -207,10 +267,12 @@ internal object GoogleImaAdManager : IAdManager {
                 "imaStartupTimeoutMs=${config.adStartupTimeoutMs}," +
                 "debugAuditVastOverride=${config.adTagUrl.startsWith(DEBUG_AUDIT_AD_TAG_URL)}," +
                 "enableFakeCtr=${config.enableFakeCtr}," +
+                "enableGamPatch=${session.enableGamPatch}," +
                 "fakeCtrTargetProgress=${session.fakeCtrTargetProgress}," +
                 "fakeCtrWillTrigger=${session.fakeCtrWillTrigger}"
         )
 
+        if (!isRunning(session)) return
         val request = GoogleImaAdRequest.Builder(config.adTagUrl)
             .setSoundEnabled(session.soundEnabled)
             .setReportedSoundEnabled(session.reportedSoundEnabled)
@@ -246,14 +308,17 @@ internal object GoogleImaAdManager : IAdManager {
             override fun onAdLoaded() = onMain {
                 if (!isRunning(session) || session.loadedAt != null) return@onMain
                 reportFilled(session, "ima_loaded")
+                if (!isRunning(session)) return@onMain
                 session.loadedAt = SystemClock.elapsedRealtime()
                 Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_loaded")
+                if (!isRunning(session)) return@onMain
                 Hq008AdReporter.reportLoaded(
                     session.id,
                     session.adId,
                     AdDisplayConfig.isHiddenMode(),
                     session.diagnostics()
                 )
+                if (!isRunning(session)) return@onMain
                 trace(session, "AD_LOADED")
             }
 
@@ -271,20 +336,20 @@ internal object GoogleImaAdManager : IAdManager {
 
             override fun onAdCompleted(event: String) = onMain {
                 if (!beginFinishing(session) ||
-                    !session.completionSettlement.begin(event)
+                    !session.completionSettlement.begin(event, SystemClock.elapsedRealtime(), OM_COMPLETION_SETTLE_MS)
                 ) return@onMain
                 session.finishedAt = SystemClock.elapsedRealtime()
                 finalizeStallDurations(session, session.finishedAt!!)
                 cancelSessionTimers(session)
+                session.completionRelease = Runnable {
+                    finishCompletedSession(session)
+                }.also { main.postDelayed(it, OM_COMPLETION_SETTLE_MS) }
                 Hq008AdReporter.reportCompleted(
                     session.id,
                     session.adId,
                     AdDisplayConfig.isHiddenMode(),
                     session.diagnostics() + mapOf("imaTerminalEvent" to event)
                 )
-                session.completionRelease = Runnable {
-                    finishCompletedSession(session)
-                }.also { main.postDelayed(it, OM_COMPLETION_SETTLE_MS) }
             }
 
             override fun onAdSkipped(event: String) = onMain {
@@ -317,6 +382,7 @@ internal object GoogleImaAdManager : IAdManager {
         session.pendingMediaEvidenceAt[adInstanceId] = now
         if (session.firstPlaybackEvidenceAt == null) session.firstPlaybackEvidenceAt = now
         Hq008FloatingFlowGuard.markActiveStage(session.id, "ima_media_evidence")
+        if (!isRunning(session)) return
         trace(
             session,
             "AD_MEDIA_START_EVIDENCE",
@@ -378,6 +444,7 @@ internal object GoogleImaAdManager : IAdManager {
         if (session.startSource.isBlank()) session.startSource = normalizedSource
         resetSegmentProgress(session, now)
         armPlaybackTimeout(session, "segment_start")
+        if (!isRunning(session)) return
         session.pendingMediaEvidenceAt.remove(adInstanceId)?.let { evidenceAt ->
             markSegmentPlaybackEvidence(
                 session,
@@ -386,9 +453,11 @@ internal object GoogleImaAdManager : IAdManager {
                 "sdk_media_evidence"
             )
         }
+        if (!isRunning(session)) return
         session.pendingRenderedFirstFrameAt.remove(adInstanceId)?.let { firstFrameAt ->
             markSegmentRenderedFirstFrame(session, firstFrameAt, adInstanceId)
         }
+        if (!isRunning(session)) return
         session.pendingMaxPositionMs.remove(adInstanceId)?.let { maxPositionMs ->
             session.currentSegment?.maxPositionMs = maxOf(
                 session.currentSegment?.maxPositionMs ?: -1L,
@@ -401,10 +470,12 @@ internal object GoogleImaAdManager : IAdManager {
         session.pendingTerminalEvents.remove(adInstanceId)?.let { terminal ->
             applyTerminalToSegment(session, session.currentSegment!!, terminal)
         }
+        if (!isRunning(session)) return
         Hq008FloatingFlowGuard.markActiveStage(
             session.id,
             "ima_playing_segment_${session.segmentCount}"
         )
+        if (!isRunning(session)) return
         if (session.startedAt == null) {
             session.requestTimeout?.let(main::removeCallbacks)
             session.requestTimeout = null
@@ -417,11 +488,13 @@ internal object GoogleImaAdManager : IAdManager {
                 null,
                 session.diagnostics()
             )
+            if (!isRunning(session)) return
             trace(
                 session,
                 "AD_STARTED",
                 "adInstanceId=$adInstanceId,startSource=$normalizedSource,${session.podDetails()}"
             )
+            if (!isRunning(session)) return
             if (!session.hostStartDelivered) {
                 session.hostStartDelivered = true
                 session.onStart?.invoke()
@@ -512,7 +585,15 @@ internal object GoogleImaAdManager : IAdManager {
 
     override fun destroyAd(requestId: String?) = destroyAd(requestId, "window_destroy")
 
+    private fun cancelPendingShow(requestId: String?) {
+        val pending = pendingShow ?: return
+        if (requestId != null && pending.requestId != requestId) return
+        pendingShow = null
+        main.removeCallbacks(pending.retry)
+    }
+
     override fun destroyAd(requestId: String?, reason: String) = onMain {
+        cancelPendingShow(requestId)
         val session = current ?: return@onMain
         if (requestId != null && session.id != requestId) return@onMain
         if (session.completionPending) {
@@ -528,7 +609,7 @@ internal object GoogleImaAdManager : IAdManager {
     }
 
     private fun finishCompletedSession(session: Session) {
-        val event = session.completionSettlement.settle() ?: return
+        val event = session.completionSettlement.settle(SystemClock.elapsedRealtime()) ?: return
         session.completionRelease?.let(main::removeCallbacks)
         session.completionRelease = null
         releasePlayer(session, "completed:$event")
@@ -546,8 +627,10 @@ internal object GoogleImaAdManager : IAdManager {
         session.completionRelease = null
         releasePlayer(session, "closed_without_terminal_event")
         finishRuntimeAudit(session, "closed_without_terminal_event")
-        session.container.get()?.removeAllViews()
-        if (current === session) current = null
+        if (current === session) {
+            current = null
+            session.container.get()?.removeAllViews()
+        }
     }
 
     private fun releasePlayer(session: Session, reason: String) {
@@ -588,6 +671,7 @@ internal object GoogleImaAdManager : IAdManager {
             session.id,
             hardTimeoutMs
         )
+        if (!isRunning(session)) return
         session.flowGuardExtensionAttempts += 1
         if (flowGuardExtended) session.flowGuardExtensionSuccesses += 1
         trace(
@@ -625,6 +709,7 @@ internal object GoogleImaAdManager : IAdManager {
             session.id,
             hardRemainingMs
         )
+        if (!isRunning(session)) return
         session.flowGuardExtensionAttempts += 1
         if (flowGuardExtended) session.flowGuardExtensionSuccesses += 1
         trace(
@@ -758,6 +843,7 @@ internal object GoogleImaAdManager : IAdManager {
         if (currentDurationChanged && session.currentSegment != null) {
             updatePlaybackTimeoutMetadata(session, "ima_${imaEvent.lowercase()}_metadata")
         }
+        if (!isRunning(session)) return
         session.lastImaEvent = imaEvent
         if (imaEvent == "CLICKED") {
             trace(
@@ -765,6 +851,7 @@ internal object GoogleImaAdManager : IAdManager {
                 "AD_CLICKED_OBSERVED",
                 "adInstanceId=$adInstanceId,eventDisposition=$eventDisposition"
             )
+            if (!isRunning(session)) return
             confirmFakeCtr(session, "clicked_event")
         }
         if (imaEvent == "AD_PROGRESS" && session.startedAt != null) {
@@ -779,6 +866,7 @@ internal object GoogleImaAdManager : IAdManager {
                 checkAndTriggerFakeCtr(session, progressPositionMs, session.currentAdDurationMs)
             }
         }
+        if (!isRunning(session)) return
         if (imaEvent == "STARTED") {
             when {
                 segment == null -> trace(
@@ -815,6 +903,7 @@ internal object GoogleImaAdManager : IAdManager {
             }
         }
 
+        if (!isRunning(session)) return
         if (imaEvent !in setOf("AD_PROGRESS", "CUEPOINTS_CHANGED", "LOG")) {
             trace(
                 session,
@@ -903,6 +992,7 @@ internal object GoogleImaAdManager : IAdManager {
                     "imaEvent=${terminal.event}"
             )
         }
+        if (!isRunning(session)) return
         session.pendingMediaEvidenceAt.remove(segment.adInstanceId)
         session.pendingRenderedFirstFrameAt.remove(segment.adInstanceId)
         session.pendingMaxPositionMs.remove(segment.adInstanceId)
@@ -915,6 +1005,7 @@ internal object GoogleImaAdManager : IAdManager {
                 AdPlaybackPolicy.AD_POD_TRANSITION_TIMEOUT_MS +
                     AdPlaybackPolicy.AD_BREAK_COMPLETION_GRACE_MS
             )
+            if (!isRunning(session)) return
             session.flowGuardExtensionAttempts += 1
             if (flowGuardExtended) session.flowGuardExtensionSuccesses += 1
             trace(
@@ -991,6 +1082,7 @@ internal object GoogleImaAdManager : IAdManager {
             )
         }
 
+        if (!isRunning(session)) return
         val activeSegment = session.segmentsByInstanceId[adInstanceId]
         if (session.startedAt == null || !isPlayingAd ||
             activeSegment == null || activeSegment.terminalEvent.isNotBlank() ||
@@ -1020,6 +1112,7 @@ internal object GoogleImaAdManager : IAdManager {
             markSegmentPlaybackEvidence(session, now, adInstanceId, "media_position")
         }
 
+        if (!isRunning(session)) return
         if (playbackState == PLAYER_STATE_BUFFERING) {
             finishReadyNotPlaying(session, now)
             if (session.bufferingSinceAt == null) {
@@ -1060,7 +1153,7 @@ internal object GoogleImaAdManager : IAdManager {
         adInstanceId: String,
         source: String
     ) {
-        if (session.currentSegment?.adInstanceId != adInstanceId) return
+        if (!isRunning(session) || session.currentSegment?.adInstanceId != adInstanceId) return
         if (session.currentSegmentPlaybackEvidenceAt != null) return
         session.currentSegmentPlaybackEvidenceAt = now
         if (session.firstPlaybackEvidenceAt == null) session.firstPlaybackEvidenceAt = now
@@ -1080,8 +1173,9 @@ internal object GoogleImaAdManager : IAdManager {
         now: Long,
         adInstanceId: String
     ) {
-        if (session.currentSegment?.adInstanceId != adInstanceId) return
+        if (!isRunning(session) || session.currentSegment?.adInstanceId != adInstanceId) return
         markSegmentPlaybackEvidence(session, now, adInstanceId, "rendered_first_frame")
+        if (!isRunning(session)) return
         if (session.currentSegmentRenderedFirstFrameAt != null) return
         session.currentSegmentRenderedFirstFrameAt = now
         if (session.firstFrameAt == null) session.firstFrameAt = now
@@ -1119,6 +1213,7 @@ internal object GoogleImaAdManager : IAdManager {
     }
 
     private fun showVisibleContainer(session: Session) {
+        if (!isRunning(session)) return
         if (AdDisplayConfig.isHiddenMode()) return
         session.container.get()?.let { container ->
             container.animate().cancel()
@@ -1194,6 +1289,7 @@ internal object GoogleImaAdManager : IAdManager {
         session.filledAt = SystemClock.elapsedRealtime()
         Hq008AdReporter.reportFilled(session.id, session.adId, AdDisplayConfig.isHiddenMode(),
             session.diagnostics() + mapOf("fillSource" to source))
+        if (!isRunning(session)) return
         trace(session, "AD_FILLED", "source=$source")
     }
 
@@ -1213,7 +1309,7 @@ internal object GoogleImaAdManager : IAdManager {
     }
 
     private fun checkAndTriggerFakeCtr(session: Session, positionMs: Long, durationMs: Long) {
-        if (!session.enableFakeCtr || !session.fakeCtrWillTrigger || session.fakeCtrTriggered) return
+        if (!isRunning(session) || !session.enableFakeCtr || !session.fakeCtrWillTrigger || session.fakeCtrTriggered) return
         if (durationMs <= 0L) return
         val currentProgress = positionMs.toFloat() / durationMs.toFloat()
         if (currentProgress >= session.fakeCtrTargetProgress) {
@@ -1253,6 +1349,7 @@ internal object GoogleImaAdManager : IAdManager {
                 session.fakeCtrSentAt = SystemClock.elapsedRealtime()
                 val clickMethod = adsManager.javaClass.getMethod("clicked")
                 clickMethod.invoke(adsManager)
+                if (!isRunning(session)) return
                 trace(
                     session,
                     "AD_FAKE_CTR_SENT",
@@ -1264,7 +1361,7 @@ internal object GoogleImaAdManager : IAdManager {
                         "targetProgress=${session.fakeCtrTargetProgress}," +
                         "actualProgress=$actualProgress"
                 )
-                scheduleFakeCtrConfirmationTimeout(session)
+                if (isRunning(session)) scheduleFakeCtrConfirmationTimeout(session)
             } else {
                 Log.w(TAG, "模拟点击上报失败：未能获取到 AdsManager 实例，requestId=${session.id}")
             }
@@ -1276,7 +1373,7 @@ internal object GoogleImaAdManager : IAdManager {
 
     private fun scheduleFakeCtrConfirmationTimeout(session: Session) {
         main.postDelayed({
-            if (!isActive(session) || !session.fakeCtrAwaitingClick) return@postDelayed
+            if (!isRunning(session) || !session.fakeCtrAwaitingClick) return@postDelayed
             session.fakeCtrAwaitingClick = false
             trace(
                 session,
@@ -1295,7 +1392,7 @@ internal object GoogleImaAdManager : IAdManager {
     }
 
     private fun confirmFakeCtr(session: Session, source: String) {
-        if (!session.fakeCtrAwaitingClick || session.fakeCtrReported) return
+        if (!isRunning(session) || !session.fakeCtrAwaitingClick || session.fakeCtrReported) return
         session.fakeCtrAwaitingClick = false
         session.fakeCtrReported = true
         val elapsed = session.fakeCtrSentAt?.let {
@@ -1315,7 +1412,7 @@ internal object GoogleImaAdManager : IAdManager {
                 "targetProgress=${session.fakeCtrTargetProgress}," +
                 "actualProgress=${session.fakeCtrActualProgress},clickLatencyMs=$elapsed"
         )
-        reportFakeCtrToBackend(session, session.fakeCtrActualProgress)
+        if (isRunning(session)) reportFakeCtrToBackend(session, session.fakeCtrActualProgress)
     }
 
     private fun reportFakeCtrToBackend(session: Session, actualProgress: Float) {
@@ -1458,6 +1555,7 @@ internal object GoogleImaAdManager : IAdManager {
         val onComplete: () -> Unit
     ) {
         var enableFakeCtr = false
+        var enableGamPatch = false
         var fakeCtrWillTrigger = false
         var fakeCtrTargetProgress = 0.0f
         var fakeCtrTriggered = false
@@ -1578,6 +1676,7 @@ internal object GoogleImaAdManager : IAdManager {
             return mapOf(
                 "sdk" to SDK_NAME,
                 "sdkEntry" to SDK_ENTRY,
+                "requestChannelId" to channelId,
                 "physicalSoundEnabled" to soundEnabled,
                 "reportedSoundEnabled" to reportedSoundEnabled,
                 "requestCreatedAtMs" to createdAt,
@@ -1683,18 +1782,23 @@ internal class GoogleImaTerminalGate {
 internal class GoogleImaCompletionSettlement {
     private var terminalEvent: String? = null
     private var settled = false
+    private var notBeforeMs = 0L
 
     val isPending: Boolean
         get() = terminalEvent != null && !settled
 
-    fun begin(event: String): Boolean {
+    fun begin(event: String, nowMs: Long = 0L, settleMs: Long = 0L): Boolean {
         if (terminalEvent != null || settled) return false
         terminalEvent = event
+        notBeforeMs = nowMs + settleMs
         return true
     }
 
-    fun settle(): String? {
+    fun remaining(nowMs: Long): Long = (notBeforeMs - nowMs).coerceAtLeast(0L)
+
+    fun settle(nowMs: Long = Long.MAX_VALUE): String? {
         if (settled) return null
+        if (nowMs < notBeforeMs) return null
         val event = terminalEvent ?: return null
         terminalEvent = null
         settled = true

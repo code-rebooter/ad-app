@@ -138,7 +138,7 @@ public final class AndroidCompatInputs {
     public static long[] screenPixels(Context context) {
         try {
             DisplayMetrics metrics = new DisplayMetrics();
-            Display display = ((WindowManager) context.getSystemService("window")).getDefaultDisplay();
+            Display display = ((WindowManager) context.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
             try { display.getRealMetrics(metrics); }
             catch (NoSuchMethodError oldApi) { display.getMetrics(metrics); }
             return new long[] {metrics.widthPixels, metrics.heightPixels};
@@ -194,7 +194,7 @@ public final class AndroidCompatInputs {
         String name = context.getPackageName();
         long importance = -1;
         boolean foreground = false;
-        ActivityManager manager = (ActivityManager) context.getSystemService("activity");
+        ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningAppProcessInfo item : manager.getRunningAppProcesses()) {
             if ((matchCurrentPid && Process.myPid() == item.pid)
                     || (!matchCurrentPid && name.equals(item.processName))) {
@@ -239,8 +239,8 @@ public final class AndroidCompatInputs {
     }
     @SuppressWarnings("deprecation")
     public static long screenLockBits(Context context, boolean sourceFlag) {
-        KeyguardManager keyguard = (KeyguardManager) context.getSystemService("keyguard");
-        long result = !((PowerManager) context.getSystemService("power")).isScreenOn() ? 2 : 0;
+        KeyguardManager keyguard = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+        long result = !((PowerManager) context.getSystemService(Context.POWER_SERVICE)).isScreenOn() ? 2 : 0;
         if (keyguard != null && ((Build.VERSION.SDK_INT >= 28 && keyguard.isKeyguardLocked())
                 || (Build.VERSION.SDK_INT < 28 && keyguard.inKeyguardRestrictedInputMode()))) result |= 1;
         return sourceFlag ? result : result | 4;
@@ -250,9 +250,9 @@ public final class AndroidCompatInputs {
     public static long[] network(NetworkCapabilities network, long firstTime, long secondTime) {
         long type = -1;
         if (network != null) {
-            if (network.hasTransport(4)) type = 2;
-            else if (network.hasTransport(1)) type = 1;
-            else if (network.hasTransport(0)) type = 0;
+            if (network.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) type = 2;
+            else if (network.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) type = 1;
+            else if (network.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) type = 0;
         }
         return new long[] {type, firstTime, secondTime};
     }

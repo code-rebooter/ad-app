@@ -1,0 +1,1 @@
+package com.smart.android.ad_app.google.ima.local; public class ImaFirmwareInputs {public static int sdkInt(){return 29;}}

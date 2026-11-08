@@ -1,0 +1,28 @@
+package com.smart.android.hq008flow;
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.LinkedHashMap;
+import java.util.Map;
+final class FlowRuntime {
+    static final Map<String, FlowRuntime> CREATED = new LinkedHashMap<>();
+    Hq008AdCallback callback;
+    int starts;
+    boolean running;
+    Runnable cancellation;
+    FlowRuntime(Context context, Hq008FlowConfig config) { CREATED.put(config.channel, this); }
+    private void onMain(Runnable action) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action.run();
+        else new Handler(Looper.getMainLooper()).post(action);
+    }
+    void stop() { onMain(() -> {
+        running = false;
+        Runnable release = cancellation;
+        cancellation = null;
+        if (release != null) release.run();
+    }); }
+    void start() { onMain(() -> { running = true; starts++; }); }
+    void setAdCallback(Hq008AdCallback callback) { onMain(() -> this.callback = callback); }
+    void clearAdCallback() { onMain(() -> callback = null); }
+    void triggerNow() { }
+}

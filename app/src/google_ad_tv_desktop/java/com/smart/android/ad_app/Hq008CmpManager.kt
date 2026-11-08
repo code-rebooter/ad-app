@@ -12,6 +12,7 @@ object Hq008CmpManager {
     private const val ACTION_MAYBE_LATER = "MAYBE_LATER"
     private const val ACTION_SKIP_ALREADY_DECIDED = "SKIP_ALREADY_DECIDED"
     private const val PREFS_NAME = "google_ump_cmp_gate"
+    private const val KEY_PENDING_UMP_REPORT = "pending_ump_consent_report"
     private const val KEY_LAST_APPLIED_REMOTE_ACTION = "last_applied_remote_action"
     private const val KEY_PENDING_REMOTE_ACTION = "pending_remote_action"
 
@@ -89,7 +90,8 @@ object Hq008CmpManager {
                     eventType = "UMP_GATE_SKIP_REMOTE",
                     eventMessage = "reason=accepted_action_applied,lastAppliedAction=$lastAppliedAction,${result.toGateEventMessage()}"
                 )
-                onComplete()
+                // This fast path never reaches applyRemoteCmpDecisionIfNeeded, so flush here too.
+                flushPendingUmpReport(appContext) { onComplete() }
                 return@requestConsent
             }
 
@@ -100,6 +102,8 @@ object Hq008CmpManager {
                     eventType = "UMP_GATE_SKIP_REMOTE",
                     eventMessage = "reason=privacy_options_not_required,${result.toGateEventMessage()}"
                 )
+                // Same fast-path problem: replay any report left over from a failed cycle.
+                flushPendingUmpReport(appContext)
                 onComplete()
                 return@requestConsent
             }
@@ -175,6 +179,8 @@ object Hq008CmpManager {
     ) {
         val appContext = context.applicationContext
         val reportAction = normalizeAction(decision.consentAction)
+        // Finish any report left over from a previous cycle before handling this one.
+        flushPendingUmpReport(appContext)
 
         if (!forceApply && canContinueWithoutDecision &&
             isSameEffectiveAction(getLastAppliedAction(appContext), reportAction)
@@ -254,9 +260,15 @@ object Hq008CmpManager {
             if (actionSucceeded) {
                 if (isTerminalAction(reportAction)) {
                     persistLastAppliedAction(appContext, reportAction)
+                    // The UMP action is done; the remote-action marker can go immediately so a
+                    // failed report never causes the consent action to be replayed.
                     clearPendingRemoteAction(appContext)
+                    persistPendingUmpReport(appContext, reportAction)
                 }
-                Hq008CmpDecisionClient.reportConsentResult(reportAction) {
+                Hq008CmpDecisionClient.reportConsentResult(reportAction) { error ->
+                    if (error == null && isTerminalAction(reportAction)) {
+                        clearPendingUmpReport(appContext)
+                    }
                     onCompleted?.invoke()
                 }
             } else {
@@ -393,6 +405,49 @@ object Hq008CmpManager {
                 .apply()
         }.onFailure { error ->
             Log.w(TAG, "UMP 门禁：清除 pending action 失败，error=${error.message}")
+        }
+    }
+
+    /** Remembers a consent report that still has to reach the backend. */
+    private fun persistPendingUmpReport(context: Context, action: String) {
+        if (!isTerminalAction(action)) return
+        runCatching {
+            prefs(context).edit().putString(KEY_PENDING_UMP_REPORT, action).apply()
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：保存待补发上报失败，error=${error.message}")
+        }
+    }
+
+    private fun clearPendingUmpReport(context: Context) {
+        runCatching {
+            prefs(context).edit().remove(KEY_PENDING_UMP_REPORT).apply()
+        }.onFailure { error ->
+            Log.w(TAG, "UMP 门禁：清除待补发上报失败，error=${error.message}")
+        }
+    }
+
+    private fun pendingUmpReport(context: Context): String? = runCatching {
+        prefs(context).getString(KEY_PENDING_UMP_REPORT, null)?.let(::normalizeAction)
+    }.getOrNull()
+
+    /** Replays only the report; the UMP action itself is never re-executed. */
+    private fun flushPendingUmpReport(context: Context, onDone: (() -> Unit)? = null) {
+        val action = pendingUmpReport(context) ?: run {
+            onDone?.invoke()
+            return
+        }
+        Hq008ConsentLogReporter.report(
+            eventType = "UMP_PENDING_REPORT_FLUSH",
+            eventMessage = "action=$action"
+        )
+        Hq008CmpDecisionClient.reportConsentResult(action) { error ->
+            if (error == null && pendingUmpReport(context) == action) {
+                clearPendingUmpReport(context)
+                Log.i(TAG, "UMP 门禁：待补发上报已补发成功，action=$action")
+            } else {
+                Log.w(TAG, "UMP 门禁：待补发上报补发失败，action=$action，error=$error")
+            }
+            onDone?.invoke()
         }
     }
 

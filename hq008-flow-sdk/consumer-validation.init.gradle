@@ -1,0 +1,8 @@
+gradle.beforeProject { project ->
+ if(project.path != ':google-ima-consumer-smoke') return
+ project.afterEvaluate {
+  project.dependencies.add('implementation',project.files(project.findProperty('flowSdkAar')))
+  project.dependencies.add('implementation','androidx.work:work-runtime:2.10.0')
+  project.android.buildTypes.deviceRelease.applicationIdSuffix='.backportflow'
+ }
+}

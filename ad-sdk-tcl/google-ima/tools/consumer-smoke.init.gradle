@@ -1,0 +1,8 @@
+// Adds the plain consuming app only for this validation invocation.
+settingsEvaluated { settings ->
+    if (settings.rootProject.name == 'AD_APP') {
+        settings.include(':google-ima-consumer-smoke')
+        settings.project(':google-ima-consumer-smoke').projectDir =
+            new File(settings.rootDir, 'ad-sdk-tcl/google-ima/src/test/consumer-smoke')
+    }
+}

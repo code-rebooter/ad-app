@@ -95,7 +95,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
                     default:
                         patched = LsapClassPatcher.patchHq008Parameters(jarEntry.name, bytes)
                         if (targetFlavor.get() == 'hq008XHSX') {
-                            patched = TclRuntimeAuditPatcher.patch(jarEntry.name, patched)
+                            patched = TclRuntimeAuditPatcher.patch(jarEntry.name, patched, true)
                         }
                         break
                 }
@@ -109,7 +109,7 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         }
         jarInput.close()
         if (targetFlavor.get() == 'hq008XHSX') {
-            TclRuntimeAuditPatcher.verify(classEntries)
+            TclRuntimeAuditPatcher.verify(classEntries, 'com/smart/android/ad_app/TclRuntimeBridge', true)
         }
         if (targetFlavor.get() == 'google_ima') {
             verifyGoogleImaPatch(classEntries, modifiedClasses)
@@ -261,9 +261,9 @@ abstract class Hq008AarPatchTask extends DefaultTask {
         Map<String, byte[]> classEntries,
         int modifiedClasses
     ) {
-        if (modifiedClasses != 45) {
+        if (modifiedClasses != 47) {
             throw new GradleException(
-                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 45"
+                "Google IMA patch changed ${modifiedClasses} classes; expected exactly 47"
             )
         }
 
@@ -289,6 +289,16 @@ abstract class Hq008AarPatchTask extends DefaultTask {
             'unpatched IMA Core WebView navigation'
         )
         String runtimeBridge = 'com/smart/android/googleima/internal/GoogleImaRuntimeBridge'
+        def bytecodeEntries = classEntries.findAll { name, bytes -> name.endsWith('.class') }.values()
+        int cleanupHooks = bytecodeEntries.collect { bytes ->
+            LsapClassPatcher.countMethodCalls(bytes, runtimeBridge, 'destroyWebViewAfterMeasurement', '(Landroid/webkit/WebView;)V')
+        }.sum() as int
+        if (cleanupHooks < 1) throw new GradleException('Missing IMA verification WebView finish retention')
+        int immediateDestroys = bytecodeEntries.collect { bytes ->
+            LsapClassPatcher.countMethodCalls(bytes, 'android/webkit/WebView', 'destroy', '()V') +
+                LsapClassPatcher.countMethodCalls(bytes, 'com/google/ads/interactivemedia/v3/impl/zzap', 'destroy', '()V')
+        }.sum() as int
+        if (immediateDestroys != 0) throw new GradleException('IMA still destroys verification WebViews immediately')
         requireCallCount(
             webViewLoader,
             runtimeBridge,

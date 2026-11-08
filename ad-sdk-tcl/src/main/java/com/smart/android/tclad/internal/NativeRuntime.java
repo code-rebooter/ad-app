@@ -78,6 +78,7 @@ public final class NativeRuntime {
                 configuration = bytes.toString(java.nio.charset.StandardCharsets.UTF_8.name());
             } catch (java.io.IOException error) { throw new IllegalStateException("Missing pinned TCL configuration", error); }
         }
+        com.smart.android.tclad.runtime.TclExecution.installHttpInterceptors();
         OriginalBoundary.configure(configuration);
         // These switches describe TCL SDK telemetry, not VAST-specified ad beacons.
         // The isolated runtime also removes the implementation; callers cannot re-enable it.

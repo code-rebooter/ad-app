@@ -3,8 +3,8 @@ package com.smart.android.tclad;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import okhttp3.Call;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -34,19 +34,31 @@ public final class WaterfallAdTagProvider implements AdTagProvider {
         resolveCancellable(params, callback);
     }
     @Override public Cancellable resolveCancellable(RequestParams params, AdTagProvider.Callback callback) {
+        AtomicBoolean cancelledByCaller = new AtomicBoolean();
         WaterfallRequest payload = template.withParams(params);
-        String requestId = UUID.randomUUID().toString();
         Request.Builder request = new Request.Builder().url(endpoint)
             .header("Accept", "application/json").post(RequestBody.create(payload.toJson(), JSON));
         String agent = payload.getValues().get("userAgent").toString();
         if (!agent.isEmpty()) request.header("User-Agent", agent);
-        Call call = client.newCall(request.build());
+        OkHttpClient observed = client.newBuilder().addInterceptor(chain -> {
+            if (cancelledByCaller.get()) throw new IOException("Cancelled by host");
+            callback.onHttpRequest();
+            return chain.proceed(chain.request());
+        }).addNetworkInterceptor(chain -> {
+            Response response = chain.proceed(chain.request());
+            if (!cancelledByCaller.get()) callback.onHttpResponse(response.code());
+            return response;
+        }).build();
+        Call call = observed.newCall(request.build());
         call.enqueue(new okhttp3.Callback() {
             @Override public void onFailure(Call ignored, IOException error) {
-                if (!call.isCanceled()) callback.onError(301);
+                // OkHttp also sets isCanceled for its own callTimeout. Only an
+                // explicit host cancellation suppresses a terminal callback.
+                if (!cancelledByCaller.get()) callback.onError(301);
             }
             @Override public void onResponse(Call ignored, Response response) {
-                String resolved;
+                if (!cancelledByCaller.get()) callback.onHttpResponse(response.code());
+                ResolvedAd resolved;
                 int errorCode = 301;
                 try (Response closeable = response) {
                     if (!closeable.isSuccessful() || closeable.body() == null) throw new IOException("Backend HTTP failure");
@@ -57,15 +69,16 @@ public final class WaterfallAdTagProvider implements AdTagProvider {
                     JsonObject data = root.getAsJsonObject("data");
                     HttpUrl tag = data == null || !data.has("adsUrl") ? null : HttpUrl.parse(data.get("adsUrl").getAsString());
                     if (tag == null) throw new IllegalArgumentException("Invalid data.adsUrl");
-                    // Original VastRequest.getVastUrl replaces/adds this one client-generated parameter.
-                    resolved = tag.newBuilder().setQueryParameter("requestId", requestId).build().toString();
+                    // Preserve the native response metadata and fallback; TCL adds its requestId later.
+                    if (!data.has("beaconingType")) data.addProperty("beaconingType", 2);
+                    resolved = ResolvedAd.fromTclResponse(root.toString());
                 } catch (IOException | RuntimeException error) {
-                    if (!call.isCanceled()) callback.onError(errorCode);
+                    if (!cancelledByCaller.get()) callback.onError(errorCode);
                     return;
                 }
-                if (!call.isCanceled()) callback.onResolved(resolved);
+                if (!cancelledByCaller.get()) callback.onResolvedAd(resolved);
             }
         });
-        return call::cancel;
+        return () -> { cancelledByCaller.set(true); call.cancel(); };
     }
 }

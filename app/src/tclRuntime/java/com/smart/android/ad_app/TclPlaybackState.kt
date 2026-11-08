@@ -95,6 +95,13 @@ internal class TclPlaybackState(val createdAtMs: Long, val requestTimeoutMs: Lon
     fun select(metadata: Metadata, now: Long): Boolean {
         if (closed) return false
         val previous = current
+        // Native COMPLETED can precede the player's index change by a watchdog
+        // tick. That last snapshot still identifies the finished ad; it must
+        // not reopen it or renew the budget while waiting for the next item.
+        if (metadata.key.isNotBlank() && segments.any {
+                it.terminalEvent.isNotBlank() && it.metadata.key == metadata.key
+            }) return false
+        if (previous?.terminalEvent?.isNotBlank() == true && metadata.key.isBlank()) return false
         if (previous != null && previous.terminalEvent.isBlank() &&
             (metadata.key.isBlank() || previous.metadata.key.isBlank() || metadata.key == previous.metadata.key ||
                 (previous.metadata.key.startsWith("native-index:") &&

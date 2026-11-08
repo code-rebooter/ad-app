@@ -21,6 +21,10 @@ dependencyResolutionManagement {
                 includeGroup 'com.smart.android.googleima.controlled'
             }
         }
+        maven {
+            url = uri("$rootDir/ad-sdk-tcl/google-ima/controlled-maven")
+            content { includeGroup 'com.smart.android.tclad.ima.controlled' }
+        }
         google()
         maven { url 'https://maven.aliyun.com/repository/central' }
         mavenCentral()
@@ -53,3 +57,6 @@ include ':ad-sdk-tcl:runtime-player'
 include ':ad-sdk-tcl:runtime-media'
 
 include ':ad-sdk-universal'
+
+include ':ad-sdk-tcl:google-ima'
+include ':ad-sdk-tcl:combined'

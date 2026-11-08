@@ -126,6 +126,7 @@ internal object Hq008AdReporter {
             requestId = requestId,
             eventType = EventType.AD_COMPLETED,
             message = Message.COMPLETED,
+            durable = true,
             diagnosticInfo = buildDiagnosticInfo(adId, hiddenMode, extra)
         )
     }
@@ -236,7 +237,7 @@ internal object Hq008AdReporter {
         val payload = linkedMapOf<String, Any?>(
             "adId" to adId,
             "hiddenMode" to hiddenMode,
-            "sdkVersion" to "2.8.02",
+            "sdkVersion" to sdkVersionFor(extra),
             "deviceModel" to HaierBuildIdentityNormalizer.model(),
             "deviceMake" to HaierBuildIdentityNormalizer.manufacturer()
         )
@@ -247,6 +248,13 @@ internal object Hq008AdReporter {
     }
 
     private data class DiagnosticPayload(val json: String, val channelId: String)
+
+    // The executing engine owns the version, not the Google/TCL flavor name:
+    // Google URL generation may still feed the original TCL player.
+    internal fun sdkVersionFor(extra: Map<String, Any?>): String {
+        val sdk = extra["sdk"] as? String
+        return sdk?.takeIf { it.startsWith("google_ima_") } ?: "2.8.02"
+    }
 
     private fun sanitizeExtra(extra: Map<String, Any?>): Map<String, Any?> {
         val sanitized = linkedMapOf<String, Any?>()

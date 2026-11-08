@@ -23,7 +23,7 @@ android {
     namespace 'com.smart.android.adsdk.universal'
     compileSdk 36
     defaultConfig {
-        minSdk 23
+        minSdk 24
         buildConfigField 'String', 'SDK_VERSION', '"' + project.version + '"'
         consumerProguardFiles 'consumer-rules.pro'
         consumerProguardFiles embedded.map { it.file('consumer-rules.pro').asFile }

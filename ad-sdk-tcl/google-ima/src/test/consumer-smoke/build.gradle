@@ -1,0 +1,26 @@
+plugins { alias(libs.plugins.android.application) }
+android {
+    namespace 'com.smart.smoke'
+    compileSdk 36
+    defaultConfig { applicationId 'com.smart.smoke.ima'; minSdk 24; targetSdk 36; versionCode 1; versionName '1' }
+    buildTypes { debug { applicationIdSuffix ".devicevalidation" }; release { minifyEnabled true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'fixture-rules.pro' } }
+    buildTypes {
+        deviceRelease {
+            initWith release
+            signingConfig signingConfigs.debug
+            applicationIdSuffix '.releasevalidation'
+            matchingFallbacks = ['release']
+        }
+    }
+    sourceSets.deviceRelease {
+        java.srcDir 'src/debug/java'
+        res.srcDir 'src/debug/res'
+        manifest.srcFile 'src/debug/AndroidManifest.xml'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies {
+    if (providers.gradleProperty('customerSdkRepository').isPresent()) {
+        implementation "com.smart.android:ad-sdk-tcl-combined:${providers.gradleProperty('sdkDeliveryVersion').getOrElse('2026.11.06')}"
+    } else implementation project(':ad-sdk-tcl:combined')
+}

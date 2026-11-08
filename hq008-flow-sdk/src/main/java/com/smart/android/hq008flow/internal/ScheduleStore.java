@@ -49,7 +49,7 @@ public final class ScheduleStore {
             return initialDelayMs;
         }
         long remaining = effectiveIntervalSeconds() * 1_000L - elapsed;
-        return remaining <= 0L ? initialDelayMs : remaining;
+        return Math.max(initialDelayMs, remaining);
     }
 
     private String lastTriggerKey() {

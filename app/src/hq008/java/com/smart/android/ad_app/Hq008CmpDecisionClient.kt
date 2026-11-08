@@ -9,6 +9,8 @@ import com.smart.android.ad_app.bean.EmptyData
 import com.speed.ext.getMacAddress
 import com.speed.net.NetworkHelper
 import com.speed.net.enum.RequestMethod
+import com.google.gson.Gson
+import org.json.JSONObject
 
 internal object Hq008CmpDecisionClient {
     private const val TAG = "Hq008CmpDecision"
@@ -69,19 +71,38 @@ internal object Hq008CmpDecisionClient {
     fun reportConsentResult(
         consentAction: String,
         onResult: ((error: String?) -> Unit)? = null
-    ) {
-        Hq008ConsentLogReporter.report(
-            eventType = "CONSENT_REPORT_START",
-            eventMessage = "action=$consentAction"
-        )
+    ) = reportConsentResult(consentAction, null, onResult)
+
+    internal fun buildConsentReportBodyJson(consentAction: String): String =
+        Gson().toJson(buildConsentReportBody(consentAction))
+
+    private fun buildConsentReportBody(consentAction: String): Map<String, Any> {
         val channelId = AdChannelResolver.currentChannel()
-        val requestBody = linkedMapOf<String, Any>(
+        return linkedMapOf<String, Any>(
             "channel_id" to channelId,
             "mac" to (safeMacAddress() ?: "00:00:00:00:00:00"),
             "ad_version" to BuildConfig.VERSION_CODE,
             "android_sdk_version" to Build.VERSION.SDK_INT,
             "consent_action" to consentAction
         ).apply { Hq008ApiRequestFields.appendTo(this, appContext) }
+    }
+
+    internal fun reportConsentResult(
+        consentAction: String,
+        requestBodyJson: String?,
+        onResult: ((error: String?) -> Unit)? = null
+    ) {
+        Hq008ConsentLogReporter.report(
+            eventType = "CONSENT_REPORT_START",
+            eventMessage = "action=$consentAction"
+        )
+        // Decode JSON numbers without Gson's generic Map conversion to Double;
+        // retry must preserve the original integer/string/bool wire values.
+        val requestBody = requestBodyJson?.let { raw ->
+            val saved = JSONObject(raw)
+            saved.keys().asSequence().associateWith { saved.get(it) }
+        } ?: buildConsentReportBody(consentAction)
+        val channelId = requestBody["channel_id"]
 
         Log.i(
             TAG,

@@ -14,6 +14,23 @@ import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.Test;
 
 public final class WaterfallAdTagProviderTest {
+    @Test public void callTimeoutReportsFailureWithoutWaitingForTheSessionWatchdog() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+            var client = new OkHttpClient.Builder().callTimeout(150, TimeUnit.MILLISECONDS).build();
+            var provider = new WaterfallAdTagProvider(server.url("/resolve").toString(), WaterfallRequestTest.template(), client);
+            var future = new CompletableFuture<String>();
+            var responses = new java.util.concurrent.atomic.AtomicInteger();
+            provider.resolveCancellable(null, new AdTagProvider.Callback() {
+                @Override public void onHttpResponse(int status) { responses.incrementAndGet(); }
+                @Override public void onResolved(String url) { future.complete("UNEXPECTED:" + url); }
+                @Override public void onError(int code) { future.complete("ERROR:" + code); }
+            });
+            assertEquals("ERROR:301", future.get(3, TimeUnit.SECONDS));
+            assertEquals(0, responses.get());
+        }
+    }
     private AdTagProvider.Callback result(CompletableFuture<String> future) {
         return new AdTagProvider.Callback() {
             @Override public void onResolved(String url) { future.complete(url); }
@@ -108,4 +125,50 @@ public final class WaterfallAdTagProviderTest {
             catch (TimeoutException expected) { }
         }
     }
+    @Test public void fullResponseKeepsNativeMetadataAndUnmodifiedUrlForSdkEntry() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            String tag = "https://vast.example/ad?requestId=old&requestId=older&sig=a%2Bb";
+            String raw = "{\"code\":100000,\"data\":{\"adsUrl\":\"" + tag
+                    + "\",\"beaconingType\":2,\"adType\":1,\"adPlatformCode\":\"0\","
+                    + "\"adUnitID\":\"slot-008\",\"guaranteeLink\":\"https://vast.example/fallback\"}}";
+            server.enqueue(new MockResponse().setBody(raw));
+            var provider = new WaterfallAdTagProvider(server.url("/resolve").toString(), WaterfallRequestTest.template());
+            var future = new CompletableFuture<ResolvedAd>();
+            provider.resolve(null, new AdTagProvider.Callback() {
+                @Override public void onResolved(String url) { future.completeExceptionally(new AssertionError("Full response callback required")); }
+                @Override public void onResolvedAd(ResolvedAd input) { future.complete(input); }
+                @Override public void onError(int code) { future.completeExceptionally(new AssertionError("error " + code)); }
+            });
+            var data = future.get(3, TimeUnit.SECONDS).toOriginalResponse().getData();
+            assertEquals(tag, data.getAdsUrl());
+            assertEquals("slot-008", data.getAdUnitID());
+            assertEquals("0", data.getAdPlatformCode());
+            assertEquals("https://vast.example/fallback", data.getGuaranteeLink());
+        }
+    }
+    @Test public void unsuccessfulHttpStillConfirmsOneRequestBeforeProviderError() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse().setResponseCode(503).setBody("unavailable"));
+            var provider = new WaterfallAdTagProvider(server.url("/resolve").toString(), WaterfallRequestTest.template());
+            var state = new com.smart.android.tclad.runtime.TclSdkRequestState();
+            var confirmed = new java.util.concurrent.atomic.AtomicInteger();
+            var future = new CompletableFuture<Integer>();
+            provider.resolve(null, new AdTagProvider.Callback() {
+                @Override public void onHttpRequest() { state.begin(1L); }
+                @Override public void onHttpResponse(int status) {
+                    state.responded(2L, status);
+                    if (state.takeRequestedReport() != null) confirmed.incrementAndGet();
+                }
+                @Override public void onResolved(String url) { future.completeExceptionally(new AssertionError("HTTP failure resolved a URL")); }
+                @Override public void onError(int code) { future.complete(code); }
+            });
+            assertEquals(Integer.valueOf(301), future.get(3, TimeUnit.SECONDS));
+            assertEquals(1, confirmed.get());
+            assertEquals(503, state.diagnostics().get("sdkRequestHttpStatus"));
+            assertEquals("REQUESTED", state.diagnostics().get("sdkRequestOutcome"));
+        }
+    }
+
 }

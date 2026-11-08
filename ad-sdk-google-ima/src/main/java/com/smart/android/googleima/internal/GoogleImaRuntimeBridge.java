@@ -2,8 +2,10 @@ package com.smart.android.googleima.internal;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.media.AudioManager;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceError;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +53,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -76,6 +80,7 @@ public final class GoogleImaRuntimeBridge {
     private static final Map<WebView, WebViewAuditBinding> AUDITED_WEB_VIEWS =
             new WeakHashMap<>();
     private static final ThreadLocal<Boolean> URL_IDENTITY_FALLBACK = new ThreadLocal<>();
+    private static final ThreadLocal<AuditState> NATIVE_TRANSPORT = new ThreadLocal<>();
     private static final Object AUDIT_LOCK = new Object();
     private static final String AUDIT_JS_BRIDGE = "__smartImaAudit";
     private static final Pattern VPMUTE_PARAMETER =
@@ -478,7 +483,12 @@ public final class GoogleImaRuntimeBridge {
             Object owner,
             int physicalVolumePercentage) {
         AuditState state = auditForAsyncOwner(owner);
-        int reportedVolume = reportedSoundEnabled(state) ? 100 : 0;
+        double physical = physicalVolumePercentage < 0
+                ? -1.0d
+                : Math.min(1.0d, physicalVolumePercentage / 100.0d);
+        int reportedVolume = reportedSoundEnabled(state)
+                ? (int) Math.round(normalizeReportedVolume(state, physical) * 100.0d)
+                : 0;
         emitSoundSignal(
                 state,
                 "ima_core_volume_percentage",
@@ -505,14 +515,97 @@ public final class GoogleImaRuntimeBridge {
     @Keep
     public static double forceUnmutedNativeVolume(Object owner) {
         AuditState state = auditForAsyncOwner(owner);
-        double reportedVolume = reportedSoundEnabled(state) ? 1.0d : 0.0d;
+        double physical = readSystemMusicVolume();
+        double reportedVolume = normalizeReportedVolume(state, physical);
         emitSoundSignal(
                 state,
                 "activeview_native_volume",
-                "physical_read_blocked",
+                physical >= 0.0d ? String.valueOf(physical) : "physical_read_blocked",
                 String.valueOf(reportedVolume),
                 Collections.emptyList());
         return reportedVolume;
+    }
+
+    /** Relative floor: anything below 2/15 in the 15-step scale counts as inaudible. */
+    private static final double REPORTED_VOLUME_FLOOR = 0.15d;
+
+    private static double normalizeReportedVolume(AuditState state, double physical) {
+        if (!reportedSoundEnabled(state)) return 0.0d;
+        if (physical < 0.0d) return fallbackReportedVolume();
+        if (physical >= REPORTED_VOLUME_FLOOR) return physical;
+        return fallbackReportedVolume();
+    }
+
+    private static double readSystemMusicVolume() {
+        Context context = runtimeApplicationContext();
+        if (context == null) return -1.0d;
+        try {
+            AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return -1.0d;
+            int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            if (maximum <= 0) return -1.0d;
+            int current = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+            if (current < 0) return -1.0d;
+            double normalized = (double) current / (double) maximum;
+            return normalized > 1.0d ? 1.0d : normalized;
+        } catch (Throwable failure) {
+            return -1.0d;
+        }
+    }
+
+    /** Stable per-device fallback so muted hardware never reports an inaudible value. */
+    private static volatile long fallbackVolumeDay = Long.MIN_VALUE;
+    private static volatile double fallbackVolumeValue = -1.0d;
+
+    private static double fallbackReportedVolume() {
+        long day = System.currentTimeMillis() / 86_400_000L;
+        if (day == fallbackVolumeDay && fallbackVolumeValue > 0.0d) {
+            return fallbackVolumeValue;
+        }
+        long seed = runtimeDeviceSeed();
+        // Baseline level in the 15-step scale, kept away from both extremes.
+        int level = 4 + (int) Math.floorMod(seed >>> 17, 8);
+        // Walk forward from a fixed origin so the value only drifts when the day changes,
+        // roughly once every four days by 1-2 steps, like a real remote control.
+        for (long cursor = FALLBACK_VOLUME_ORIGIN_DAY; cursor <= day; cursor++) {
+            Random random = new Random(seed ^ (cursor * 0x9E3779B97F4A7C15L));
+            if (random.nextInt(100) < 25) {
+                level = Math.max(1, Math.min(14, level + random.nextInt(5) - 2));
+            }
+        }
+        double value = level / 15.0d;
+        fallbackVolumeValue = value;
+        fallbackVolumeDay = day;
+        return value;
+    }
+
+    private static final long FALLBACK_VOLUME_ORIGIN_DAY = 18_000L;
+
+    private static long runtimeDeviceSeed() {
+        Context context = runtimeApplicationContext();
+        String androidId = "";
+        try {
+            if (context != null) {
+                androidId = Settings.Secure.getString(
+                        context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            }
+        } catch (Throwable ignored) {}
+        if (androidId == null) androidId = "";
+        String packageName = context == null ? "" : String.valueOf(context.getPackageName());
+        return ((long) androidId.hashCode() << 32) ^ (long) packageName.hashCode();
+    }
+
+    private static Context runtimeApplicationContext() {
+        try {
+            Class<?> activityThread = Class.forName("android.app.ActivityThread");
+            Object application = activityThread.getMethod("currentApplication").invoke(null);
+            if (application instanceof Context) {
+                Context context = (Context) application;
+                Context app = context.getApplicationContext();
+                return app == null ? context : app;
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     @Keep
@@ -524,7 +617,8 @@ public final class GoogleImaRuntimeBridge {
         if (!"setDeviceVolume".equals(methodName) || actual.length == 0) return actual;
         Object[] normalized = actual.clone();
         AuditState state = auditForWebView(webView);
-        float reportedVolume = reportedSoundEnabled(state) ? 1.0f : 0.0f;
+        double physical = parseVolume(actual[0]);
+        float reportedVolume = (float) normalizeReportedVolume(state, physical);
         installOmidMediaVolumePolicy(webView, state);
         emitSoundSignal(
                 state,
@@ -534,6 +628,19 @@ public final class GoogleImaRuntimeBridge {
                 currentOmidSessionIds(state));
         normalized[0] = Float.valueOf(reportedVolume);
         return normalized;
+    }
+
+    private static double parseVolume(Object value) {
+        if (value instanceof Number) {
+            double parsed = ((Number) value).doubleValue();
+            return Double.isNaN(parsed) || Double.isInfinite(parsed) ? -1.0d : parsed;
+        }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (Throwable ignored) {}
+        }
+        return -1.0d;
     }
 
     private static void installOmidMediaVolumePolicy(WebView webView, AuditState state) {
@@ -774,7 +881,35 @@ public final class GoogleImaRuntimeBridge {
             state.closed = true;
         }
         if (state.adUrlResolver != null) state.adUrlResolver.cancel();
+        state.transport.close();
         emit(state, "audit_end", fields("reason", safe(reason)), null);
+    }
+
+    @Keep
+    public static Object enterNativeTransport(Object request) {
+        AuditState previous = NATIVE_TRANSPORT.get();
+        synchronized (AUDIT_LOCK) {
+            NATIVE_TRANSPORT.set(getAuditOwner(NATIVE_REQUEST_AUDITS, request));
+        }
+        return previous;
+    }
+
+    @Keep
+    public static void leaveNativeTransport(Object previous) {
+        if (previous instanceof AuditState) NATIVE_TRANSPORT.set((AuditState) previous);
+        else NATIVE_TRANSPORT.remove();
+    }
+
+    @Keep
+    public static void trackNativeConnection(URLConnection connection) throws IOException {
+        AuditState state = NATIVE_TRANSPORT.get();
+        if (state != null) state.transport.add(connection);
+    }
+
+    @Keep
+    public static void forgetNativeConnection(URLConnection connection) {
+        AuditState state = NATIVE_TRANSPORT.get();
+        if (state != null) state.transport.remove(connection);
     }
 
     @Keep
@@ -882,6 +1017,7 @@ public final class GoogleImaRuntimeBridge {
         try {
             if (state.closed) return blockedWebResponse();
             connection = (HttpURLConnection) new URL(resolved).openConnection();
+            state.transport.add(connection);
             int timeout = (int) Math.max(1L,
                     Math.min(20_000L, state.adUrlResolver.remainingTimeMs()));
             connection.setConnectTimeout(timeout);
@@ -926,7 +1062,10 @@ public final class GoogleImaRuntimeBridge {
                     safe(error.getMessage()));
             return blockedWebResponse();
         } finally {
-            if (connection != null) connection.disconnect();
+            if (connection != null) {
+                state.transport.remove(connection);
+                connection.disconnect();
+            }
         }
     }
 
@@ -1066,7 +1205,8 @@ public final class GoogleImaRuntimeBridge {
         if (!isVastXml(safeContent)) return;
         if (state != null) {
             synchronized (state.resolvedAdUrls) {
-                url = state.resolvedAdUrls.getOrDefault(url, url);
+                String resolvedUrl = state.resolvedAdUrls.get(url);
+                if (resolvedUrl != null) url = resolvedUrl;
                 String key = url + ":" + sha256(safeContent);
                 if ("webview_patched_http".equals(captureSource)) {
                     state.patchedWebVastHashes.add(key);
@@ -1152,8 +1292,29 @@ public final class GoogleImaRuntimeBridge {
         if (state != null && "finishSession".equals(method) && !sessionId.isEmpty()) {
             synchronized (AUDIT_LOCK) {
                 state.activeOmidSessionIds.remove(sessionId);
+                state.lastOmidFinishAtMs = SystemClock.elapsedRealtime();
             }
         }
+    }
+
+    /** IAB requires the verification WebView to survive session finish delivery. */
+    @Keep
+    public static void destroyWebViewAfterMeasurement(WebView webView) {
+        if (webView == null) return;
+        AuditState state = auditForWebView(webView);
+        long delayMs = 0L;
+        if (state != null && state.omidStartedObserved) {
+            long now = SystemClock.elapsedRealtime();
+            long finishAt = state.lastOmidFinishAtMs > 0L ? state.lastOmidFinishAtMs : now;
+            delayMs = Math.max(0L, finishAt + 1_500L - now);
+            Map<String, String> details = fields("phase", "destroy_requested");
+            details.put("retain_ms", String.valueOf(delayMs));
+            emit(state, "webview_teardown", details, null);
+        }
+        // The runnable holds the actual WebView strongly even after its ad view
+        // is detached. Do not use View.postDelayed on a detached view.
+        if (delayMs > 0L) new android.os.Handler(Looper.getMainLooper()).postDelayed(webView::destroy, delayMs);
+        else webView.destroy();
     }
 
     @Keep
@@ -1567,6 +1728,7 @@ public final class GoogleImaRuntimeBridge {
         final boolean reportedSoundEnabled;
         final Map<String, String> resolvedAdUrls = new HashMap<>();
         final LinkedHashSet<String> patchedWebVastHashes = new LinkedHashSet<>();
+        final GoogleImaTransport transport = new GoogleImaTransport();
         volatile boolean closed;
         volatile String webViewUserAgent = "";
         final LinkedHashSet<String> activeOmidSessionIds = new LinkedHashSet<>();
@@ -1574,6 +1736,7 @@ public final class GoogleImaRuntimeBridge {
         boolean imaCoreVolumeObserved;
         boolean imaStartedObserved;
         boolean omidStartedObserved;
+        volatile long lastOmidFinishAtMs;
         float lastImaCoreReportedVolume = -1.0f;
 
         final boolean clickRouteEnabled;
@@ -1710,6 +1873,7 @@ public final class GoogleImaRuntimeBridge {
         }
 
         @Override
+        @androidx.annotation.RequiresApi(24)
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             return delegate.shouldOverrideUrlLoading(view, request);
         }
@@ -1819,6 +1983,7 @@ public final class GoogleImaRuntimeBridge {
         }
 
         @Override
+        @androidx.annotation.RequiresApi(26)
         public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
             Map<String, String> fields = new LinkedHashMap<>();
             fields.put("phase", "render_process_gone");

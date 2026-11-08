@@ -1,0 +1,11 @@
+// Audio validation uses the Google consumer host. The unrelated flow-control
+// fixture requires a separate SDK dependency and is outside this invocation.
+gradle.beforeProject { project ->
+    if (project.path == ':google-ima-consumer-smoke') {
+        project.afterEvaluate {
+            ['debug','deviceRelease'].each { name ->
+                project.android.sourceSets.getByName(name).java.exclude '**/FlowDeviceValidationActivity.java'
+            }
+        }
+    }
+}

@@ -16,6 +16,7 @@ public final class AdEventReporter {
     private final Hq008FlowConfig config;
     private final Context appContext;
     private final Gson gson = new Gson();
+    private final DurableReports durableReports;
 
     public AdEventReporter(
             FlowApiClient apiClient,
@@ -25,6 +26,8 @@ public final class AdEventReporter {
         this.apiClient = apiClient;
         this.config = config;
         this.appContext = context.getApplicationContext();
+        this.durableReports = new DurableReports(appContext, config.getApiBaseUrl());
+        durableReports.resumePending();
     }
 
     public void dailyMetrics(String requestId, DailyStatsStore.Snapshot snapshot) {
@@ -43,6 +46,9 @@ public final class AdEventReporter {
         body.put("make", deviceInfo.make);
         body.put("model", deviceInfo.model);
         body.put("ad_version", deviceInfo.versionCode);
+        body.put("ad_version_name", deviceInfo.versionName);
+        body.put("sdk_version", config.getAdSdkVersion());
+        body.put("androidid", "unknown_device".equals(deviceInfo.androidId) ? "" : deviceInfo.androidId);
         body.put("message", message);
         if (!deviceInfo.localIp.isEmpty()) {
             body.put("local_ip", deviceInfo.localIp);
@@ -73,10 +79,44 @@ public final class AdEventReporter {
         return gson.toJson(message);
     }
 
+    public void audit(String requestId, String finalEvent, String message, String traceJson) {
+        DeviceInfo info = DeviceInfo.collect(appContext);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("channel_id", config.getChannelId());
+        body.put("request_id", requestId);
+        body.put("mac", info.mac.isEmpty() ? "00:00:00:00:00:00" : info.mac);
+        body.put("ad_version", info.versionCode);
+        body.put("ad_version_name", info.versionName);
+        body.put("sdk_version", config.getAdSdkVersion());
+        body.put("androidid", "unknown_device".equals(info.androidId) ? "" : info.androidId);
+        body.put("event_type", finalEvent);
+        body.put("event_message", message);
+        body.put("ad_log", traceJson);
+        apiClient.consentLog(body);
+    }
+
+    public void lifecycle(String event, String requestId) {
+        report(requestId == null ? "lifecycle-" + java.util.UUID.randomUUID() : requestId,
+                "AD_LIFECYCLE", event, java.util.Collections.emptyMap());
+    }
+
+    public void filled(String requestId, long createdAtMs) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("createdAtMs", createdAtMs);
+        diagnostics.put("filledAtMs", SystemClock.elapsedRealtime());
+        report(requestId, "AD_FILLED", "FILLED", diagnostics);
+    }
+
+    public void requested(String requestId, long createdAtMs, Map<String, Object> extra) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>(extra);
+        diagnostics.put("createdAtMs", createdAtMs);
+        report(requestId, "AD_REQUESTED", "REQUESTED", diagnostics);
+    }
+
     public void requested(String requestId, long createdAtMs) {
         Map<String, Object> diagnostics = new LinkedHashMap<>();
         diagnostics.put("createdAtMs", createdAtMs);
-        report(requestId, "AD_PROGRESS", "REQUESTED", diagnostics);
+        report(requestId, "AD_REQUESTED", "REQUESTED", diagnostics);
     }
 
     public void loaded(String requestId, long createdAtMs) {
@@ -85,7 +125,7 @@ public final class AdEventReporter {
         diagnostics.put("createdAtMs", createdAtMs);
         diagnostics.put("loadedAtMs", now);
         diagnostics.put("requestToLoadMs", now - createdAtMs);
-        report(requestId, "AD_PROGRESS", "LOADED", diagnostics);
+        report(requestId, "AD_LOADED", "LOADED", diagnostics);
     }
 
     public void started(String requestId, long createdAtMs, Double progress) {
@@ -95,14 +135,18 @@ public final class AdEventReporter {
         diagnostics.put("startedAtMs", now);
         diagnostics.put("requestToStartMs", now - createdAtMs);
         if (progress != null) {
-            diagnostics.put("progress", progress);
+            diagnostics.put("adBreakMaxDurationSeconds", progress);
         }
-        report(requestId, "AD_PROGRESS", "STARTED", diagnostics);
+        report(requestId, "AD_STARTED", "STARTED", diagnostics);
     }
 
     public void completed(String requestId, long createdAtMs) {
+        completed(requestId, createdAtMs, java.util.Collections.emptyMap());
+    }
+
+    public void completed(String requestId, long createdAtMs, Map<String, Object> extra) {
         long now = SystemClock.elapsedRealtime();
-        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        Map<String, Object> diagnostics = new LinkedHashMap<>(extra);
         diagnostics.put("createdAtMs", createdAtMs);
         diagnostics.put("finishedAtMs", now);
         diagnostics.put("totalDurationMs", now - createdAtMs);
@@ -115,8 +159,13 @@ public final class AdEventReporter {
             Integer code,
             String message
     ) {
+        failed(requestId, createdAtMs, code, message, java.util.Collections.emptyMap());
+    }
+
+    public void failed(String requestId, long createdAtMs, Integer code, String message,
+            Map<String, Object> extra) {
         long now = SystemClock.elapsedRealtime();
-        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        Map<String, Object> diagnostics = new LinkedHashMap<>(extra);
         diagnostics.put("createdAtMs", createdAtMs);
         diagnostics.put("failedAtMs", now);
         diagnostics.put("totalDurationMs", now - createdAtMs);
@@ -150,6 +199,9 @@ public final class AdEventReporter {
         body.put("make", deviceInfo.make);
         body.put("model", deviceInfo.model);
         body.put("ad_version", deviceInfo.versionCode);
+        body.put("ad_version_name", deviceInfo.versionName);
+        body.put("sdk_version", config.getAdSdkVersion());
+        body.put("androidid", "unknown_device".equals(deviceInfo.androidId) ? "" : deviceInfo.androidId);
         body.put("message", message);
         body.put("diagnostic_info", gson.toJson(diagnosticInfo));
         if (!deviceInfo.localIp.isEmpty()) {
@@ -161,6 +213,17 @@ public final class AdEventReporter {
                         + " eventType=" + eventType
                         + " message=" + message
         );
-        apiClient.report(body);
+        if (shouldQueueDurably(eventType)) {
+            durableReports.enqueue(body);
+        } else {
+            apiClient.report(body);
+        }
     }
+    /** Freeze terminal completion with the existing request/error durable delivery policy. */
+    static boolean shouldQueueDurably(String eventType) {
+        return "AD_ERROR".equals(eventType)
+                || "AD_REQUESTED".equals(eventType)
+                || "AD_COMPLETED".equals(eventType);
+    }
+
 }

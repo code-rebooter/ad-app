@@ -6,20 +6,25 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.smart.android.ad_app.AdLocalLog as Log
 import android.view.Window
+import android.view.Choreographer
 import android.view.WindowManager
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.webkit.JsPromptResult
 import com.google.android.ump.ConsentForm
 import com.google.android.ump.FormError
 import com.google.android.ump.UserMessagingPlatform
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.lang.ref.WeakReference
 
 internal object GoogleUmpSilentConsentFormRunner {
     private const val TAG = "GoogleUmpSilentRunner"
@@ -28,11 +33,31 @@ internal object GoogleUmpSilentConsentFormRunner {
     private const val AUTO_CLICK_TIMEOUT_MS = 15_000L
     private const val PRIVACY_OPTIONS_WEBVIEW_SCAN_INTERVAL_MS = 120L
     private const val PRIVACY_OPTIONS_RETRY_DELAY_MS = 750L
-    private const val PRIVACY_OPTIONS_MAX_RETRY_COUNT = 5
+    private const val PRIVACY_OPTIONS_READY_TIMEOUT_MS = 30_000L
     private const val STRONG_CLICK_SCORE = 100
     private const val MAX_LOG_VALUE_LENGTH = 2_000
 
+    private const val ACTION_FENCE_PREFIX = "__yg_ump_action_fence_"
+    private val nextActionFence = AtomicLong()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private class ConsentActionFence(activity: Activity, private val completed: AtomicBoolean) {
+        val token = ACTION_FENCE_PREFIX + nextActionFence.incrementAndGet()
+        private val host = WeakReference(activity)
+        private var boundView = WeakReference<WebView>(null)
+        @Volatile private var deadlineUptimeMs = 0L
+
+        fun bind(view: WebView) { boundView = WeakReference(view) }
+        fun beginAction() { deadlineUptimeMs = SystemClock.uptimeMillis() + AUTO_CLICK_TIMEOUT_MS }
+        fun remainingBudget(view: WebView?): Long {
+            val owner = host.get()
+            if (completed.get() || owner == null || owner.isFinishing || owner.isDestroyed ||
+                view == null || boundView.get() !== view
+            ) return 0L
+            return (deadlineUptimeMs - SystemClock.uptimeMillis()).coerceAtLeast(0L)
+        }
+        fun retire() { deadlineUptimeMs = 0L; host.clear(); boundView.clear() }
+    }
 
     enum class DecisionMode {
         ACCEPT_ALL,
@@ -69,6 +94,7 @@ internal object GoogleUmpSilentConsentFormRunner {
         onComplete: (Result) -> Unit
     ) {
         val completed = AtomicBoolean(false)
+        val actionFence = ConsentActionFence(activity, completed)
         val strongClickIssued = AtomicBoolean(false)
         val webView = findConsentWebView(consentForm)
         if (webView == null) {
@@ -77,11 +103,13 @@ internal object GoogleUmpSilentConsentFormRunner {
             return
         }
 
-        prepareWebView(webView)
+        actionFence.bind(webView)
+        prepareWebView(webView, actionFence)
 
         var autoClickRunnable: Runnable? = null
         val timeoutRunnable = Runnable {
             if (completed.compareAndSet(false, true)) {
+                actionFence.retire()
                 Log.w(TAG, "UMP 静默表单自动点击超时")
                 autoClickRunnable?.let { mainHandler.removeCallbacks(it) }
                 dismissDialogIfPresent(consentForm)
@@ -93,6 +121,7 @@ internal object GoogleUmpSilentConsentFormRunner {
             if (!completed.compareAndSet(false, true)) {
                 return
             }
+            actionFence.retire()
             autoClickRunnable?.let { mainHandler.removeCallbacks(it) }
             mainHandler.removeCallbacks(timeoutRunnable)
             onComplete(result)
@@ -123,7 +152,7 @@ internal object GoogleUmpSilentConsentFormRunner {
                     return
                 }
                 attempt += 1
-                injectAutoClickScript(webView, decisionMode, attempt) { clickScore ->
+                injectAutoClickScript(webView, decisionMode, attempt, actionFence) { clickScore ->
                     if (clickScore != null && clickScore >= STRONG_CLICK_SCORE) {
                         strongClickIssued.set(true)
                     }
@@ -134,8 +163,11 @@ internal object GoogleUmpSilentConsentFormRunner {
             }
         }
 
-        mainHandler.postDelayed(timeoutRunnable, AUTO_CLICK_TIMEOUT_MS)
-        mainHandler.postDelayed(autoClickRunnable, AUTO_CLICK_INITIAL_DELAY_MS)
+        if (!completed.get()) {
+            actionFence.beginAction()
+            mainHandler.postDelayed(timeoutRunnable, AUTO_CLICK_TIMEOUT_MS)
+            mainHandler.postDelayed(autoClickRunnable, AUTO_CLICK_INITIAL_DELAY_MS)
+        }
     }
 
     fun showPrivacyOptionsAndApplyDecisionSilently(
@@ -144,36 +176,63 @@ internal object GoogleUmpSilentConsentFormRunner {
         onComplete: (Result) -> Unit
     ) {
         val completed = AtomicBoolean(false)
+        val actionFence = ConsentActionFence(activity, completed)
         val strongClickIssued = AtomicBoolean(false)
         val autoClickStarted = AtomicBoolean(false)
         var privacyOptionsRetryCount = 0
         var autoClickRunnable: Runnable? = null
         var scanRunnable: Runnable? = null
+        var retryRunnable: Runnable? = null
+        var readyTimeoutRunnable: Runnable? = null
+        var actionTimeoutRunnable: Runnable? = null
+        var surfaceFrameCallback: Choreographer.FrameCallback? = null
+        val surfaceChoreographer = Choreographer.getInstance()
         var activeWebView: WebView? = null
-
-        val timeoutRunnable = Runnable {
-            if (completed.compareAndSet(false, true)) {
-                Log.w(TAG, "UMP privacy options 静默自动点击超时")
-                autoClickRunnable?.let { mainHandler.removeCallbacks(it) }
-                scanRunnable?.let { mainHandler.removeCallbacks(it) }
-                onComplete(Result(localErrorMessage = "UMP silent privacy options auto-click timed out"))
-            }
-        }
 
         fun completeOnce(result: Result) {
             if (!completed.compareAndSet(false, true)) {
                 return
             }
+            actionFence.retire()
             autoClickRunnable?.let { mainHandler.removeCallbacks(it) }
             scanRunnable?.let { mainHandler.removeCallbacks(it) }
-            mainHandler.removeCallbacks(timeoutRunnable)
+            retryRunnable?.let { mainHandler.removeCallbacks(it) }
+            readyTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            actionTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            surfaceFrameCallback?.let { surfaceChoreographer.removeFrameCallback(it) }
+            if (result.formError != null || result.localErrorMessage != null) {
+                dismissPrivacyOptionsDialogIfPresent(activeWebView)
+            }
             onComplete(result)
+        }
+
+        fun hostIsAvailable(): Boolean {
+            if (activity.isFinishing || activity.isDestroyed) {
+                completeOnce(Result(localErrorMessage = "UMP privacy options Activity was destroyed before completion"))
+                return false
+            }
+            return true
+        }
+
+        readyTimeoutRunnable = Runnable {
+            Log.w(TAG, "UMP privacy options 预加载就绪等待超时")
+            completeOnce(Result(localErrorMessage = "UMP privacy options readiness timed out"))
+        }
+        actionTimeoutRunnable = Runnable {
+            Log.w(TAG, "UMP privacy options 静默自动点击超时")
+            completeOnce(Result(localErrorMessage = "UMP silent privacy options auto-click timed out"))
         }
 
         fun startAutoClick(webView: WebView) {
             if (!autoClickStarted.compareAndSet(false, true)) {
                 return
             }
+            // SDK preloading is a separate, bounded phase. Keep the original action
+            // timeout intact; do not spend its budget while no form exists yet.
+            readyTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            retryRunnable?.let { mainHandler.removeCallbacks(it) }
+            actionFence.beginAction()
+            actionTimeoutRunnable?.let { mainHandler.postDelayed(it, AUTO_CLICK_TIMEOUT_MS) }
             autoClickRunnable = object : Runnable {
                 private var attempt = 0
 
@@ -182,7 +241,7 @@ internal object GoogleUmpSilentConsentFormRunner {
                         return
                     }
                     attempt += 1
-                    injectAutoClickScript(webView, decisionMode, attempt) { clickScore ->
+                    injectAutoClickScript(activeWebView ?: webView, decisionMode, attempt, actionFence) { clickScore ->
                         if (clickScore != null && clickScore >= STRONG_CLICK_SCORE) {
                             strongClickIssued.set(true)
                         }
@@ -195,44 +254,75 @@ internal object GoogleUmpSilentConsentFormRunner {
             mainHandler.postDelayed(autoClickRunnable, AUTO_CLICK_INITIAL_DELAY_MS)
         }
 
+        fun inspectPrivacyOptionsSurface(frameOnly: Boolean = false) {
+            val webView = findPrivacyOptionsWebView(activity)
+            if (webView != null) {
+                val changedView = activeWebView !== webView
+                if (changedView) {
+                    activeWebView = webView
+                    actionFence.bind(webView)
+                    prepareWebView(webView, actionFence)
+                    Log.i(TAG, "已找到 UMP privacy options WebView，开始静默执行 decision=$decisionMode")
+                }
+                // A frame check is cheap once hidden: do not issue window/Binder
+                // updates every vsync. The original 120ms reassertion stays intact.
+                if (!frameOnly || changedView || webView.alpha != 0f || webView.rootView.alpha != 0f) {
+                    suppressPrivacyOptionsSurface(activity, webView)
+                }
+                startAutoClick(webView)
+            }
+        }
+
         scanRunnable = object : Runnable {
             override fun run() {
-                if (completed.get()) {
+                if (completed.get() || !hostIsAvailable()) {
                     return
                 }
-                val webView = findPrivacyOptionsWebView(activity)
-                if (webView != null) {
-                    if (activeWebView !== webView) {
-                        activeWebView = webView
-                        prepareWebView(webView)
-                        Log.i(TAG, "已找到 UMP privacy options WebView，开始静默执行 decision=$decisionMode")
-                    }
-                    suppressPrivacyOptionsSurface(activity, webView)
-                    startAutoClick(webView)
+                inspectPrivacyOptionsSurface()
+                if (!completed.get()) {
+                    mainHandler.postDelayed(this, PRIVACY_OPTIONS_WEBVIEW_SCAN_INTERVAL_MS)
                 }
-                mainHandler.postDelayed(this, PRIVACY_OPTIONS_WEBVIEW_SCAN_INTERVAL_MS)
+            }
+        }
+
+        // Privacy options are attached asynchronously by the SDK. A Handler poll
+        // alone can miss the first traversal; suppress before that frame draws.
+        // Keep the existing poll as the fallback and never touch unrelated roots.
+        surfaceFrameCallback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (completed.get() || !hostIsAvailable()) {
+                    return
+                }
+                inspectPrivacyOptionsSurface(frameOnly = true)
+                if (!completed.get()) {
+                    surfaceChoreographer.postFrameCallback(this)
+                }
             }
         }
 
         fun launchPrivacyOptionsForm() {
+            if (completed.get() || !hostIsAvailable()) {
+                return
+            }
             runCatching {
                 prepareHostActivity(activity)
                 UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
+                    if (completed.get()) {
+                        return@showPrivacyOptionsForm
+                    }
                     val errorMessage = formError?.message.orEmpty()
-                    if (!completed.get() &&
-                        errorMessage.contains("loading", ignoreCase = true) &&
-                        privacyOptionsRetryCount < PRIVACY_OPTIONS_MAX_RETRY_COUNT
+                    if (!autoClickStarted.get() &&
+                        errorMessage.contains("loading", ignoreCase = true)
                     ) {
                         privacyOptionsRetryCount += 1
                         Log.w(
                             TAG,
                             "UMP privacy options 仍在加载，准备重试 retry=$privacyOptionsRetryCount error=$errorMessage"
                         )
-                        mainHandler.postDelayed({
-                            if (!completed.get()) {
-                                launchPrivacyOptionsForm()
-                            }
-                        }, PRIVACY_OPTIONS_RETRY_DELAY_MS)
+                        retryRunnable?.let { mainHandler.removeCallbacks(it) }
+                        val retry = Runnable { launchPrivacyOptionsForm() }
+                        retryRunnable = retry
+                        mainHandler.postDelayed(retry, PRIVACY_OPTIONS_RETRY_DELAY_MS)
                         return@showPrivacyOptionsForm
                     }
 
@@ -249,24 +339,34 @@ internal object GoogleUmpSilentConsentFormRunner {
             }
         }
 
-        runCatching {
-            launchPrivacyOptionsForm()
-        }.onFailure { error ->
-            Log.e(TAG, "UMP privacy options 调用失败", error)
-            completeOnce(Result(localErrorMessage = error.message ?: error.javaClass.simpleName))
+        // Arm before calling the SDK: immediate error/dismiss callbacks must also
+        // cancel every scheduled task, rather than installing timers afterwards.
+        readyTimeoutRunnable?.let { mainHandler.postDelayed(it, PRIVACY_OPTIONS_READY_TIMEOUT_MS) }
+        surfaceFrameCallback?.let { surfaceChoreographer.postFrameCallback(it) }
+        launchPrivacyOptionsForm()
+        if (!completed.get()) {
+            mainHandler.post(scanRunnable)
         }
-
-        mainHandler.postDelayed(timeoutRunnable, AUTO_CLICK_TIMEOUT_MS)
-        mainHandler.post(scanRunnable)
     }
 
-    private fun prepareWebView(webView: WebView) {
+    private fun prepareWebView(webView: WebView, actionFence: ConsentActionFence? = null) {
         Hq008XhsxAarRuntimeBridge.prepareWebViewIdentity(webView)
         webView.alpha = 0f
         webView.setBackgroundColor(Color.TRANSPARENT)
         webView.isFocusable = false
         webView.isFocusableInTouchMode = false
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onJsPrompt(
+                view: WebView?, url: String?, message: String?, defaultValue: String?, result: JsPromptResult?
+            ): Boolean {
+                if (message?.startsWith(ACTION_FENCE_PREFIX) == true) {
+                    val remaining = if (actionFence != null && message == actionFence.token) actionFence.remainingBudget(view) else 0L
+                    result?.confirm(remaining.toString())
+                    return true // Private synchronous check, never display a prompt.
+                }
+                return super.onJsPrompt(view, url, message, defaultValue, result)
+            }
+
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                 val message = consoleMessage.message()
                 Log.d(TAG, message.take(MAX_LOG_VALUE_LENGTH))
@@ -303,6 +403,18 @@ internal object GoogleUmpSilentConsentFormRunner {
             }
     }
 
+    private fun dismissPrivacyOptionsDialogIfPresent(webView: WebView?) {
+        if (webView == null) return
+        findWindowRootViews().filter { it === webView || containsDescendant(it, webView) }.forEach { root ->
+            runCatching {
+                val window = findFieldValue(root, Window::class.java)
+                (window?.callback as? Dialog)?.dismiss()
+            }.onFailure { error ->
+                Log.w(TAG, "关闭已结束的 UMP privacy options Dialog 失败：${error.message}")
+            }
+        }
+    }
+
     private fun suppressWindow(window: Window?) {
         if (window == null) {
             return
@@ -330,11 +442,41 @@ internal object GoogleUmpSilentConsentFormRunner {
         webView: WebView,
         decisionMode: DecisionMode,
         attempt: Int,
+        actionFence: ConsentActionFence? = null,
         onResult: (Int?) -> Unit
     ) {
-        val script = AUTO_DECISION_SCRIPT.replace("%%DECISION_MODE%%", decisionMode.name)
+        val guards = mapOf(
+            "/*YG_FENCE_BOOL*/" to "if (!_ygLive()) return false;",
+            "/*YG_FENCE_COUNT*/" to "if (!_ygLive()) return 0;",
+            "/*YG_FENCE_CLICK*/" to "if (!_ygLive()) return null;",
+            "/*YG_FENCE_FAST_BOOL*/" to "if (!_ygLive()) return scrolled;",
+            "/*YG_FENCE_FAST_COUNT*/" to "if (!_ygLive()) return clicked;",
+            "/*YG_FENCE_FAST_CLICK*/" to "if (!_ygLive()) return null;",
+            "/*YG_FENCE_FALLBACK*/" to "if (!_ygLive()) return 'inactive';"
+        )
+        var decisionScript = AUTO_DECISION_SCRIPT.replace("%%DECISION_MODE%%", decisionMode.name)
+        guards.forEach { (marker, guard) -> decisionScript = decisionScript.replace(marker, if (actionFence == null) "" else guard) }
+        val script = if (actionFence == null) decisionScript else """
+(function () {
+  var _ygUntil = 0;
+  function _ygNow() { return window.performance && window.performance.now ? window.performance.now() : Date.now(); }
+  function _ygLive() {
+    var before = _ygNow();
+    var remaining = Number(window.prompt('${actionFence.token}', ''));
+    _ygUntil = before + Math.max(0, remaining || 0);
+    return remaining > 0 && _ygNow() < _ygUntil;
+  }
+  if (!_ygLive()) return 'inactive';
+  return ($decisionScript);
+})()
+"""
         runCatching {
             webView.evaluateJavascript(script) { rawValue ->
+                if (actionFence != null && actionFence.remainingBudget(webView) <= 0L) {
+                    Log.d(TAG, "忽略已结束 UMP 自动动作的迟到 JS 回调")
+                    onResult(null)
+                    return@evaluateJavascript
+                }
                 val value = rawValue
                     ?.trim('"')
                     ?.replace("\\n", " ")
@@ -615,6 +757,7 @@ internal object GoogleUmpSilentConsentFormRunner {
   }
 
   function scrollForMoreTargets() {
+    /*YG_FENCE_BOOL*/
     var scrolled = false;
     var nodes = [];
     var all = [];
@@ -649,6 +792,7 @@ internal object GoogleUmpSilentConsentFormRunner {
       }
       var before = node.scrollTop || 0;
       var next = Math.min(before + Math.max(240, Math.floor(node.clientHeight * 0.75)), node.scrollHeight);
+      /*YG_FENCE_FAST_BOOL*/
       node.scrollTop = next;
       if ((node.scrollTop || 0) !== before) {
         scrolled = true;
@@ -671,6 +815,7 @@ internal object GoogleUmpSilentConsentFormRunner {
   }
 
   function forcePreferenceScrollToEnd() {
+    /*YG_FENCE_BOOL*/
     var scrolled = false;
     var selectors = [
       '.fc-data-preferences-dialog',
@@ -695,6 +840,7 @@ internal object GoogleUmpSilentConsentFormRunner {
         continue;
       }
       var before = target.scrollTop || 0;
+      /*YG_FENCE_FAST_BOOL*/
       target.scrollTop = target.scrollHeight;
       if ((target.scrollTop || 0) !== before) {
         scrolled = true;
@@ -704,9 +850,13 @@ internal object GoogleUmpSilentConsentFormRunner {
   }
 
   function clickElement(element, clickScore, reason) {
+    /*YG_FENCE_CLICK*/
     var label = describe(element).slice(0, 160);
+    /*YG_FENCE_FAST_CLICK*/
     element.scrollIntoView && element.scrollIntoView({ block: 'center', inline: 'center' });
+    /*YG_FENCE_FAST_CLICK*/
     element.focus && element.focus();
+    /*YG_FENCE_FAST_CLICK*/
     element.click();
     console.log('CodexUmpSilent: clicked score=' + clickScore + ' reason=' + reason + ' label=' + label);
     return 'clicked:' + clickScore + ':' + reason + ':' + label;
@@ -732,6 +882,7 @@ internal object GoogleUmpSilentConsentFormRunner {
   }
 
   function clearRejectPreferences() {
+    /*YG_FENCE_COUNT*/
     var selectors = [
       'input.fc-preference-consent:checked',
       'input.fc-preference-legitimate-interest:checked',
@@ -751,6 +902,7 @@ internal object GoogleUmpSilentConsentFormRunner {
           continue;
         }
         seen.push(element);
+        /*YG_FENCE_FAST_COUNT*/
         element.click();
         clicked += 1;
       }
@@ -762,6 +914,7 @@ internal object GoogleUmpSilentConsentFormRunner {
   }
 
   function setAcceptPreferences() {
+    /*YG_FENCE_COUNT*/
     var selectors = [
       'input.fc-preference-consent:not(:checked)',
       'input.fc-preference-legitimate-interest:not(:checked)',
@@ -781,6 +934,7 @@ internal object GoogleUmpSilentConsentFormRunner {
           continue;
         }
         seen.push(element);
+        /*YG_FENCE_FAST_COUNT*/
         element.click();
         clicked += 1;
       }
@@ -1010,8 +1164,11 @@ internal object GoogleUmpSilentConsentFormRunner {
       }
     }
     if (best && bestScore >= 40) {
+      /*YG_FENCE_FALLBACK*/
       var label = describe(best).slice(0, 160);
+      /*YG_FENCE_FALLBACK*/
       best.focus && best.focus();
+      /*YG_FENCE_FALLBACK*/
       best.click();
       console.log('CodexUmpSilent: clicked score=' + bestScore + ' label=' + label);
       return 'clicked:' + bestScore + ':' + label;

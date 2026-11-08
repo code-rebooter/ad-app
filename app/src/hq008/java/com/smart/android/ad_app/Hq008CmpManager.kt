@@ -31,6 +31,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import okio.Buffer
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -60,6 +61,8 @@ object Hq008CmpManager {
     private const val MAX_CMP_HTTP_CAPTURE_BYTES = 512L * 1024L
     private const val CMP_HTTP_CAPTURE_WAIT_MS = 2_000L
     private val gson = Gson()
+    // Local pending-report identity only; never held across network callbacks.
+    private val pendingConsentReportLock = Any()
 
     @Volatile
     private var initialized = false
@@ -147,7 +150,9 @@ object Hq008CmpManager {
 
     private data class PendingConsentReportState(
         val cycleKey: String?,
-        val reportAction: String
+        val reportAction: String,
+        val generation: String? = null,
+        val requestBodyJson: String? = null
     )
 
     private data class MaybeLaterCooldownState(
@@ -2671,7 +2676,14 @@ object Hq008CmpManager {
     }
 
     private fun consumePendingConsentReportIfNeeded(context: Context) {
-        val pendingState = loadPendingConsentReportState(context) ?: return
+        val loadedState = loadPendingConsentReportState(context) ?: return
+        // Upgrade a legacy action-only record once, before the first retry. New
+        // records already contain the exact first-wire request metadata.
+        val pendingState = if (loadedState.requestBodyJson == null) {
+            persistPendingConsentReportState(context, loadedState.copy(
+                requestBodyJson = Hq008CmpDecisionClient.buildConsentReportBodyJson(loadedState.reportAction)
+            ))
+        } else loadedState
         Log.i(
             TAG,
             "静默同意链路：检测到待补的 consent-report 状态，action=${pendingState.reportAction}，cycleKey=${pendingState.cycleKey.orEmpty()}"
@@ -2682,8 +2694,10 @@ object Hq008CmpManager {
         )
         reportConsentResult(
             actionType = pendingState.reportAction,
+            requestBodyJson = pendingState.requestBodyJson,
             onSuccess = {
-                clearPendingConsentReportState(context)
+                clearPendingConsentReportState(context, pendingState)
+                Unit
             }
         )
     }
@@ -3017,6 +3031,20 @@ object Hq008CmpManager {
                     SystemClock.sleep(100)
                     continue
                 }
+                val baselineTc = baselineSeed?.currentTcString?.takeIf { it.isNotBlank() }
+                val observedTc = observedSeed?.currentTcString?.takeIf { it.isNotBlank() }
+                // Same campaign (or newly written action metadata) is not proof
+                // that the asynchronous SDK action has produced its new TC. An
+                // unchanged TC is reusable only for an already-compatible,
+                // idempotent baseline. Otherwise keep polling/fall back through
+                // the existing native TC generator, without changing its rules.
+                val hasCurrentActionTc = observedTc != null &&
+                    (baselineTc == null || observedTc != baselineTc ||
+                        isReflectiveSdkActionStateCompatible(baselineSeed, expectedSeed))
+                if (!hasCurrentActionTc) {
+                    SystemClock.sleep(100)
+                    continue
+                }
                 if (isReflectiveSdkActionStateCompatible(observedSeed, expectedSeed)) {
                     val tcString = observedSeed?.currentTcString?.takeIf { it.isNotBlank() }
                     Log.i(
@@ -3109,7 +3137,7 @@ object Hq008CmpManager {
             observedSeed.tcStringCreateTime != baselineSeed?.tcStringCreateTime
         val campaignMatched = observedSeed.campaignId == expectedSeed.campaignId
         val campaignUnknown = observedSeed.campaignId == null || observedSeed.campaignId <= 0
-        return (tcChanged || createdAtChanged || campaignMatched) &&
+        return (tcChanged || createdAtChanged) &&
             (campaignMatched || campaignUnknown)
     }
 
@@ -3280,6 +3308,7 @@ object Hq008CmpManager {
 
     private fun reportConsentResult(
         actionType: String,
+        requestBodyJson: String? = null,
         onSuccess: (() -> Unit)? = null,
         onFailure: (() -> Unit)? = null
     ) {
@@ -3287,7 +3316,7 @@ object Hq008CmpManager {
             eventType = "CONSENT_REPORT_START",
             eventMessage = "actionType=$actionType"
         )
-        Hq008CmpDecisionClient.reportConsentResult(actionType) { error ->
+        Hq008CmpDecisionClient.reportConsentResult(actionType, requestBodyJson) { error ->
             if (error != null) {
                 Log.e(TAG, "静默同意链路：consent-report 上报失败，actionType=$actionType，error=$error")
                 reportCmpTrace(
@@ -3312,11 +3341,12 @@ object Hq008CmpManager {
         actionType: String,
         onCompleted: (() -> Unit)? = null
     ) {
-        persistPendingConsentReportState(
+        val pendingState = persistPendingConsentReportState(
             context = context,
             state = PendingConsentReportState(
                 cycleKey = cycleKey,
-                reportAction = actionType
+                reportAction = actionType,
+                requestBodyJson = Hq008CmpDecisionClient.buildConsentReportBodyJson(actionType)
             )
         )
         reportCmpTrace(
@@ -3325,8 +3355,9 @@ object Hq008CmpManager {
         )
         reportConsentResult(
             actionType = actionType,
+            requestBodyJson = pendingState.requestBodyJson,
             onSuccess = {
-                clearPendingConsentReportState(context)
+                clearPendingConsentReportState(context, pendingState)
                 onCompleted?.invoke()
             },
             onFailure = {
@@ -3417,43 +3448,62 @@ object Hq008CmpManager {
     private fun persistPendingConsentReportState(
         context: Context,
         state: PendingConsentReportState
-    ) {
+    ): PendingConsentReportState = synchronized(pendingConsentReportLock) {
+        // New enqueues always own a persisted generation, including identical cycle/action.
+        val owned = state.copy(generation = state.generation?.takeIf { it.isNotBlank() }
+            ?: UUID.randomUUID().toString())
         val payload = JsonObject().apply {
-            state.cycleKey?.let { addProperty("cycle_key", it) }
-            addProperty("report_action", state.reportAction)
+            owned.cycleKey?.let { addProperty("cycle_key", it) }
+            addProperty("report_action", owned.reportAction)
+            addProperty("generation", owned.generation)
+            owned.requestBodyJson?.let { add("request_body", JsonParser.parseString(it)) }
         }
         context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_PENDING_CONSENT_REPORT_STATE, gson.toJson(payload))
             .apply()
+        owned
     }
 
-    private fun loadPendingConsentReportState(context: Context): PendingConsentReportState? {
-        val raw = context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_PENDING_CONSENT_REPORT_STATE, null)
-            ?: return null
-        return runCatching {
-            val root = JsonParser.parseString(raw).asJsonObject
-            PendingConsentReportState(
-                cycleKey = root.stringOrNull("cycle_key"),
-                reportAction = root.stringOrNull("report_action")
-                    ?: error("missing report_action")
-            )
-        }.onFailure { error ->
-            Log.e(TAG, "静默同意链路：解析待补 consent-report 状态失败，已清理脏数据", error)
-            reportCmpTrace(
-                eventType = "PENDING_CONSENT_REPORT_INVALID",
-                eventMessage = "error=${error.message ?: "unknown"}"
-            )
-            clearPendingConsentReportState(context)
-        }.getOrNull()
-    }
+    private fun loadPendingConsentReportState(context: Context): PendingConsentReportState? =
+        synchronized(pendingConsentReportLock) {
+            val raw = context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_PENDING_CONSENT_REPORT_STATE, null)
+                ?: return@synchronized null
+            runCatching {
+                val root = JsonParser.parseString(raw).asJsonObject
+                PendingConsentReportState(
+                    cycleKey = root.stringOrNull("cycle_key"),
+                    reportAction = root.stringOrNull("report_action")
+                        ?: error("missing report_action"),
+                    // Legacy state without generation remains consumable.
+                    generation = root.stringOrNull("generation")?.takeIf { it.isNotBlank() },
+                    requestBodyJson = root.get("request_body")?.takeIf { it.isJsonObject }?.toString()
+                )
+            }.onFailure { error ->
+                Log.e(TAG, "静默同意链路：解析待补 consent-report 状态失败，已清理脏数据", error)
+                reportCmpTrace(
+                    eventType = "PENDING_CONSENT_REPORT_INVALID",
+                    eventMessage = "error=${error.message ?: "unknown"}"
+                )
+                clearPendingConsentReportState(context)
+            }.getOrNull()
+        }
 
-    private fun clearPendingConsentReportState(context: Context) {
+    private fun clearPendingConsentReportState(
+        context: Context,
+        expected: PendingConsentReportState? = null
+    ): Boolean = synchronized(pendingConsentReportLock) {
+        // Compare and remove share the same short lock as every enqueue. The nullable
+        // generation also prevents a legacy ACK from clearing a new same-tuple enqueue.
+        if (expected != null && loadPendingConsentReportState(context) != expected) {
+            return@synchronized false
+        }
         context.getSharedPreferences(SILENT_BOOTSTRAP_PREFS, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_PENDING_CONSENT_REPORT_STATE)
             .apply()
+        true
     }
 
     private fun persistMaybeLaterCooldownState(

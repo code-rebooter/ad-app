@@ -35,11 +35,23 @@ internal object Hq008SdkAuthorizeClient {
             eventType = "AUTHORIZE_START",
             eventMessage = "requestId=$requestId"
         )
-        val requestBody = buildRequestBody(
-            context = context,
-            channelId = channelId,
-            requestId = requestId
-        )
+        val requestBody = try {
+            buildRequestBody(
+                context = context,
+                channelId = channelId,
+                requestId = requestId
+            )
+        } catch (error: Exception) {
+            if (hasFlowOwner && !Hq008ConsentLogReporter.isActiveRequest(requestId)) return
+            val message = "request_prepare_failed:${error.message ?: error.javaClass.simpleName}"
+            Log.e(TAG, "authorize preparation failed request_id=$requestId error=$message", error)
+            Hq008ConsentLogReporter.report(
+                eventType = "AUTHORIZE_FAIL",
+                eventMessage = "requestId=$requestId,reason=request_prepare_failed,error=$message"
+            )
+            onResult(null, message)
+            return
+        }
 
         Log.i(TAG, "authorize request request_id=$requestId body=$requestBody")
 

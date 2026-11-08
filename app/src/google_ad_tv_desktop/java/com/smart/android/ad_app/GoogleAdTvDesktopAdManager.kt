@@ -235,6 +235,9 @@ object GoogleAdTvDesktopAdManager : IAdManager {
         onMain {
             if (!isActive(session)) return@onMain
             if (session.startedAt == null) session.startedAt = SystemClock.elapsedRealtime()
+            // Playback already began; the request deadline must not cut a running ad.
+            session.timeout?.let(main::removeCallbacks)
+            session.timeout = null
             Hq008AdReporter.reportStarted(session.id, session.adId, AdDisplayConfig.isHiddenMode(), seconds, session.diagnostics())
             trace(session, "AD_STARTED", "durationSeconds=$seconds")
             // This only controls the existing host countdown, not native callbacks or XML tracking.

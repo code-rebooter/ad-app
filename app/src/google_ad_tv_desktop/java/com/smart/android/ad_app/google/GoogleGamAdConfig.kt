@@ -22,7 +22,8 @@ internal object GoogleGamAdConfigParser {
             adStartupTimeoutMs = response.ad_startup_timeout_ms?.takeIf { it > 0L }
                 ?: GoogleAdTvDesktopVastConfig.DEFAULT_AD_STARTUP_TIMEOUT_MS,
             reportedSoundEnabled = reportedSoundEnabled(gamConfig),
-            enableFakeCtr = response.enable_fake_ctr?.let { it == 1 } ?: false
+            enableFakeCtr = response.enable_fake_ctr?.let { it == 1 } ?: false,
+            enableGamPatch = enableGamPatch(gamConfig)
         )
     }
 
@@ -35,6 +36,16 @@ internal object GoogleGamAdConfigParser {
         if (!primitive.isNumber && !primitive.isString) return@runCatching true
         primitive.asString.trim() != "0"
     }.getOrDefault(true)
+
+    /** Only an explicit numeric/string 1 enables the backend patch round trip. */
+    fun enableGamPatch(gamConfig: JsonElement?): Boolean = runCatching {
+        val value = gamConfig?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get("enable_gam_patch") ?: return@runCatching false
+        if (!value.isJsonPrimitive) return@runCatching false
+        val primitive = value.asJsonPrimitive
+        if (!primitive.isNumber && !primitive.isString) return@runCatching false
+        primitive.asString.trim() == "1"
+    }.getOrDefault(false)
 }
 
 @Keep
@@ -46,7 +57,9 @@ internal data class GoogleGamAdConfigResponseData(
     @field:SerializedName("ad_startup_timeout_ms")
     val ad_startup_timeout_ms: Long? = null,
     @field:SerializedName("enable_fake_ctr")
-    val enable_fake_ctr: Int? = null
+    val enable_fake_ctr: Int? = null,
+    @field:SerializedName("enable_gam_patch")
+    val enable_gam_patch: Int? = null
 )
 
 internal data class GoogleGamAdPlaybackConfig(
@@ -54,5 +67,6 @@ internal data class GoogleGamAdPlaybackConfig(
     val adLoadTimeoutMs: Int,
     val adStartupTimeoutMs: Long,
     val reportedSoundEnabled: Boolean = true,
-    val enableFakeCtr: Boolean = false
+    val enableFakeCtr: Boolean = false,
+    val enableGamPatch: Boolean = false
 )

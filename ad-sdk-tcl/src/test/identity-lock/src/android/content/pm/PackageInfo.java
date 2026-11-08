@@ -1,0 +1,1 @@
+package android.content.pm; public class PackageInfo {public int versionCode=1;public String versionName="fixture";public long getLongVersionCode(){return 1;}}

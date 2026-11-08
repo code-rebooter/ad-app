@@ -70,7 +70,7 @@ object AdManagerImpl : IAdManager {
                 adStart, adError, adComplete)
         } else {
             Hq008TclVideoAd.showAd(flRoot, adId, soundEnabled, callbackTimeoutMs,
-                adStart, adError, adComplete, channelId)
+                adStart, adError, adComplete, channelId, gamConfig)
         }
     }
 
@@ -170,7 +170,8 @@ private object Hq008TclVideoAd {
         adStart: (() -> Unit)?,
         adError: (() -> Unit)?,
         adComplete: () -> Unit,
-        channelId: String? = null
+        channelId: String? = null,
+        gamConfig: JsonElement? = null
     ) {
         val createdAtMs = SystemClock.elapsedRealtime()
         onMain {
@@ -213,34 +214,46 @@ private object Hq008TclVideoAd {
                 adError = adError,
                 adComplete = adComplete
             )
-            request.runtime = TclRuntimeBridge.create(requestId, request.channelId, soundEnabled,
-                request.playback, onRequestResult = { fields ->
-                    // A response queued before an error/cancellation still belongs to this request.
-                    onMain {
-                        Hq008AdReporter.reportRequested(
-                            requestId = request.requestId,
-                            adId = request.adId,
-                            hiddenMode = AdDisplayConfig.isHiddenMode(),
-                            containerWidth = requestedWidth,
-                            containerHeight = requestedHeight,
-                            extra = fields + mapOf("requestChannelId" to request.channelId,
-                                "requestCreatedAtMs" to createdAtMs,
-                                "callbackTimeoutMs" to effectiveCallbackTimeoutMs),
-                            durable = true
-                        )
-                        Hq008ConsentLogReporter.report(
-                            eventType = "AD_REQUESTED",
-                            eventMessage = "requestId=${request.requestId},sdk=tcl_2.8.02," +
-                                "httpStatus=${fields["sdkRequestHttpStatus"]},hidden=${AdDisplayConfig.isHiddenMode()}",
-                            requestId = request.requestId
-                        )
-                    }
-                }) { event ->
-                // Vendor observers must not re-enter the controller while its callback is running.
-                mainHandler.post { if (isActive(request)) onRuntimeEvent(request, event) }
-            }
-
+            // Preparation may fail before a native controller exists (for example identity I/O).
+            // Register ownership first so the ordinary failure path can retire its ticket/lease.
             currentRequest = request
+            try {
+                request.runtime = TclRuntimeBridge.create(requestId, request.channelId, soundEnabled,
+                    request.playback, patchEnabled = gamPatchEnabled(gamConfig), onRequestResult = { fields ->
+                        // A response queued before an error/cancellation still belongs to this request.
+                        onMain {
+                            Hq008AdReporter.reportRequested(
+                                requestId = request.requestId,
+                                adId = request.adId,
+                                hiddenMode = AdDisplayConfig.isHiddenMode(),
+                                containerWidth = requestedWidth,
+                                containerHeight = requestedHeight,
+                                extra = fields + mapOf("requestChannelId" to request.channelId,
+                                    "requestCreatedAtMs" to createdAtMs,
+                                    "callbackTimeoutMs" to effectiveCallbackTimeoutMs),
+                                durable = true
+                            )
+                            Hq008ConsentLogReporter.report(
+                                eventType = "AD_REQUESTED",
+                                eventMessage = "requestId=${request.requestId},sdk=tcl_2.8.02," +
+                                    "httpStatus=${fields["sdkRequestHttpStatus"]},hidden=${AdDisplayConfig.isHiddenMode()}",
+                                requestId = request.requestId
+                            )
+                        }
+                    }) { event ->
+                        // Vendor observers must not re-enter the controller while its callback is running.
+                        mainHandler.post { if (isActive(request)) onRuntimeEvent(request, event) }
+                }
+            } catch (error: Exception) {
+                failRequest(request, "runtime_prepare", Hq008AdReporter.Message.REQUEST_ERROR,
+                    "request_prepare_failed", error)
+                return@onMain
+            }
+            if (!isActive(request)) {
+                // A debug observer or host callback may have synchronously replaced this request.
+                releaseController(request, "cancelled:request_replaced_during_prepare")
+                return@onMain
+            }
             armTimeout(request)
             if (!isInitialized()) {
                 Log.i(TAG, "播放链路：媒体广告 SDK 尚未初始化完成，先缓存本次广告请求，等待初始化结束后继续")
@@ -422,6 +435,7 @@ private object Hq008TclVideoAd {
                                         adId = request.adId,
                                         hiddenMode = AdDisplayConfig.isHiddenMode(),
                                         extra = mapOf(
+                                            "requestChannelId" to request.channelId,
                                             "requestCreatedAtMs" to request.requestCreatedAtMs,
                                             "loadedAtMs" to request.loadedAtMs,
                                             "requestToLoadDurationMs" to request.requestToLoadDurationMs()
@@ -615,6 +629,7 @@ private object Hq008TclVideoAd {
                     state.select(metadataFromFields(snapshot), event.atMs)
                 state.firstFrame(event.atMs)
                 reportObservedStart(request, "native_first_frame")
+                if (!isActive(request)) return
                 traceRuntime(request, "AD_FIRST_FRAME", event.fields)
             }
             "buffering" -> state.buffering(event.atMs)
@@ -639,6 +654,7 @@ private object Hq008TclVideoAd {
         podMaxDurationMs = (fields["pod_max_duration_ms"] as? Number)?.toLong() ?: -1L)
 
     private fun reportObservedStart(request: PendingShowRequest, source: String) {
+        if (!isActive(request)) return
         if (!request.markStarted()) return
         Hq008AdReporter.reportStarted(request.requestId, request.adId, AdDisplayConfig.isHiddenMode(),
             null, request.buildProgressDiagnostics() + mapOf("startSource" to source))
@@ -650,6 +666,7 @@ private object Hq008TclVideoAd {
     }
 
     private fun extendPlaybackGuard(request: PendingShowRequest) {
+        if (!isActive(request)) return
         val deadline = request.playback.current?.budget?.hardDeadlineMs ?: return
         if (request.guardDeadlineMs == deadline) return
         request.guardDeadlineMs = deadline
@@ -690,6 +707,7 @@ private object Hq008TclVideoAd {
                         snapshot["is_playing"] == true, snapshot["is_preparing"] == true,
                         (snapshot["media_index"] as? Number)?.toInt() ?: -1)
                     if (request.playback.startedAtMs != null) reportObservedStart(request, "media_position")
+                    if (!isActive(request)) return
                     extendPlaybackGuard(request)
                 }
                 if (now - request.lastProgressLogMs >= AdPlaybackPolicy.PLAYBACK_PROGRESS_INTERVAL_MS) {
@@ -851,6 +869,7 @@ private object Hq008TclVideoAd {
         fun buildProgressDiagnostics(): Map<String, Any?> {
             return playback.diagnostics(SystemClock.elapsedRealtime()) + runtime?.sdkRequest?.diagnostics().orEmpty() + mapOf(
                 "requestChannelId" to channelId,
+                "lastMaterialParseError" to runtime?.lastMaterialParseError,
                 "requestCreatedAtMs" to requestCreatedAtMs,
                 "loadedAtMs" to loadedAtMs,
                 "startedAtMs" to startedAtMs,
@@ -960,4 +979,14 @@ private object Hq008TclVideoAd {
         )
         mainHandler.post { request.adError?.invoke() }
     }
+
+    /** Only an explicit numeric/string 1 enables the backend patch round trip. */
+    private fun gamPatchEnabled(gamConfig: JsonElement?): Boolean = runCatching {
+        val value = gamConfig?.takeIf { it.isJsonObject }?.asJsonObject?.get("enable_gam_patch")
+            ?: return@runCatching false
+        if (!value.isJsonPrimitive) return@runCatching false
+        val primitive = value.asJsonPrimitive
+        if (!primitive.isNumber && !primitive.isString) return@runCatching false
+        primitive.asString.trim() == "1"
+    }.getOrDefault(false)
 }

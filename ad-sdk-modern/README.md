@@ -23,7 +23,7 @@ dependencyResolutionManagement {
 ```groovy
 android {
     defaultConfig {
-        minSdk 23
+        minSdk 24
         manifestPlaceholders += [
             adAppId    : "ca-app-pub-客户自己的~xxxx",
             adChannelId: "CUSTOMER_CHANNEL"

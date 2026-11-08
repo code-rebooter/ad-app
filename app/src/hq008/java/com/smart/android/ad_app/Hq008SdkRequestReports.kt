@@ -26,14 +26,12 @@ internal object Hq008SdkRequestReports {
     private const val PREFERENCES = "hq008_sdk_request_reports"
     internal const val REPORT_KEY = "report_key"
 
-    private fun store(context: Context) = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    private fun store(context: Context) = Hq008ReportQueueStore.open(context, PREFERENCES)
 
     @Synchronized fun enqueue(params: Map<String, Any>) {
         val key = reportKey(params)
         val persisted = runCatching {
-            check(store(appContext).edit().putString(key, Gson().toJson(params)).commit()) {
-                "Unable to persist SDK request report"
-            }
+            store(appContext).put(key, Gson().toJson(params))
         }
         if (persisted.isFailure) {
             Log.e("Hq008SdkRequestReports", "请求结果本地保存失败，立即尝试上报：$key", persisted.exceptionOrNull())
@@ -47,16 +45,13 @@ internal object Hq008SdkRequestReports {
         "${params.getValue("request_id")}:${params.getValue("event_type")}:${params.getValue("message")}".toByteArray(Charsets.UTF_8))
 
     fun resumePending() {
-        store(appContext).all.keys.forEach { schedule(appContext, it) }
+        store(appContext).keys().forEach { schedule(appContext, it) }
     }
 
-    internal fun read(context: Context, key: String): String? = store(context).getString(key, null)
+    internal fun read(context: Context, key: String): String? = store(context).read(key)
 
     @Synchronized internal fun acknowledge(context: Context, key: String, payload: String) {
-        val preferences = store(context)
-        if (preferences.getString(key, null) == payload) {
-            check(preferences.edit().remove(key).commit()) { "Unable to acknowledge SDK request report" }
-        }
+        store(context).acknowledge(key, payload)
     }
 
     internal suspend fun deliver(
@@ -79,7 +74,9 @@ internal object Hq008SdkRequestReports {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         runCatching {
-            WorkManager.getInstance(context).enqueueUniqueWork(key, ExistingWorkPolicy.KEEP, work)
+            // An enqueue racing with a finishing worker must keep a successor even
+            // when the previous worker has already read/ACKed the older payload.
+            WorkManager.getInstance(context).enqueueUniqueWork(key, ExistingWorkPolicy.APPEND_OR_REPLACE, work)
         }.onFailure {
             // The saved report will be scheduled again at the next TCL init/showAd.
             Log.e("Hq008SdkRequestReports", "请求结果已保存，等待重新调度：$key", it)

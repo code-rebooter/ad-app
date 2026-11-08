@@ -1,0 +1,1 @@
+package android.provider; public class Settings {public static class Secure {public static final String ANDROID_ID="androidid"; public static String getString(Object resolver,String key){return "fixture";}}}

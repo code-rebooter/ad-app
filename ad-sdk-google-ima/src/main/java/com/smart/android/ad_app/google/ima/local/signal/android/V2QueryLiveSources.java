@@ -110,7 +110,7 @@ public final class V2QueryLiveSources implements V2QueryMapBuilder.Sources,AutoC
     public long viewWithViewCurrentUptime(){return tchv;}public long viewWithViewPreviousUptime(){return tphv;}
     public long clickCurrentUptime(){return tcc;}public long clickPreviousUptime(){return tpc;}
     public boolean networkTrackerPresent(){return networkPresent;}
-    public long networkType(){synchronized(networkLock){NetworkCapabilities value=networkCapabilities;if(value!=null){if(value.hasTransport(4))return 2;if(value.hasTransport(1))return 1;if(value.hasTransport(0))return 0;}return -1;}}
+    public long networkType(){synchronized(networkLock){NetworkCapabilities value=networkCapabilities;if(value!=null){if(value.hasTransport(NetworkCapabilities.TRANSPORT_VPN))return 2;if(value.hasTransport(NetworkCapabilities.TRANSPORT_WIFI))return 1;if(value.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))return 0;}return -1;}}
     public boolean vpnTrackerPresent(){return vpnPresent;}
     public long activeVpnDuration(){return vpnActive?vpnEnd-vpnStart:-1;}
     public long consumeCompletedVpnDuration(){long result=vpnCompleted;vpnCompleted=-1;return result;}

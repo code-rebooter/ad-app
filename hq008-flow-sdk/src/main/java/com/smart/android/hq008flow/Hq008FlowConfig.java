@@ -3,6 +3,7 @@ package com.smart.android.hq008flow;
 /** Optional advanced configuration. Most clients only need a channel ID. */
 public final class Hq008FlowConfig {
     public static final String DEFAULT_API_BASE_URL = "https://api.kytira.cc/";
+    private static final long DEFAULT_FALLBACK_SECONDS = 1_200L + new java.util.Random().nextInt(301);
 
     private final String channelId;
     private final String appName;
@@ -11,12 +12,14 @@ public final class Hq008FlowConfig {
     private final long fallbackIntervalSeconds;
     private final long adCallbackTimeoutSeconds;
     private final String apiBaseUrl;
+    private final Hq008ConsentGate consentGate;
 
     public Hq008FlowConfig(String channelId) {
         this(new Builder(channelId));
     }
 
     private Hq008FlowConfig(Builder builder) {
+        this.consentGate = builder.consentGate;
         this.channelId = requireText(builder.channelId, "channelId");
         this.appName = requireText(builder.appName, "appName");
         this.adSdkVersion = builder.adSdkVersion == null ? "" : builder.adSdkVersion.trim();
@@ -69,6 +72,8 @@ public final class Hq008FlowConfig {
         return adCallbackTimeoutSeconds;
     }
 
+    public Hq008ConsentGate getConsentGate() { return consentGate; }
+
     public String getApiBaseUrl() {
         return apiBaseUrl;
     }
@@ -82,15 +87,21 @@ public final class Hq008FlowConfig {
 
     public static final class Builder {
         private final String channelId;
+        private Hq008ConsentGate consentGate;
         private String appName = "hq008";
         private String adSdkVersion = "2.8.02";
         private long initialDelaySeconds = 30L;
-        private long fallbackIntervalSeconds = 1_200L;
+        private long fallbackIntervalSeconds = DEFAULT_FALLBACK_SECONDS;
         private long adCallbackTimeoutSeconds = 180L;
         private String apiBaseUrl = DEFAULT_API_BASE_URL;
 
         private Builder(String channelId) {
             this.channelId = channelId;
+        }
+
+        public Builder consentGate(Hq008ConsentGate value) {
+            consentGate = value;
+            return this;
         }
 
         public Builder appName(String value) {

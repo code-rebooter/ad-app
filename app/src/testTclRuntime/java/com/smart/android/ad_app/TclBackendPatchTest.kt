@@ -40,7 +40,7 @@ class TclBackendPatchTest {
             assertEquals("TCL_FFA", json["channel_id"].asString)
             assertEquals("persisted-tcl-id", json["rdid"].asString)
             response(chain)
-        }, {}, { ready.incrementAndGet() })
+        }, enabled = true, onRequest = {}, onReady = { ready.incrementAndGet() })
         parameters["channel_id"] = "next-channel"
         assertEquals(returned, patch.resolve(source))
         assertEquals(returned, patch.resolve(source))
@@ -54,14 +54,14 @@ class TclBackendPatchTest {
             val buffer = Buffer(); chain.request().body!!.writeTo(buffer)
             seen += JsonParser.parseString(buffer.readUtf8()).asJsonObject["ad_tag_url"].asString
             response(chain)
-        }, {}, {})
+        }, enabled = true, onRequest = {}, onReady = {})
         patch.resolve(source)
         patch.resolve("https://guarantee.example/fallback")
         assertEquals(listOf(source, "https://guarantee.example/fallback"), seen)
     }
 
     @Test fun `backend failure never returns the original advertising link`() {
-        val patch = TclBackendPatch(metadata(), { 5_000L }, client { response(it, 100000) }, {}, {})
+        val patch = TclBackendPatch(metadata(), { 5_000L }, client { response(it, 100000) }, enabled = true, onRequest = {}, onReady = {})
         try { patch.resolve(source); fail("Failure must stop this opportunity") }
         catch (_: IOException) { }
     }
@@ -74,7 +74,7 @@ class TclBackendPatchTest {
             entered.countDown()
             release.await(5, TimeUnit.SECONDS)
             response(chain)
-        }, {}, { ready.incrementAndGet() })
+        }, enabled = true, onRequest = {}, onReady = { ready.incrementAndGet() })
         val pool = Executors.newSingleThreadExecutor()
         try {
             val result = pool.submit<Boolean> {

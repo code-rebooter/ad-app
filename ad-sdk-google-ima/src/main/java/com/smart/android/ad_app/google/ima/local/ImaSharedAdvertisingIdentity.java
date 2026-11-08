@@ -7,7 +7,12 @@ import android.os.Process;
 import android.provider.Settings;
 import android.util.Base64;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -53,7 +58,6 @@ public final class ImaSharedAdvertisingIdentity {
     private static final String PUBLIC_KEY = "p256_public_key";
 
     private static final Object ADVERTISING_LOCK = new Object();
-    private static final Object TCL_LOCK = new Object();
 
     private ImaSharedAdvertisingIdentity() {}
 
@@ -94,17 +98,12 @@ public final class ImaSharedAdvertisingIdentity {
 
     public static String readOrCreateTclId(Context supplied) {
         Context context = applicationContext(supplied);
-        synchronized (TCL_LOCK) {
-            SharedPreferences settings = context.getSharedPreferences(
-                    TCL_SETTINGS,
-                    Context.MODE_PRIVATE
-            );
-            String stored = settings.getString(TCL_AID, "");
-            if (stored != null && !stored.trim().isEmpty()) return stored;
-            String generated = UUID.randomUUID().toString();
-            settings.edit().putString(TCL_AID, generated).apply();
-            return generated;
-        }
+        return readOrCreateWithFileLock(context);
+    }
+
+    /** TCL UID only; does not change readAdvertising, fake IDs, LAT, reset, or source policy. */
+    private static String readOrCreateWithFileLock(Context context) {
+        return TclIdentityPersistence.readOrCreate(context);
     }
 
     public static boolean isUsable(String id) {

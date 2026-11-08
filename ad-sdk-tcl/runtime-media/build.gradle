@@ -11,7 +11,7 @@ def originalDir = layout.buildDirectory.dir('original')
 android {
     namespace 'com.tcl.ff.component.vastad'
     compileSdk 36
-    defaultConfig { minSdk 23; consumerProguardFiles originalDir.map { it.file('proguard.txt').asFile } }
+    defaultConfig { minSdk 24; consumerProguardFiles originalDir.map { it.file('proguard.txt').asFile } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     sourceSets.main {
         manifest.srcFile originalDir.map { it.file('AndroidManifest.xml').asFile }
@@ -23,7 +23,7 @@ android {
 }
 tasks.named('preBuild').configure { dependsOn original, ':ad-sdk-tcl:runtime-base:prepareOriginalTclRuntime' }
 dependencies {
-    api files(originalDir.map { it.file('classes.jar').asFile }).builtBy(original)
+    api files(originalDir.map { it.file('audited-classes.jar').asFile }).builtBy(original)
     api project(':ad-sdk-tcl:runtime-player')
     api 'androidx.lifecycle:lifecycle-runtime:2.8.7'
     api 'androidx.appcompat:appcompat:1.7.1'

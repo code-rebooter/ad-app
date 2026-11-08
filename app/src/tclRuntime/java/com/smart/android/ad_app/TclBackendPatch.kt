@@ -11,6 +11,7 @@ internal class TclBackendPatch(
     parameters: Map<String, Any>,
     private val remainingMs: () -> Long,
     private val client: GoogleGamPatchClient = GoogleGamPatchClient.shared,
+    private val enabled: Boolean = false,
     private val onRequest: (String) -> Unit,
     private val onReady: (String) -> Unit
 ) {
@@ -26,6 +27,10 @@ internal class TclBackendPatch(
     private var cancelled = false
 
     fun resolve(url: String): String {
+        if (!enabled) {
+            synchronized(this) { checkOpen() }
+            return url
+        }
         val item = synchronized(this) {
             checkOpen()
             pending[url] ?: Pending().also { request ->

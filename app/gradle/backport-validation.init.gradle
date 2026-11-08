@@ -1,0 +1,17 @@
+gradle.beforeProject { project ->
+ if(project.path != ':app') return
+ project.afterEvaluate {
+  def a=project.android
+  a.buildTypes.debug.applicationIdSuffix='.backportvalidation'
+  a.buildTypes.debug.signingConfig=a.signingConfigs.debug
+  a.buildTypes.debug.buildConfigField('String','AD_FLOW_BASE_URL','"https://127.0.0.1:19446/"')
+  ['google_ad_tv_desktop_ambientlightDebug':'google','hq008Debug':'tcl'].each { variant,engine ->
+   a.sourceSets.getByName(variant).with {
+    java.srcDir 'src/backportValidationTest/common';java.srcDir "src/backportValidationTest/${engine}"
+    kotlin.srcDirs=java.srcDirs
+    res.srcDir 'src/backportValidationTest/res'
+    manifest.srcFile 'src/backportValidationTest/AndroidManifest.xml'
+   }
+  }
+ }
+}

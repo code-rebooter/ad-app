@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" tools:remove="android:sharedUserId">
+ <application android:name="com.smart.android.ad_app.BackportValidationApplication" android:networkSecurityConfig="@xml/device_network_security" tools:replace="android:name">
+ <provider android:name="com.smart.android.ad_app.AdProvider" tools:node="remove" />
+ <activity android:name="com.smart.android.ad_app.AppRuntimeValidationActivity" android:exported="true" android:launchMode="singleTask" android:theme="@android:style/Theme.Material.NoActionBar"/>
+ </application>
+</manifest>

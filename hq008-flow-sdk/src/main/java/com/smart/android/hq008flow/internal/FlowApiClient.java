@@ -34,6 +34,7 @@ public final class FlowApiClient {
             .connectTimeout(20L, TimeUnit.SECONDS)
             .readTimeout(30L, TimeUnit.SECONDS)
             .writeTimeout(30L, TimeUnit.SECONDS)
+            .callTimeout(30L, TimeUnit.SECONDS)
             .build();
 
     public FlowApiClient(String baseUrl) {
@@ -50,7 +51,9 @@ public final class FlowApiClient {
                 return;
             }
             callback.onResult(
-                    new FlowControlData(getBoolean(data, "enabled", false)),
+                    new FlowControlData(getBoolean(data, "enabled", false),
+                            getBoolean(data, "popup_log_enabled", true),
+                            getBoolean(data, "skip_cmp", false)),
                     null
             );
         });
@@ -69,11 +72,23 @@ public final class FlowApiClient {
                     new AuthorizeData(
                             getBoolean(data, "authorized", false),
                             getLong(data, "next_request_seconds", 0L),
-                            getString(data, "request_id", "")
+                            getString(data, "request_id", ""),
+                            getLong(data, "ad_callback_timeout_seconds",
+                                    getLong(data, "callback_timeout_seconds", 0L)), data.deepCopy()
                     ),
                     null
             );
         });
+    }
+
+    public void consentLog(Map<String, Object> requestBody) {
+        post("api/v2/ad/consent-log-report", requestBody, (data, error) -> {
+            if (error != null) SdkLog.w(TAG, "运行时汇总上报失败", error);
+        });
+    }
+
+    public void report(Map<String, Object> requestBody, ApiCallback<JsonObject> callback) {
+        post("api/v2/ad/report", requestBody, callback);
     }
 
     public void report(Map<String, Object> requestBody) {
@@ -93,7 +108,15 @@ public final class FlowApiClient {
             Map<String, Object> params,
             ApiCallback<JsonObject> callback
     ) {
-        RequestBody body = RequestBody.create(JSON_MEDIA_TYPE, gson.toJson(params));
+        postJson(path, gson.toJson(params), callback);
+    }
+
+    public void reportJson(String payload, ApiCallback<JsonObject> callback) {
+        postJson("api/v2/ad/report", payload, callback);
+    }
+
+    private void postJson(String path, String payload, ApiCallback<JsonObject> callback) {
+        RequestBody body = RequestBody.create(JSON_MEDIA_TYPE, payload);
         Request request = new Request.Builder()
                 .url(baseUrl + path)
                 .post(body)
@@ -204,9 +227,13 @@ public final class FlowApiClient {
 
     public static final class FlowControlData {
         public final boolean enabled;
+        public final boolean popupLogEnabled;
+        public final boolean skipCmp;
 
-        FlowControlData(boolean enabled) {
+        FlowControlData(boolean enabled, boolean popupLogEnabled, boolean skipCmp) {
             this.enabled = enabled;
+            this.popupLogEnabled = popupLogEnabled;
+            this.skipCmp = skipCmp;
         }
     }
 
@@ -215,10 +242,16 @@ public final class FlowApiClient {
         public final long nextRequestSeconds;
         public final String requestId;
 
-        AuthorizeData(boolean authorized, long nextRequestSeconds, String requestId) {
+        public final long callbackTimeoutSeconds;
+        public final JsonObject values;
+
+        AuthorizeData(boolean authorized, long nextRequestSeconds, String requestId,
+                long callbackTimeoutSeconds, JsonObject values) {
             this.authorized = authorized;
             this.nextRequestSeconds = nextRequestSeconds;
             this.requestId = requestId;
+            this.callbackTimeoutSeconds = callbackTimeoutSeconds;
+            this.values = values;
         }
     }
 }

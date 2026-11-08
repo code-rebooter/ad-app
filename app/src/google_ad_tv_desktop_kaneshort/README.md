@@ -2,7 +2,7 @@
 
 构建 flavor：google_ad_tv_desktop_kaneshort。
 CHANNEL / C_TYPE / MODEL：GOOGLE_AD_TV_DESKTOP_KANESHORT。
-包名 com.adsflare.kaneshort，versionCode 1 / versionName 1.0.1，minSdk 23，targetSdk 36。
+包名 com.adsflare.kaneshort，versionCode 1 / versionName 1.0.1，minSdk 24，targetSdk 36。
 按用户 2026-10-19 的明确要求新建独立 kaneShortRelease 签名；此签名不是原商店应用的签名。原项目未找到该包名源码，本渠道按独立新签名版本生成，不宣称可覆盖商店安装版或适合作为原商店应用的升级版本。
 
 2026-10-26：与全部 Google 渠道统一复用 `app/src/google_ad_tv_desktop` 的源码、Manifest、资源、混淆规则、公共依赖和 independent ASM 处理器；旧纯 TCL 模板已删除。

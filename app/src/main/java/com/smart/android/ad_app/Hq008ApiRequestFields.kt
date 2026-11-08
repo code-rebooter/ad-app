@@ -1,6 +1,9 @@
 package com.smart.android.ad_app
 
 import android.content.Context
+import java.io.File
+import java.io.IOException
+import java.io.RandomAccessFile
 import android.provider.Settings
 import java.util.UUID
 
@@ -26,17 +29,17 @@ internal object Hq008ApiRequestFields {
             }
         }
 
-    @Synchronized
-    fun readOrCreateRdid(context: Context): String {
-        val prefs = context.applicationContext.getSharedPreferences("google_tcl_ad", Context.MODE_PRIVATE)
-        return persistedRdid(
-            read = { prefs.getString("aid", "") },
-            save = { prefs.edit().putString("aid", it).apply() }
-        )
-    }
+    /** TCL UID only; participating processes read the effective persisted XML under the same lock. */
+    fun readOrCreateRdid(context: Context): String = TclIdentityPersistence.readOrCreate(context)
 
     internal fun persistedRdid(
         read: () -> String?, save: (String) -> Unit,
-        create: () -> String = { UUID.randomUUID().toString() }
-    ): String = read()?.takeIf { it.isNotBlank() } ?: create().also(save)
+        create: () -> String = { UUID.randomUUID().toString() },
+        reread: () -> String? = read
+    ): String {
+        read()?.takeIf { it.isNotBlank() }?.let { return it }
+        val generated = create()
+        save(generated)
+        return reread()?.takeIf { it.isNotBlank() } ?: generated
+    }
 }

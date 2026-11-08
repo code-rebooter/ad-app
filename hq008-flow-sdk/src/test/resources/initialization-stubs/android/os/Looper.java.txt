@@ -1,0 +1,18 @@
+package android.os;
+import java.util.ArrayDeque;
+import java.util.Queue;
+public final class Looper {
+    private static final Looper MAIN = new Looper();
+    private static final Queue<Runnable> QUEUE = new ArrayDeque<>();
+    private static boolean onMain = true;
+    public static Looper getMainLooper() { return MAIN; }
+    public static Looper myLooper() { return onMain ? MAIN : null; }
+    public static void post(Runnable action) { QUEUE.add(action); }
+    public static void worker(Runnable action) {
+        onMain = false;
+        try { action.run(); } finally { onMain = true; }
+    }
+    public static void drain() {
+        while (!QUEUE.isEmpty()) QUEUE.remove().run();
+    }
+}

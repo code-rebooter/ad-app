@@ -299,7 +299,7 @@ public final class AndroidCompatLiveSources implements CompatMode1Runtime.Source
     private void collectNetwork(Inputs in) {
         in.networkProviderPresent=networkProviderPresent;NetworkCapabilities caps=networkCapabilities;
         in.networkCapabilitiesPresent=caps!=null;
-        if(caps!=null){in.networkVpn=caps.hasTransport(4);if(!in.networkVpn){in.networkWifi=caps.hasTransport(1);if(!in.networkWifi)in.networkCellular=caps.hasTransport(0);}}
+        if(caps!=null){in.networkVpn=caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN);if(!in.networkVpn){in.networkWifi=caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);if(!in.networkWifi)in.networkCellular=caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);}}
     }
     private Future<String> initializeHelperChecksum(final ResolvedFlags flags) {
         final SimplePromise<String> checksum=new SimplePromise<String>();

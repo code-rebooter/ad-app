@@ -1,0 +1,59 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+// Compile the exact same pure-IMA core sources as the app's IMA module. Only its
+// former app firmware/URL bridge references are redirected to this module.
+def bridgeReplacements = [
+    'com.smart.android.googleima.logging.PropertyLog':
+        'com.smart.android.tclad.ima.logging.PropertyLog',
+    'com.smart.android.ad_app.Hq008XhsxAarRuntimeBridge':
+        'com.smart.android.tclad.ima.GoogleImaFirmwareBridge',
+    'com.smart.android.ad_app.HaierAarUaPayloadNormalizerKt':
+        'com.smart.android.tclad.ima.HaierAarUaPayloadNormalizerKt'
+]
+def coreSources = tasks.register('prepareGoogleImaCoreSources', Sync) {
+    inputs.property('bridgeReplacements', bridgeReplacements)
+    from rootProject.file('ad-sdk-google-ima/src/main/java')
+    into layout.buildDirectory.dir('generated/googleImaCore/java')
+    filter { line ->
+        bridgeReplacements.inject(line) { value, replacement ->
+            value.replace(replacement.key, replacement.value)
+        }
+    }
+}
+
+android {
+    namespace 'com.smart.android.tclad.ima'
+    compileSdk 36
+    defaultConfig { minSdk 24; consumerProguardFiles 'consumer-rules.pro' }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.java.srcDir layout.buildDirectory.dir('generated/googleImaCore/java')
+}
+kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.8.0'
+    implementation 'androidx.media3:media3-ui:1.8.0'
+    implementation 'androidx.webkit:webkit:1.9.0'
+    implementation 'com.smart.android.tclad.ima.controlled:media3-exoplayer-ima:1.8.0'
+    implementation 'com.smart.android.tclad.ima.controlled:interactivemedia:3.35.1'
+    api 'com.google.code.gson:gson:2.13.2'
+    implementation 'com.google.guava:guava:33.3.1-android'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+}
+def verifyStandaloneRuntime = tasks.register('verifyStandaloneGoogleImaRuntime', Exec) {
+    dependsOn ':ad-sdk-google-ima:verifyControlledGoogleImaAars'
+    inputs.dir rootProject.file('gradle/google-ima-controlled-maven')
+    inputs.dir file('controlled-maven')
+    inputs.file file('tools/prepare_controlled_runtime.py')
+    commandLine 'python3', file('tools/prepare_controlled_runtime.py').absolutePath, '--check'
+}
+tasks.named('preBuild').configure { dependsOn coreSources, verifyStandaloneRuntime }
+
+// Run the app core's regression suite against the core compiled by this module.
+android.sourceSets.test.java.srcDir rootProject.file('ad-sdk-google-ima/src/test/java')

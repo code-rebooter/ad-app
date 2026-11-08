@@ -10,6 +10,17 @@ public interface AdTagProvider {
     }
     interface Cancellable { void cancel(); }
     interface Callback {
+        /** Called when the real address transport starts, before DNS/connection work. */
+        default void onHttpRequest() {}
+        /** Legacy URL-only consumers retain a per-resolution ID; the native SDK overrides this
+         * callback to receive the complete, unchanged response and apply its own requestId. */
+        default void onResolvedAd(ResolvedAd input) {
+            String url = input.toOriginalResponse().getData().getAdsUrl();
+            onResolved(okhttp3.HttpUrl.get(url).newBuilder()
+                    .setQueryParameter("requestId", java.util.UUID.randomUUID().toString()).build().toString());
+        }
+        /** Headers arrived from the real tag endpoint, including unsuccessful/empty responses. */
+        default void onHttpResponse(int status) {}
         void onResolved(String vastUrl);
         void onError(int code);
     }

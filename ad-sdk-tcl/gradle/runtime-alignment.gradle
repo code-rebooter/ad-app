@@ -20,7 +20,9 @@ configurations.configureEach { configuration ->
 dependencies {
     constraints {
         baseline.each { coordinate, expected ->
-            implementation(coordinate) { version { strictly(expected) }; because('TCL captured runtime baseline') }
+            // Verify/force the captured versions in TCL's own build above, but
+            // allow a consuming app to share newer compatible dependencies with IMA.
+            implementation(coordinate) { version { require(expected) }; because('TCL captured runtime baseline; consumers may select newer shared libraries') }
         }
     }
 }

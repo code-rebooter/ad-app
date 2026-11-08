@@ -1,0 +1,71 @@
+// Build a local, reviewable customer repository; never publishes to a network service.
+def modules = [
+    ':ad-sdk-tcl': 'ad-sdk-tcl',
+    ':ad-sdk-tcl:runtime-base': 'ad-sdk-tcl-runtime-base',
+    ':ad-sdk-tcl:runtime-player': 'ad-sdk-tcl-runtime-player',
+    ':ad-sdk-tcl:runtime-media': 'ad-sdk-tcl-runtime-media',
+    ':ad-sdk-tcl:google-ima': 'ad-sdk-tcl-google-ima',
+    ':ad-sdk-tcl:combined': 'ad-sdk-tcl-combined'
+]
+allprojects { project ->
+    if (project.path == ':google-ima-consumer-smoke') {
+        project.afterEvaluate {
+            project.tasks.register('verifyCustomerSdkClasspath') {
+                doLast {
+                    def configuration = project.configurations.getByName('deviceReleaseRuntimeClasspath')
+                    def selected = new TreeMap<String, String>()
+                    configuration.incoming.resolutionResult.allComponents.each { component ->
+                        if (component.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier) {
+                            def id = component.moduleVersion
+                            selected["${id.group}:${id.name}".toString()] = id.version
+                        } else if (component.id instanceof org.gradle.api.artifacts.component.ProjectComponentIdentifier &&
+                            component.id.projectPath != project.path) {
+                            throw new GradleException("Customer smoke still consumes a source project: ${component.id}")
+                        }
+                    }
+                    modules.values().each { name ->
+                        if (selected["com.smart.android:${name}".toString()] == null)
+                            throw new GradleException("Customer dependency missing ${name}")
+                    }
+                    def controlled = selected.keySet().findAll { it.startsWith('com.smart.android.tclad.ima.controlled:') }
+                    if (controlled.size() != 5) throw new GradleException("Expected five controlled Google artifacts: ${controlled}")
+                    def output = new File(project.rootProject.file(project.findProperty('customerSdkOutputRoot') ?: 'build/customer-sdk'), 'docs/dependency-versions.json')
+                    output.parentFile.mkdirs()
+                    output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(selected)) + '\n'
+                    logger.lifecycle("Verified Maven consumption of all six SDK modules and five controlled artifacts (${selected.size()} modules total)")
+                }
+            }
+        }
+    }
+    if (!modules.containsKey(project.path)) return
+    project.group = 'com.smart.android'
+    project.version = project.findProperty('sdkDeliveryVersion') ?: '2026.11.06'
+    project.pluginManager.apply('maven-publish')
+    project.plugins.withId('com.android.library') {
+        project.android.publishing.singleVariant('release') { withSourcesJar() }
+        project.afterEvaluate {
+            project.publishing {
+                publications {
+                    release(MavenPublication) {
+                        from project.components.release
+                        artifactId = modules[project.path]
+                    }
+                }
+                repositories {
+                    maven {
+                        name = 'Customer'
+                        url = new File(project.rootProject.file(project.findProperty('customerSdkOutputRoot') ?: 'build/customer-sdk'), 'repository').toURI()
+                    }
+                }
+            }
+        }
+    }
+}
+settingsEvaluated { settings ->
+    if (settings.providers.gradleProperty('customerSdkRepository').isPresent()) {
+        settings.dependencyResolutionManagement.repositories.maven {
+            url = new File(settings.providers.gradleProperty('customerSdkRepository').get()).toURI()
+            content { includeGroup 'com.smart.android'; includeGroup 'com.smart.android.tclad.ima.controlled' }
+        }
+    }
+}

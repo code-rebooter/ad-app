@@ -84,4 +84,25 @@ class TclPlaybackStateTest {
         state.finish(181_000, "request_start_timeout")
         assertNull(state.timeoutReason(999_000))
     }
+
+    @Test fun `final player snapshot cannot reopen completed ad or reset transition deadline`() {
+        val state = playing(20_000)
+        state.completeSegment("COMPLETED", 20_100)
+        val deadline = state.current!!.budget.hardDeadlineMs
+        assertFalse(state.select(TclPlaybackState.Metadata("first", adPosition = 1, totalAds = 2), 21_000))
+        state.snapshot(21_000, 19_900, 20_000, true, false, 0)
+        assertEquals(1, state.segments.size)
+        assertEquals("COMPLETED", state.current!!.terminalEvent)
+        assertEquals(deadline, state.current!!.budget.hardDeadlineMs)
+        assertEquals("ad_pod_transition_timeout", state.timeoutReason(55_100))
+    }
+
+    @Test fun `late metadata from a finished creative cannot replace the next ad`() {
+        val state = playing(20_000)
+        state.completeSegment("COMPLETED", 20_100)
+        assertTrue(state.select(TclPlaybackState.Metadata("second", adPosition = 2, totalAds = 2), 21_000))
+        assertFalse(state.select(TclPlaybackState.Metadata("first", adPosition = 1, totalAds = 2), 21_100))
+        assertEquals(2, state.segments.size)
+        assertEquals("second", state.current!!.metadata.key)
+    }
 }

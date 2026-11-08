@@ -27,6 +27,7 @@ public final class Ad {
         private ResolvedAd resolved;
         private RequestParams params;
         private AdTagProvider provider;
+        private ExecutionConfig executionConfig;
         private final Handler main = new Handler(Looper.getMainLooper());
         private Builder(Context context) {
             if (context == null) throw new IllegalArgumentException("context required");
@@ -46,50 +47,89 @@ public final class Ad {
         public Builder setVastUrl(String url) { resolved = new ResolvedAd.Builder(url).build(); return this; }
         public Builder setResolvedAd(ResolvedAd value) { resolved = value; return this; }
         public Builder setRequestParams(RequestParams value) { params = value; return this; }
+        public Builder setExecutionConfig(ExecutionConfig value) { executionConfig = value; return this; }
         public Builder setAdTagProvider(AdTagProvider value) { provider = value; return this; }
         public Controller start() {
             if (!lazy || playerType != 0) throw new IllegalArgumentException("Use lazyLoad and original playerType=0");
             Controller handle = new Controller();
-            Runnable enterWhenReady = () -> {
+            Runnable begin = () -> {
                 if (handle.cancelledBeforeEntry()) return;
-                if (resolved != null) enter(handle, resolved);
-                else {
-                    AdTagProvider source = provider == null ? Initialization.getAdTagProvider() : provider;
-                    if (source == null) { listener.onAdError(900); return; }
-                    handle.upstream(source.resolveCancellable(params == null ? new RequestParams.Builder().build() : params, new AdTagProvider.Callback() {
-                        @Override public void onResolved(String url) {
-                            main.post(() -> { if (!handle.cancelledBeforeEntry()) enter(handle, new ResolvedAd.Builder(url).build()); });
+                handle.begin(executionConfig, listener, volume);
+                if (handle.cancelledBeforeEntry()) return;
+                Runnable ready = () -> {
+                    if (handle.cancelledBeforeEntry()) return;
+                    if (resolved != null) enter(handle, resolved);
+                    else {
+                        AdTagProvider source = provider == null ? Initialization.getAdTagProvider() : provider;
+                        if (source == null) { handle.execution().fail(900, "missing_ad_tag_provider"); return; }
+                        try {
+                            handle.upstream(source.resolveCancellable(params == null ? new RequestParams.Builder().build() : params,
+                                new AdTagProvider.Callback() {
+                                    @Override public void onHttpRequest() { handle.execution().addressAttempt(); }
+                                    @Override public void onHttpResponse(int status) { handle.execution().addressResponse(status); }
+                                    @Override public void onResolvedAd(ResolvedAd input) {
+                                        main.post(() -> { if (!handle.cancelledBeforeEntry()) enter(handle, input); });
+                                    }
+                                    @Override public void onResolved(String url) {
+                                        main.post(() -> { if (!handle.cancelledBeforeEntry()) enter(handle, new ResolvedAd.Builder(url).build()); });
+                                    }
+                                    @Override public void onError(int code) {
+                                        main.post(() -> {
+                                            if (!handle.cancelledBeforeEntry()) {
+                                                handle.execution().addressFailure("provider_error_" + code);
+                                                handle.execution().fail(code, "tag_request_failed");
+                                            }
+                                        });
+                                    }
+                                }));
+                        } catch (RuntimeException error) {
+                            handle.execution().addressFailure(error.toString());
+                            handle.execution().fail(900, "tag_request_failed");
                         }
-                        @Override public void onError(int code) { main.post(() -> listener.onAdError(code)); }
-                    }));
-                }
+                    }
+                };
+                if (NativeRuntime.isInitialized()) ready.run();
+                else NativeRuntime.initializeAsync(context, Ad.get().isLogEnabled(), () -> main.post(ready),
+                    error -> main.post(() -> handle.execution().fail(900, "sdk_init_failed")));
             };
-            if (NativeRuntime.isInitialized()) {
-                if (Looper.myLooper() == Looper.getMainLooper()) enterWhenReady.run();
-                else main.post(enterWhenReady);
-            } else {
-                NativeRuntime.initializeAsync(context, Ad.get().isLogEnabled(), () -> main.post(enterWhenReady),
-                    error -> main.post(() -> listener.onAdError(900)));
-            }
+            if (Looper.myLooper() == Looper.getMainLooper()) begin.run(); else main.post(begin);
             return handle;
         }
         private void enter(Controller handle, ResolvedAd input) {
-            com.tcl.ff.component.overseabase.base.constant.AdType type = com.tcl.ff.component.overseabase.base.constant.AdType.WATERFALL;
-            com.tcl.ff.component.vastad.core.callbacks.AdStatusListener callbacks = new com.tcl.ff.component.vastad.core.callbacks.AdStatusListener() {
-                @Override public void onAdLoaded(com.tcl.ff.component.vastad.Controller original) { handle.bind(original); listener.onAdLoaded(handle); }
-                @Override public void onAdStartPlay() { listener.onAdStartPlay(); }
-                @Override public void onAdStartPlay(double seconds) { listener.onAdStartPlay(seconds); }
-                @Override public void onAdFinished() { listener.onAdFinished(); }
-                @Override public void onAdError(int code) { listener.onAdError(code); }
-                @Override public void onContainerSizeError() { listener.onContainerSizeError(); }
-            };
-            var config = com.tcl.ff.component.vastad.Ad.get().begin(context)
-                .lazyLoad().setAdType(type).setVolume(volume)
-                .setPlayerType(playerType).setPlayerViewType(viewType)
-                .listen(callbacks);
-            if (width != 0 || height != 0) config.size(width, height);
-            if (params != null) config.setRequestParams(originalParams());
-            handle.bind(OriginalBoundary.start(config, input));
+            if (handle.cancelledBeforeEntry()) return;
+            try {
+                handle.execution().starting(() -> {
+                    var type = com.tcl.ff.component.overseabase.base.constant.AdType.WATERFALL;
+                    var callbacks = new com.tcl.ff.component.vastad.core.callbacks.AdStatusListener() {
+                        @Override public void onAdLoaded(com.tcl.ff.component.vastad.Controller original) {
+                            main.post(() -> {
+                                if (handle.cancelledBeforeEntry()) return;
+                                handle.bind(original);
+                                handle.execution().loaded(() -> listener.onAdLoaded(handle));
+                            });
+                        }
+                        @Override public void onAdStartPlay() { main.post(() -> handle.execution().started(null)); }
+                        @Override public void onAdStartPlay(double seconds) { main.post(() -> handle.execution().started(seconds)); }
+                        @Override public void onAdFinished() { main.post(() -> handle.execution().completed()); }
+                        @Override public void onAdError(int code) { main.post(() -> handle.execution().fail(code, null)); }
+                        @Override public void onContainerSizeError() {
+                            main.post(() -> {
+                                if (handle.cancelledBeforeEntry()) return;
+                                listener.onContainerSizeError();
+                                handle.execution().fail(903, "container_size_error");
+                            });
+                        }
+                    };
+                    var config = com.tcl.ff.component.vastad.Ad.get().begin(context)
+                        .lazyLoad().setAdType(type).setVolume(volume)
+                        .setPlayerType(playerType).setPlayerViewType(viewType).listen(callbacks);
+                    if (width != 0 || height != 0) config.size(width, height);
+                    if (params != null) config.setRequestParams(originalParams());
+                    handle.bind(OriginalBoundary.start(config, input));
+                });
+            } catch (RuntimeException | LinkageError error) {
+                handle.execution().fail(900, "sdk_request_failed");
+            }
         }
         private com.tcl.ff.component.overseabasebusiness.requestparams.RequestParams originalParams() {
             var builder = new com.tcl.ff.component.overseabasebusiness.requestparams.RequestParams.Builder();

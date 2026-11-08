@@ -1,0 +1,6 @@
+{
+  "name": "ump-privacy-options-regression",
+  "private": true,
+  "scripts": { "test": "node decision-script.cjs" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

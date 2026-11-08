@@ -67,4 +67,22 @@ class Hq008SdkRequestReportsTest {
         assertTrue(replayed)
         assertTrue(persisted.isEmpty())
     }
+
+    @Test fun `old delivery ACK keeps same-key replacement for the appended successor`() = runBlocking {
+        val persisted = mutableMapOf("report" to payload)
+        val newer = payload.replace("TCL_FFA", "NEW_CHANNEL")
+        val sent = mutableListOf<String>()
+        val ack: (String, String) -> Unit = { key, saved ->
+            if (persisted[key] == saved) persisted.remove(key)
+        }
+        assertTrue(Hq008SdkRequestReports.deliver("report", persisted::get, ack) {
+            sent += it
+            persisted["report"] = newer
+            true
+        })
+        assertEquals(newer, persisted["report"])
+        assertTrue(Hq008SdkRequestReports.deliver("report", persisted::get, ack) { sent += it; true })
+        assertEquals(listOf(payload, newer), sent)
+        assertTrue(persisted.isEmpty())
+    }
 }

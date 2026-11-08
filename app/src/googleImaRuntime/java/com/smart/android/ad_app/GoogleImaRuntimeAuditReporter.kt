@@ -26,6 +26,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private val measurementStateEvents = mutableListOf<MeasurementStateRecord>()
     private val identityControlEvents = mutableListOf<IdentityControlRecord>()
     private val omidCalls = linkedMapOf<String, Int>()
+    private val webViewTeardownEvents = mutableListOf<Map<String, Any>>()
     private val omidSessions = linkedMapOf<String, OmidSessionStatus>()
     private val imaAdEventCounts = linkedMapOf<String, Int>()
     private val imaAdEvents = mutableListOf<ImaAdEventRecord>()
@@ -101,6 +102,9 @@ internal class GoogleImaRuntimeAuditReporter(
                 "identity_control" -> recordIdentityControl(event)
                 "ima_measurement_state" -> recordMeasurementState(event)
                 "omid_bridge" -> recordOmid(event)
+                "webview_teardown" -> if (webViewTeardownEvents.size < 16) {
+                    webViewTeardownEvents += event.fields + mapOf("elapsed_realtime_ms" to event.elapsedRealtimeMs)
+                }
                 "ima_ad_event" -> recordImaAdEvent(event)
                 "effective_ad_start" -> recordEffectiveAdStart(event)
                 "player_state", "playback_progress", "first_frame", "terminal_snapshot" ->
@@ -118,7 +122,7 @@ internal class GoogleImaRuntimeAuditReporter(
     }
 
     fun hasVastFill(): Boolean = synchronized(lock) {
-        vastResponses.any { it.parseError == null && (it.inlineCount > 0 || it.wrapperCount > 0) }
+        vastResponses.any { it.parseError == null && it.inlineCount > 0 && it.mediaFileCount > 0 }
     }
 
     fun finish(terminalReason: String) {
@@ -167,6 +171,7 @@ internal class GoogleImaRuntimeAuditReporter(
             encodedXml = gzipBase64(xmlBytes),
             wrapperCount = parsed.wrapperCount,
             inlineCount = parsed.inlineCount,
+            mediaFileCount = parsed.mediaFileCount,
             verificationScriptCount = parsed.scripts.size,
             parseError = parsed.error
         )
@@ -603,6 +608,7 @@ internal class GoogleImaRuntimeAuditReporter(
                         "xml_sha256" to response.xmlSha256,
                         "wrapper_count" to response.wrapperCount,
                         "inline_count" to response.inlineCount,
+                        "media_file_count" to response.mediaFileCount,
                         "verification_script_count" to response.verificationScriptCount,
                         "parse_error" to response.parseError,
                         "artifact_id" to "vast-response-${response.responseIndex}"
@@ -626,6 +632,7 @@ internal class GoogleImaRuntimeAuditReporter(
                             "error_code" to response.errorCode,
                             "wrapper_count" to response.wrapperCount,
                             "inline_count" to response.inlineCount,
+                            "media_file_count" to response.mediaFileCount,
                             "verification_script_count" to response.verificationScriptCount,
                             "parse_error" to response.parseError
                         ),
@@ -813,6 +820,7 @@ internal class GoogleImaRuntimeAuditReporter(
                     }
                 ),
                 "omid_runtime_audit" to linkedMapOf(
+                    "webview_teardown_events" to webViewTeardownEvents,
                     "method_call_counts" to omidCalls,
                     "initialized" to ((omidCalls["init"] ?: 0) > 0),
                     "session_started" to ((omidCalls["startSession"] ?: 0) > 0),
@@ -949,7 +957,7 @@ internal class GoogleImaRuntimeAuditReporter(
         val macroValues = linkedMapOf<String, String>()
         matches.forEach { (_, _, values) ->
             values.forEach { (name, value) ->
-                macroValues.putIfAbsent(name, value)
+                macroValues.getOrPut(name) { value }
             }
         }
         return WebResourceMatch(aggregate, matches.map { it.first }, macroValues)
@@ -962,6 +970,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private fun parseVast(xml: String): ParsedVast {
         var wrapperCount = 0
         var inlineCount = 0
+        var mediaFileCount = 0
         val scripts = mutableListOf<VerificationScript>()
         return runCatching {
             val factory = DocumentBuilderFactory.newInstance().apply {
@@ -978,12 +987,16 @@ internal class GoogleImaRuntimeAuditReporter(
                 when (element.localTagName()) {
                     "Wrapper" -> wrapperCount += 1
                     "InLine" -> inlineCount += 1
+                    "MediaFile" -> if (element.textContent.orEmpty().isNotBlank() &&
+                        generateSequence<Node>(element) { it.parentNode }.any {
+                            it is Element && it.localTagName() == "InLine"
+                        }) mediaFileCount += 1
                     "Verification" -> scripts += parseVerification(element)
                 }
             }
-            ParsedVast(wrapperCount, inlineCount, scripts, null)
+            ParsedVast(wrapperCount, inlineCount, mediaFileCount, scripts, null)
         }.getOrElse { error ->
-            ParsedVast(wrapperCount, inlineCount, scripts, error.message ?: error.javaClass.simpleName)
+            ParsedVast(wrapperCount, inlineCount, mediaFileCount, scripts, error.message ?: error.javaClass.simpleName)
         }
     }
 
@@ -1080,6 +1093,7 @@ internal class GoogleImaRuntimeAuditReporter(
         val encodedXml: String,
         val wrapperCount: Int,
         val inlineCount: Int,
+        val mediaFileCount: Int,
         val verificationScriptCount: Int,
         val parseError: String?
     )
@@ -1087,6 +1101,7 @@ internal class GoogleImaRuntimeAuditReporter(
     private data class ParsedVast(
         val wrapperCount: Int,
         val inlineCount: Int,
+        val mediaFileCount: Int,
         val scripts: List<VerificationScript>,
         val error: String?
     )

@@ -5,6 +5,7 @@ import androidx.annotation.Keep
 import com.smart.android.ad_app.google.GoogleGamPatchClient
 import com.speed.ext.getMacAddress
 import com.tcl.ff.component.media.ima.api.AdExtra
+import com.tcl.ff.component.media.ima.tcl.xmlmodels.Ad as TclVastAd
 import com.tcl.ff.component.media.ima.api.VastRequest
 import com.tcl.ff.component.media.ima.constant.AdsEvent
 import com.tcl.ff.component.media.ima.flat.AdsMaterialInfo
@@ -35,6 +36,7 @@ internal class TclRuntimeSession(
     @Volatile var tagReady = false
     @Volatile var lastVast: TclVastObservation? = null
     @Volatile var lastDownloadError: String? = null
+    @Volatile var lastMaterialParseError: String? = null
     @Volatile var patchError: String? = null
     val downloads = TclDownloadCallTracker()
     val materials = mutableMapOf<AdsMaterialInfo, Map<String, Any?>>()
@@ -56,6 +58,7 @@ internal class TclRuntimeSession(
         patchError != null -> "gam_patch_failed"
         started -> "playback_failed"
         loaded -> "playback_start_failed"
+        lastMaterialParseError != null -> "vast_parse_failed"
         filled -> "media_load_failed"
         lastDownloadError != null -> if (tagReady) "vast_request_failed" else "tag_request_failed"
         lastVast?.parseError != null -> "vast_parse_failed"
@@ -88,6 +91,7 @@ object TclRuntimeBridge {
     private val roots = mutableMapOf<String, Root>()
 
     internal fun create(id: String, channelId: String, sound: Boolean, state: TclPlaybackState,
+                        patchEnabled: Boolean = false,
                         onRequestResult: (Map<String, Any?>) -> Unit = {},
                         listener: (TclRuntimeEvent) -> Unit): TclRuntimeSession {
         val session = TclRuntimeSession(id, channelId, state,
@@ -102,6 +106,7 @@ object TclRuntimeBridge {
         session.patch = TclBackendPatch(parameters,
             { (session.deadlineMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L) },
             GoogleGamPatchClient.shared,
+            enabled = patchEnabled,
             onRequest = { url -> session.event("patch_request", mapOf("source_url" to url)) },
             onReady = { url ->
                 session.patchError = null
@@ -202,6 +207,15 @@ object TclRuntimeBridge {
                 session.event("filled", fields + mapOf("response_length" to xml.length))
             }
         }
+    }
+
+    @JvmStatic fun onMaterialParseFailure(request: VastRequest?, ad: TclVastAd?, error: RuntimeException) {
+        if (request == null) return
+        val session = synchronized(lock) { requests[request.getRequestID()]?.takeIf { it.active } } ?: return
+        session.lastMaterialParseError = error.javaClass.simpleName + ":" + error.message.orEmpty()
+        session.event("native_material_parse_error", mapOf("error" to session.lastMaterialParseError,
+            "native_request_id" to request.getRequestID(), "ad_id" to ad?.getId(),
+            "ad_position" to ad?.getIndex(), "total_ads" to ad?.getCount()))
     }
 
     @JvmStatic fun onSdkEvent(engine: Any, request: VastRequest?, event: AdsEvent?) {

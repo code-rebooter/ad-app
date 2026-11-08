@@ -46,6 +46,28 @@ abstract class TclOriginalRuntimeTask extends DefaultTask {
                         def result = TclRuntimeIsolation.isolate(bytes)
                         bytes = result.bytes
                         new File(output, 'isolation-manifest.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(result.report)) + '\n'
+                        // Keep the isolated reference jar intact; ship the same app observation hooks separately.
+                        def audited = new ByteArrayOutputStream()
+                        Map<String, byte[]> auditedEntries = [:]
+                        new java.util.zip.ZipOutputStream(audited).withCloseable { destination ->
+                            new ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { source ->
+                                java.util.zip.ZipEntry item
+                                while ((item = source.nextEntry) != null) {
+                                    if (item.directory) continue
+                                    byte[] content = source.readAllBytes()
+                                    if (item.name.endsWith('.class')) content = TclRuntimeAuditPatcher.patchForBridge(
+                                        item.name, content, 'com/smart/android/tclad/runtime/TclRuntimeBridge')
+                                    auditedEntries[item.name] = content
+                                    def saved = new java.util.zip.ZipEntry(item.name)
+                                    saved.time = 0L
+                                    destination.putNextEntry(saved)
+                                    destination.write(content)
+                                    destination.closeEntry()
+                                }
+                            }
+                        }
+                        TclRuntimeAuditPatcher.verify(auditedEntries, 'com/smart/android/tclad/runtime/TclRuntimeBridge')
+                        new File(output, 'audited-classes.jar').bytes = audited.toByteArray()
                     }
                     target.bytes = bytes
                 }

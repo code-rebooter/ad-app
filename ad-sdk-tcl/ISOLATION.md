@@ -1,5 +1,9 @@
 # adurl-only 执行范围
 
+2026-11-06 交付修正：SDK 独立桥接在原厂 `c/d.a(VastRequest, Ad, AdMaxDuration)` 素材构建边界捕获 `RuntimeException`，记录 `vast_parse_failed` 后返回 null，交由原厂调用者已有的空素材失败分支处理。正常 XML 解析、素材选择和 tracking 仍执行原厂实现；不改写 XML，不捕获 Error。此项修复真机空 InLine 引发的空指针崩溃，仅作用于 SDK，app 的观察补丁不启用该恢复行为。因此交付 runtime-media 与原厂或旧观察版并非逐字节、逐异常行为相同。当前验收见 [二合一交付验证](../docs/reports/2026-11-06-combined-sdk-customer-validation.md)。
+
+2026-11-05 补充：adurl-only-v4 仍是原厂业务隔离参考；交付 jar 在该参考上添加与 app 相同的运行时观察点。显式 ExecutionConfig 可调用宿主后台 patch，并在 google_tcl_ad/aid 保存宿主 rdid；该存储属于宿主后台参数，不恢复 TCL 原厂 aid、BI、配置或业务取链入口。具体行为见 README 的本轮执行配置。
+
 2026-10-12，执行 profile `adurl-only-v4`。保留原厂需要的广告链路，同时禁止与该广告链路无关的 TCL 自有功能。不能再用“原厂全部 class 相同”代替副作用隔离证明。
 
 ## 允许

@@ -4,6 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TclErrorClassificationTest {
+    @Test fun `native material exception uses parse failure before any fill classification`() {
+        val session = session()
+        session.lastMaterialParseError = "NullPointerException"
+        assertEquals("vast_parse_failed", session.failureReason(false, false))
+    }
+
     private fun session() = TclRuntimeSession("request", "TCL_FFA", TclPlaybackState(0L, 180_000L),
         TclRuntimeAuditReporter("request", "TCL_FFA", false, false)) { }
 

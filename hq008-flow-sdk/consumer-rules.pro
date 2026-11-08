@@ -2,3 +2,8 @@
 -keep public class com.smart.android.hq008flow.Hq008FlowConfig { public *; }
 -keep public class com.smart.android.hq008flow.Hq008AdSession { public *; }
 -keep public interface com.smart.android.hq008flow.Hq008AdCallback { public *; }
+
+-keep public class com.smart.android.hq008flow.Hq008Authorization { public *; }
+-keep class com.smart.android.hq008flow.internal.ReportWorker { public <init>(...); }
+-keep public interface com.smart.android.hq008flow.Hq008ConsentGate { *; }
+-keep public interface com.smart.android.hq008flow.Hq008ConsentGate$Result { *; }
